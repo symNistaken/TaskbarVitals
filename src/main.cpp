@@ -15,6 +15,7 @@
 #include <cstring>
 #include <cwchar>
 #include <map>
+#include <memory>
 #include <set>
 #include <string>
 #include <utility>
@@ -29,6 +30,7 @@
 #include "labels.h"
 #include "refresh_policy.h"
 #include "memory_trim.h"
+#include "panel.h"
 #include "report.h"
 #include "rename_dialog.h"
 #include "offset_dialog.h"
@@ -801,7 +803,8 @@ void UpdateWidget() {
         std::wstring line = L"GPU (" + g_gpu.name + L"): ";
         if (gpuUse >= 0) line += std::to_wstring(gpuUse) + L"%";
         if (gpuTemp >= 0) line += (gpuUse >= 0 ? L", " : L"") + std::to_wstring(gpuTemp) + L" °C";
-        reading(0xEEA1, gpuUse, line, temp);
+        reading(0xE7F4, gpuUse, line, temp);  // TVMonitor: reads as "graphics" and stays apart from the CPU chip
+        items.back().heat = sysmon::HeatLevel(gpuTemp);
     }
     if (g_showVram && g_gpu.available && g_gpu.vram >= 0) {
         wchar_t gb[64];
@@ -861,6 +864,7 @@ void OnResults(std::vector<DeviceStatus>& results) {
     Reconcile();  // react to the new device list now, not at the next timer tick
     UpdatePlaceholder();
     UpdateWidget();
+    panel::Refresh();  // new levels in the settings panel, if it is open
     memory_trim::Soon();  // the poll (HID, Bluetooth, drivers) is done: give its pages back until the next one
 }
 
@@ -1440,7 +1444,7 @@ UINT TrackAtCursor(HMENU menu) {
     return cmd;
 }
 
-// The full menu (Shift + right click, the keyboard, and tray mode keep it as the complete fallback).
+// The full menu: Shift + click and the keyboard keep it as the complete fallback to the settings panel.
 void ShowMenu() {
     ApplyMenuTheme(g_lightTaskbar);
     MenuIcons icons(g_lightTaskbar);  // freed after the menu closes
@@ -1449,6 +1453,93 @@ void ShowMenu() {
     DestroyMenu(model.menu);
     memory_trim::Soon();
     RunCommand(cmd, model);
+}
+
+// ---- settings panel (panel.cpp): the menu is its model ----
+
+MenuModel g_panelModel;
+std::unique_ptr<MenuIcons> g_panelIcons;
+
+void PanelRelease() {
+    if (g_panelModel.menu) DestroyMenu(g_panelModel.menu);
+    g_panelModel = MenuModel();
+    g_panelIcons.reset();
+}
+
+HMENU PanelBuild(std::vector<panel::Device>& devices) {
+    PanelRelease();
+    ApplyMenuTheme(g_lightTaskbar);  // the panel's drop-downs are menus too
+    g_panelIcons = std::make_unique<MenuIcons>(g_lightTaskbar);
+    g_panelModel = BuildMenu(*g_panelIcons);
+    for (const auto& key : g_panelModel.keys) {
+        panel::Device d;
+        d.key = key;
+        d.hidden = IsHidden(key);
+        auto it = g_entries.find(key);
+        if (it != g_entries.end()) {
+            d.name = DisplayName(it->second);
+            d.status = StatusText(it->second);
+            d.glyph = widget::DeviceGlyph(it->second.st.kind, it->second.st.via == L"Bluetooth");
+        }
+        devices.push_back(d);
+    }
+    return g_panelModel.menu;
+}
+
+void PanelRun(UINT cmd) { RunCommand(cmd, g_panelModel); }
+
+bool PanelLight() { return g_lightTaskbar; }
+
+// Which tab each menu item goes to. Ids not listed here land in General, so no menu option is ever missing.
+panel::Place PanelPlace(UINT id) {
+    using S = panel::Section;
+    using K = panel::Kind;
+    if (id >= ID_DEVICE_FIRST) return { S::Devices, K::Device };
+    if (id >= ID_POSITION_FIRST && id <= ID_POSITION_FIRST + ARRAYSIZE(POSITION_OFFSETS)) return { S::Appearance, K::Choice };
+    if (id >= ID_POLL_FIRST && id < ID_POLL_FIRST + ARRAYSIZE(POLL_SECONDS)) return { S::Devices, K::Choice };
+    switch (id) {
+        case ID_HIDE_LAST_KNOWN:
+        case ID_TRAY_WHEN_EMPTY:
+        case ID_SHOW_DISCONNECTED:
+        case ID_DIM_SLEEPING:
+        case ID_RECORD_HISTORY: return { S::Devices, K::Toggle };
+        case ID_LIMIT_OFF: return { S::Devices, K::Choice };
+        case ID_SHOW_CPU:
+        case ID_SHOW_RAM:
+        case ID_SHOW_GPU:
+        case ID_SHOW_GPU_TEMP:
+        case ID_SHOW_VRAM: return { S::System, K::Toggle };
+        case ID_MODE_WIDGET:
+        case ID_MODE_TRAY: return { S::Appearance, K::Radio };
+        case ID_WIDGET_BACKGROUND:
+        case ID_STACKED:
+        case ID_FAR_LEFT:
+        case ID_BRAND_COLORS: return { S::Appearance, K::Toggle };
+        case ID_PLACE_AUTO:
+        case ID_MONITOR_ALL: return { S::Appearance, K::Choice };
+        case ID_LANG_AUTO: return { S::General, K::Choice };
+        case ID_AUTOSTART:
+        case ID_AUTO_UPDATE: return { S::General, K::Toggle };
+        case ID_REFRESH:
+        case ID_EXIT: return { S::Footer, K::Action };
+        case 0: return { S::Skip, K::Action };  // the greyed hint line at the top of the menu
+        default: return { S::General, K::Action };
+    }
+}
+
+// Left or right click on the strip or the tray icon: the settings panel; with Shift held, the full menu.
+void OpenSettings() {
+    if (GetKeyState(VK_SHIFT) < 0) {
+        ShowMenu();
+        return;
+    }
+    panel::Host host;
+    host.build = PanelBuild;
+    host.run = PanelRun;
+    host.release = PanelRelease;
+    host.place = PanelPlace;
+    host.light = PanelLight;
+    panel::Show(g_inst, host);
 }
 
 // ---- worker thread ----------------------------------------------------------------------------
@@ -1618,12 +1709,12 @@ LRESULT CALLBACK WndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_TRAY:
             switch (LOWORD(lp)) {
                 case WM_CONTEXTMENU:
-                case NIN_SELECT:
-                case NIN_KEYSELECT: ShowMenu(); break;
+                case NIN_SELECT: OpenSettings(); break;
+                case NIN_KEYSELECT: ShowMenu(); break;  // keyboard: the menu, which is fully keyboard-usable
             }
             return 0;
         case WM_WIDGET_CLICK:
-            ShowMenu();
+            OpenSettings();
             return 0;
         case WM_ENDSESSION:  // sign-out / shutdown / installer restart manager
             if (wp) DestroyWindow(h);
@@ -1696,7 +1787,7 @@ LRESULT CALLBACK WndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_SETTINGCHANGE:
             if (lp && !lstrcmpW((LPCWSTR)lp, L"ImmersiveColorSet")) {
                 bool light = ReadLightTaskbar();
-                if (light != g_lightTaskbar) { g_lightTaskbar = light; ApplyMenuTheme(light); RedrawAll(); widget::SetLightTheme(light); }
+                if (light != g_lightTaskbar) { g_lightTaskbar = light; ApplyMenuTheme(light); RedrawAll(); widget::SetLightTheme(light); panel::Refresh(); }
             }
             return 0;
         case WM_DESTROY:
@@ -1706,7 +1797,9 @@ LRESULT CALLBACK WndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             KillTimer(h, TIMER_WIDGET);
             KillTimer(h, TIMER_ALERT_ICON);
             if (g_alertIconAdded) { TrayDelete(ALERT_ICON_ID); g_alertIconAdded = false; }
+            panel::Close();
             widget::Destroy();
+            gpumon::Stop();
             SetEvent(g_stopEvt);
             if (g_worker) WaitForSingleObject(g_worker, 5000);
             for (auto& [k, e] : g_entries) {

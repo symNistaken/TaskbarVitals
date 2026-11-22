@@ -234,3 +234,7 @@ Show GPU usage =
 Show GPU temperature = 
 Show GPU memory = 
 GPU memory = 
+Devices = 
+System = 
+Appearance = 
+General = 

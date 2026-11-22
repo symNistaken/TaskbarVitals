@@ -202,3 +202,7 @@ Show GPU usage = GPU kullanımını göster
 Show GPU temperature = GPU sıcaklığını göster
 Show GPU memory = GPU belleğini (VRAM) göster
 GPU memory = GPU belleği
+Devices = Cihazlar
+System = Sistem
+Appearance = Görünüm
+General = Genel
