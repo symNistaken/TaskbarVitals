@@ -2,7 +2,7 @@
 
 <p align="center">
   Battery levels for wireless peripherals, right on your taskbar.<br>
-  Optional CPU, RAM and GPU readings in the same compact strip.
+  Optional CPU, RAM and GPU readings on the Windows taskbar.
 </p>
 
 <p align="center">
@@ -12,8 +12,12 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshot.png" alt="Taskbar Vitals showing headset and mouse battery levels on the Windows taskbar" width="720">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/readme/banner-dark.svg">
+    <img src="docs/readme/banner-light.svg" alt="Illustration of Taskbar Vitals showing CPU, RAM and GPU readings at the left and device battery levels by the taskbar clock" width="960">
+  </picture>
 </p>
+<p align="center"><em>Illustrative preview; taskbar values are examples.</em></p>
 
 > **Quick start:** Download **[TaskbarVitals-Setup](https://github.com/symNistaken/TaskbarVitals/releases/latest)** and choose **Install for me only**. It requires no administrator rights. The portable ZIP is available on the same release page.
 
@@ -30,6 +34,7 @@
 | **Alerts and names** | Per-device low-battery thresholds and custom display names. |
 | **Lightweight** | Native C++/Win32, no separate runtime or background service. Some headset models use the bundled [HeadsetControl](https://github.com/Sapd/HeadsetControl) helper. |
 | **Languages** | 20 built-in interface languages, with local language files and community translations supported. |
+| **Local by default** | Device readings, names, alert choices and battery history are stored on your PC. Official Windows update checks do not send device or battery information. |
 
 A brand name alone does not guarantee that every model works. Check the [supported-device table](#supported-devices) for model, receiver, connection mode, verification and firmware notes.
 
@@ -56,9 +61,32 @@ The widget sits beside the Windows notification area and follows the taskbar the
 | Settings area | Options |
 |---|---|
 | **Devices** | Hide, reorder, rename devices, open battery history and set per-device alerts. |
-| **System** | Show CPU, RAM and GPU readings, including available temperature, VRAM and power data. |
+| **System** | Show CPU, RAM and GPU readings, including available temperature, VRAM and power data. Move CPU, RAM, GPU and GPU memory earlier or later with **System item order**. |
 | **Appearance** | Choose taskbar or tray mode; show the widget on all monitors, the main monitor or one display; adjust placement; stack icons above percentages; use brand colors; and add a background plate for transparent taskbar themes. |
 | **General** | Set refresh interval and language, manage history and update preferences, refresh now or exit. |
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/readme/states-dark.svg">
+    <img src="docs/readme/states-light.svg" alt="Examples of normal, low, charging, fully charged, sleeping and same-type device indicators" width="960">
+  </picture>
+</p>
+
+<details>
+  <summary>View a screenshot of the running app</summary>
+  <p align="center"><img src="docs/screenshot.png" alt="Taskbar Vitals running on the Windows taskbar" width="720"></p>
+</details>
+
+### Optional system readings
+
+| Reading | What appears | Availability |
+|---|---|---|
+| **CPU** | Usage percentage; optional package power in watts. | Power is shown when Windows exposes an Energy Meter counter. |
+| **RAM** | Used percentage and used / total memory in GB. | Read from Windows memory status. |
+| **GPU** | Engine usage, with optional temperature in °C and board power in watts. | Values depend on the graphics adapter and its Windows driver. GPU watts are available through NVIDIA's management library when supported. |
+| **GPU memory** | Used percentage and used / total VRAM in GB. | Shown when the adapter exposes memory counters. |
+
+System readings are sampled every two seconds while enabled. The battery widget and system readings can share one strip or sit in separate strips. Choose each strip's position independently: **Left end of the taskbar** or **Next to the clock**. A separate system strip is useful when you want CPU, RAM and GPU at one end while keeping device batteries beside the clock. On vertical taskbars, the readings use a column layout.
 
 Battery polling runs every 60 seconds by default. Change **Check battery every** in settings; reconnecting a device or waking the PC also triggers a refresh. The widget can appear on all monitors, the main monitor or a selected display. If the taskbar is vertical or unavailable, the app uses tray icons.
 
