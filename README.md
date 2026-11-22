@@ -1,86 +1,98 @@
-# Taskbar Vitals
+<h1 align="center">Taskbar Vitals</h1>
 
-Battery levels of your wireless mouse, headset, keyboard and controller, right on the Windows taskbar. CPU, RAM and GPU readings are coming next.
+<p align="center">
+  Battery levels for wireless peripherals, right on your taskbar.<br>
+  Optional CPU, RAM and GPU readings in the same compact strip.
+</p>
 
-> [!NOTE]
-> **A spiritual successor to BatteryHub.** Taskbar Vitals continues [BatteryHub](https://github.com/krisgfx9/Wireless-Device-Battery-Monitor) by krisgfx9 and its contributors, after the original repository disappeared from GitHub in November 2026. It starts from the original's last public source (with all of its ~100 device drivers) and keeps the same GPL-3.0 license. The idea, the taskbar strip and the device protocols come from the original project, and the credit for them goes to its authors. This is not an official release of BatteryHub.
+<p align="center">
+  <a href="https://github.com/symNistaken/TaskbarVitals/releases/latest"><img src="https://img.shields.io/github/v/release/symNistaken/TaskbarVitals?label=Latest%20release" alt="Latest release"></a>
+  <a href="https://github.com/symNistaken/TaskbarVitals/blob/main/LICENSE"><img src="https://img.shields.io/github/license/symNistaken/TaskbarVitals" alt="GPL-3.0-or-later license"></a>
+  <a href="https://github.com/symNistaken/TaskbarVitals/issues/new"><img src="https://img.shields.io/badge/Support-Report%20a%20device-2ea44f?logo=github&logoColor=white" alt="Report a device"></a>
+</p>
 
-[![Report a device](https://img.shields.io/badge/Report-a%20device-2EA44F?logo=github&logoColor=white)](https://github.com/symNistaken/TaskbarVitals/issues/new)
-[![Latest version](https://img.shields.io/github/v/release/symNistaken/TaskbarVitals?label=latest%20version)](https://github.com/symNistaken/TaskbarVitals/releases/latest)
+<p align="center">
+  <img src="docs/screenshot.png" alt="Taskbar Vitals showing headset and mouse battery levels on the Windows taskbar" width="720">
+</p>
 
-![Taskbar Vitals on the taskbar](docs/screenshot.png)
+> **Quick start:** Download **[TaskbarVitals-Setup](https://github.com/symNistaken/TaskbarVitals/releases/latest)** and choose **Install for me only**. It requires no administrator rights. The portable ZIP is available on the same release page.
 
-> **Just want it working?** Download **[TaskbarVitals-Setup](https://github.com/symNistaken/TaskbarVitals/releases/latest)** from the latest release. Use the per-user installation for setup without administrator rights; see the [installation notes](#install) for unsigned-app warnings and the all-users option.
->
-> **Coming from BatteryHub?** Install Taskbar Vitals over it: it uses the same installation, settings, startup entry and battery history. BatteryHub's own updater can't find new versions any more, so this one step is manual.
->
-> **Experienced users** can grab the portable zip, use the [command-line options](#command-line), or [build it from source](#build) with `make` or `build.bat`.
+> **BatteryHub users:** Install Taskbar Vitals over the existing copy to keep the shared settings, startup entry and battery history. Taskbar Vitals is an independent community continuation, not an official BatteryHub release. It builds on the last public source by krisgfx9 and its contributors and retains the GPL-3.0-or-later license.
 
-- **Tiny**: a ~350 KB app using about 2 MB of RAM. It's plain C++/Win32, with no runtime and no background service, and supports per-user installation without administrator rights.
-- **Vendor apps usually aren't required**: most drivers query devices directly. Some headsets use the bundled [HeadsetControl](https://github.com/Sapd/HeadsetControl) helper. Device-specific setup, firmware patches and conflicts with vendor apps are described in the table and [Limitations](#limitations).
-- **Many brands**: Logitech, Razer, SteelSeries, Corsair, HyperX, Glorious, Jabra, JBL, PlayStation and Xbox controllers, Samsung Galaxy Buds, any Bluetooth device Windows knows a battery level for, and every headset the bundled [HeadsetControl](https://github.com/Sapd/HeadsetControl) supports.
+## At a glance
 
-## Display
+| | What you get |
+|---|---|
+| **Peripheral battery** | Wireless mice, keyboards, headsets, earbuds, controllers and other supported devices. Many models are queried directly; vendor software is usually not needed. |
+| **System readings** | Optional CPU, RAM, GPU, GPU temperature, VRAM and power readings. |
+| **Taskbar or tray** | A compact taskbar strip by default, with per-device tray icons as an alternative and automatic fallback when the taskbar cannot host the widget. |
+| **Battery history** | Local charts for 24 hours, 7 days or 30 days, plus a cautious estimate from recent discharge data when there is enough information. |
+| **Alerts and names** | Per-device low-battery thresholds and custom display names. |
+| **Lightweight** | Native C++/Win32, no separate runtime or background service. Some headset models use the bundled [HeadsetControl](https://github.com/Sapd/HeadsetControl) helper. |
+| **Languages** | 20 built-in interface languages, with local language files and community translations supported. |
 
-**On the taskbar (default):** `🎧 30%  🖱 93%` next to the notification area, drawn with the Windows icon font.
-- **Low battery:** a red number means 15% or less.
-- **Charging:** a blue ⚡ appears next to the number. Once the device is fully charged and still on power, it turns into a green ✓.
-- **Asleep:** dimmed text means the device is asleep and the last known value is shown. Turn off *Dim sleeping devices* in the settings panel to keep that value at full brightness.
-- **Disconnected (optional):** turn on *Show disconnected devices* to display a dimmed `×` for devices whose driver explicitly reports an offline wireless link. This does not infer disconnection from a missed battery poll; the default remains to hide offline devices.
-- **Two devices of one kind:** with two mice (or two controllers...) both would get the same icon, so each one gets a tiny caption of up to 3 letters in the corner of its icon, taken from its name (`MX`, `PRO`), or a number when the names do not tell them apart. A device that is alone in its kind shows no caption.
-- **Theme:** it follows light/dark mode and DPI scaling.
-- **Transparent taskbar themes** (e.g. Windhawk's Taskbar Styler): turn on *Background behind taskbar text* in the settings panel to keep the text readable over the wallpaper.
-- **Several monitors:** the widget shows on every monitor's taskbar, next to its clock, so it stays visible while a game runs fullscreen. *Show the widget on* in the settings panel picks *All monitors*, *Main monitor only*, or one display (e.g. only *Display 3*).
-- **More display options:** *Icons above percentages* stacks each icon over its level to save width; *Brand colors* shows known brands in their color (Razer green, HyperX red, ...) with a small level bar; two devices of the same kind get a tiny caption so they can be told apart; left and right taskbars get a column of devices.
-- **Languages:** English, العربية, Deutsch, Español, فارسی, Français, עברית, 日本語, 한국어, Magyar, Polski, Português (Brasil), Русский, Svenska, Tiếng Việt, ภาษาไทย, Türkçe, Українська, 简体中文 and 繁體中文. The app follows the Windows display language; *Language* in the settings panel picks another one. See [Translations](#translations) to add or improve a language.
-- **Brand colors:** devices of 15 known brands get their maker's color, with a soft glow and a thin level bar under the
-  percentage: Razer green, Logitech blue, SteelSeries orange, Corsair yellow, HyperX / ROG / ZOWIE red, PlayStation,
-  Xbox, Samsung, Apple, Jabra, JBL, Cooler Master and Steam. Each color has a dark- and a light-taskbar shade. The brand
-  comes from the driver that found the device, then the vendor ID, then the name; colors and rules are in
-  `src/brands.cpp`. Turn it off with *Brand colors* in the settings panel.
+A brand name alone does not guarantee that every model works. Check the [supported-device table](#supported-devices) for model, receiver, connection mode, verification and firmware notes.
 
-**Tray icons:** one icon per device with the number drawn in it, plus a "Low battery" notification at 15%. The app switches to this automatically when the taskbar is vertical or can't be found.
+## Contents
 
-**Custom device names:** open the device submenu and select *Rename device...* to set a name
-(up to 64 characters). The name is shown in the taskbar widget's tooltip/caption,
-tray tooltip and notifications, and the device menu. Use *Reset to original name*
-to restore the driver's name. Names are stored locally in the current user's
-Windows registry (`Software\WirelessBattery`, `DeviceAliases`), using the stable
-device key. Renaming never changes driver matching, protocol queries, or `--list` /
-`--dump` diagnostic output. No account or network access is needed.
+| Start here | Explore |
+|---|---|
+| [Install](#install) · [Updates](#updates-on-windows) · [Build](#build) | [Supported devices](#supported-devices) · [Limitations](#limitations) |
+| [Display and settings](#display-and-settings) · [Command line](#command-line) | [Linux (experimental)](#linux-experimental) · [How it works](#how-it-works) |
+| [Battery alerts](#smart-battery-alerts) · [Battery history](#battery-history-and-insights) | [Translations](#translations) · [Credits](#credits) · [License](#license) |
 
-Hover for details. Click (left or right) for the settings panel: tabs for *Devices* (every device; click one to hide, move, rename it or set its alert), *System* (CPU, RAM and GPU readings), *Appearance* and *General*, with *Refresh now* and *Exit* at the bottom. Hold **Shift** while clicking for the full menu with the same options (the keyboard opens it too). Levels refresh every 60 seconds (*Check battery every* in the settings panel changes this), and right away when a device is plugged in or the PC wakes up.
+## Display and settings
 
-## Smart Battery Alerts (experimental)
+The widget sits beside the Windows notification area and follows the taskbar theme and DPI scaling. Click it to open the settings panel; hold **Shift** while clicking to open the full device menu.
 
-You can set a **per-device low-battery notification threshold** from each device's
-submenu: **Battery alerts** → *Use default (15%)*, *Disable notifications*,
-or one of 5%, 10%, 15%, 20%, 25%, 30%, 35%, 40%. The existing 15% default stays
-unchanged unless you choose an override. Settings are stored by device key in
-the current user's Windows registry (`Software\WirelessBattery`, `AlertThresholds`).
+| Indicator | Meaning |
+|---|---|
+| `🎧 30%` | Current battery level. A red percentage marks 15% or less. |
+| `⚡` | Charging. A green `✓` means fully charged while still on power. |
+| Dimmed level | Device is asleep; the last known level is retained. Turn off **Dim sleeping devices** to keep it bright. |
+| `×` | Optional disconnected-device marker, shown only when a driver explicitly reports the wireless link offline. |
+| Small caption | Distinguishes devices of the same type, using a short name or number. |
 
-An alert is triggered only from a real, fresh 0–100% battery reading when the
-device is connected, awake and not charging. An alert is issued once, and will
-re-arm after the level climbs more than 10 percentage points above the chosen
-threshold (or when charging begins). Missing readings or sleeping devices do
-not retrigger alerts. Hidden devices don't produce notifications. Disabling
-notifications for one device does not hide it or change its percentage.
+| Settings area | Options |
+|---|---|
+| **Devices** | Hide, reorder, rename devices, open battery history and set per-device alerts. |
+| **System** | Show CPU, RAM and GPU readings, including available temperature, VRAM and power data. |
+| **Appearance** | Choose taskbar or tray mode; show the widget on all monitors, the main monitor or one display; adjust placement; stack icons above percentages; use brand colors; and add a background plate for transparent taskbar themes. |
+| **General** | Set refresh interval and language, manage history and update preferences, refresh now or exit. |
 
-Both taskbar-widget and tray-icon modes support notifications. Since Windows
-needs a notification-area icon to display a legacy balloon, widget mode may
-show a temporary notification icon for up to one minute after an alert.
-Widget colours and the low-battery highlight still use the project's
-original global 15% threshold, independently of the notification setting.
+Battery polling runs every 60 seconds by default. Change **Check battery every** in settings; reconnecting a device or waking the PC also triggers a refresh. The widget can appear on all monitors, the main monitor or a selected display. If the taskbar is vertical or unavailable, the app uses tray icons.
 
-## Battery history & insights
+**Brand colors** are available for 15 recognized brands, including Razer, Logitech, SteelSeries, Corsair, HyperX, ROG, ZOWIE, PlayStation, Xbox, Samsung, Apple, Jabra, JBL, Cooler Master and Steam. Each brand uses a light- or dark-taskbar shade with a small level bar. The app determines a brand from the driver first, then the USB vendor ID and device name. Turn the feature on or off under **Appearance**.
 
-Click the widget or tray icon, click a device on the *Devices* tab of the settings panel and choose **Battery history...**.
-The native, DPI-aware viewer (it follows the Windows light/dark theme) shows recorded battery levels with connected sample lines over the last **24 hours**, **7 days**, or **30 days**, along with the latest reading, lowest/highest level, change in percentage points, and sample count. You can clear the selected device's history from the viewer.
+**Custom names** are set from a device's menu with **Rename device...** (up to 64 characters). They appear in the widget caption and tooltip, tray tooltip, notifications and device menu. **Reset to original name** restores the driver's name. Names are stored locally under the current Windows user's `Software\WirelessBattery\DeviceAliases` registry value; they do not change device detection or diagnostic output.
 
-History is recorded **locally only** for connected, awake devices reporting a numeric percentage. Readings are sampled at most once every 30 minutes per device (except charging-state transitions, with a 60-second minimum). Data is kept for up to 30 days and the local file is kept under about 2 MB. The app never probes hardware beyond its existing polling, sends no history data over the network, and makes a conservative, approximate time-to-empty estimate from recent discharge observations only. At least four points, two hours, a three-percentage-point decline, a fresh reading and a stable discharge segment are required. Charging, old readings or insufficient data suppress the estimate; device-reported runtime is not available. The estimate is not a guarantee. Missing chart data is shown as gaps, not interpolated.
+The interface follows the Windows display language by default. Built-in languages include English, العربية, Deutsch, Español, فارسی, Français, עברית, 日本語, 한국어, Magyar, Polski, Português (Brasil), Русский, Svenska, Tiếng Việt, ภาษาไทย, Türkçe, Українська, 简体中文 and 繁體中文. See [Translations](#translations) to add or improve one.
 
-Turn off **Record battery history** in the settings panel to stop saving readings; what was already saved stays until you clear it in the viewer. The file is stored in `%LOCALAPPDATA%\WirelessBattery\battery_history.tsv`. Its device identities are encoded (not encrypted); the file is local to your Windows account. In `--demo`, the chart uses synthetic data that is never saved. **Note:** history starts collecting only after this feature is installed and the app has been running for a while.
+## Smart Battery Alerts
 
+Choose **Battery alerts** from a device's menu. Each device can use the default **15%**, disable notifications, or use a threshold from **5% to 40%** in 5-point steps. The widget's red low-battery color continues to use the global 15% mark.
+
+| Alert behavior | Rule |
+|---|---|
+| Trigger | A fresh numeric 0–100% reading while connected, awake and not charging reaches the selected threshold. |
+| Repeat | One alert per low-battery episode. It re-arms after the level rises more than 10 points above the threshold or charging begins. |
+| Suppressed | Missing or stale readings, sleeping devices and hidden devices do not trigger an alert. |
+| Storage | Per-device choices are kept locally in the current user's Windows registry. |
+
+Both widget and tray modes support alerts. Windows may briefly show a notification-area icon in widget mode so it can display the legacy notification balloon.
+
+## Battery history and insights
+
+Open the settings panel, select a device on **Devices**, then choose **Battery history...**. The native, DPI-aware viewer follows the Windows light/dark theme.
+
+| View | Details |
+|---|---|
+| **24 hours / 7 days / 30 days** | Battery samples connected by real observations; gaps remain visible rather than being interpolated. |
+| **Summary** | Latest reading, lowest and highest level, change in percentage points, and sample count. |
+| **Time to empty** | Approximate, conservative estimate from recent discharge only. It needs at least four points, two hours of history, a 3-point decline, a fresh reading and a stable discharge segment. It is not a guarantee. |
+| **Clear or pause** | Clear one device's history in the viewer, or turn off **Record battery history** in settings. Pausing does not erase existing data. |
+
+History is local to the Windows account, stored at `%LOCALAPPDATA%\WirelessBattery\battery_history.tsv`, and retained for up to 30 days with a file size target of about 2 MB. Device identities are encoded, not encrypted. Samples are recorded at most every 30 minutes per device, with a 60-second minimum around charging-state changes. No additional hardware polling is done for history. Collection starts after the feature is enabled and the app has been running; demo chart data is synthetic and never saved.
 ## Supported devices
 
 Match your model, receiver VID:PID, connection mode and any firmware requirements to the table; `TaskbarVitals.exe --dump` shows the IDs. A brand name alone does not confirm support for every model. Hardware-test labels apply only to the stated devices and behaviors.
@@ -252,156 +264,106 @@ These reports cover the listed connection modes and behaviors; battery confirmat
 
 ## Install
 
-[![Latest version](https://img.shields.io/github/v/release/symNistaken/TaskbarVitals?label=latest%20version&style=for-the-badge)](https://github.com/symNistaken/TaskbarVitals/releases/latest)
+| Option | Best for | What to know |
+|---|---|---|
+| **Setup installer** | Most users | Installs per-user without administrator rights; all-users installation requires administrator permission. Adds a Start menu entry and uninstaller. |
+| **Portable ZIP** | No installer or a removable folder | Extract `TaskbarVitals-<version>-portable.zip` and run `TaskbarVitals.exe`. No separate runtime is required. |
+| **Build from source** | Developers | Follow [Build](#build) below. |
 
-1. Download **`TaskbarVitals-Setup-<version>.exe`** from the [latest release](https://github.com/symNistaken/TaskbarVitals/releases/latest).
-2. Run the installer. The default per-user installation needs no administrator rights.
-   **Install for all users** requires administrator permission. Windows may show a SmartScreen warning because the app is not code-signed (see below).
-3. No separate runtime is required. HeadsetControl is bundled for the headsets that use it; check your device's table entry and [Limitations](#limitations) for any setup or firmware requirements.
+1. Download the setup or portable ZIP from the [latest release](https://github.com/symNistaken/TaskbarVitals/releases/latest).
+2. For setup, run the installer and choose per-user or all-users installation.
+3. Start **Taskbar Vitals** from the Start menu, or run `TaskbarVitals.exe` from the portable folder.
 
-The installer adds a Start menu entry and an uninstaller (*Settings → Apps*), and can start the app
-when you sign in. Prefer no installer? Download `Taskbar Vitals-<version>-portable.zip`, unzip it
-anywhere and run `TaskbarVitals.exe`.
+**Windows notes**
 
-**Notes:**
-- **SmartScreen warning:** the exe is not code-signed, so Windows may say "Windows protected your PC". Click *More info → Run anyway*, or build it yourself.
-- **Tray-icon mode on Windows 11:** new tray icons go to the `^` overflow. Drag them onto the taskbar or enable them in *Settings → Personalization → Taskbar → Other system tray icons*.
-- **Keeping the app away from a device:** if a device misbehaves while the app is running, list it in the registry string `IgnoreDevices` under `HKCU\Software\WirelessBattery` as `VID:PID` pairs (hex, separated by commas, e.g. `28BD:0947, 1234:ABCD`; `--dump` shows the ids). The app then never opens it. Drawing tablets are skipped automatically.
+- The executable is not code-signed. Windows SmartScreen may show **Windows protected your PC**; choose **More info → Run anyway** if you trust the download, or build it yourself.
+- On Windows 11, tray icons may be under the `^` overflow. Enable them under **Settings → Personalization → Taskbar → Other system tray icons** or drag them onto the taskbar.
+- To keep the app away from a device that misbehaves, add its `VID:PID` to the `IgnoreDevices` string under `HKCU\Software\WirelessBattery`, separated by commas. Find IDs with `--dump`; drawing tablets are skipped automatically.
 
 ## Updates on Windows
 
-Official stable Windows builds check the project's latest published stable release in the
-background, 30 seconds after startup and then every 24 hours while the app is running. Open the
-menu to see **Update available: vX.Y.Z...**, or choose **Check for updates...** yourself.
-Update information appears only in this menu: battery icons, percentages and tooltips stay the
-same, and automatic checks never show a notification or dialog. Turn off
-**Automatically check for updates** in the settings panel to disable background checks.
+Official stable Windows builds check GitHub 30 seconds after launch and every 24 hours while running. Update status appears in the settings panel only. Disable **Automatically check for updates** there to stop background checks.
 
-For an installed copy, click the update entry and **Download and install**. Nothing is installed
-without that click. The app downloads the release's `SHA256SUMS.txt` and its signature, checks the
-signature against the maintainer's public key built into the app, downloads the Windows installer,
-and runs it only if its SHA-256 is the one in the signed list (and the one GitHub lists for it). It
-then updates the existing installation. Settings and startup preference are
-preserved, and the app reopens after installation. An installation for all users can ask for
-administrator permission. **Release notes** opens the official release page; **Later** keeps
-your current version. Portable copies offer the release page for downloading the ZIP manually.
+| Step | What happens |
+|---|---|
+| **Check** | The app contacts GitHub's public API without an account or token. Device and battery information are not sent. |
+| **Choose** | You click **Download and install**; nothing is installed automatically. Portable builds link to the release page so you can replace the ZIP yourself. |
+| **Verify** | The app validates the maintainer's signature for `SHA256SUMS.txt`, then checks the installer against the signed SHA-256 and GitHub's reported file hash. |
+| **Install** | The verified installer updates the existing installation, keeps settings and startup preference, and reopens the app. An all-users installation may request administrator permission. Windows never restarts automatically. |
 
-Checks contact GitHub's public API without an account or token. No device or battery information
-is sent. Offline failures and GitHub rate limits leave battery monitoring running; a previously
-found release stays in the settings panel until a successful check supersedes it or it is installed.
-Cancelling a download waits for the current network operation to finish its finite timeout.
-The installer never restarts Windows automatically.
+The release signing key stays with the maintainer, not GitHub. A release without a valid signature may be viewed or downloaded manually, but the app will not install it. See [the release process](docs/releasing.md) for details. Offline failures and GitHub rate limits do not interrupt battery monitoring. Development and test builds disable official update checks; install the first release with this feature manually.
 
-**Why updates are safe to install:** the signing key never goes to GitHub. The maintainer signs
-each release's checksum list on their own PC (see [docs/releasing.md](docs/releasing.md)), so
-even someone who took over the GitHub account or its build workflow could not publish an update
-the app would install. A release without a valid signature is shown in the settings panel but can only be
-downloaded by hand. The signature does not replace Windows' own SmartScreen or UAC prompts.
-
-Install the first release containing this feature manually once. Development/test builds disable
-official update checks so local changes cannot be replaced accidentally. Updates for Linux and
-automatic replacement of portable copies are deferred.
 
 ## Command line
 
-```
-TaskbarVitals.exe --list     # print every device and its battery level, then exit
-TaskbarVitals.exe --json     # print a JSON array of devices and battery levels, then exit
-TaskbarVitals.exe --dump     # every HID collection, HID devices that could not be opened, all USB devices (also ones
-                               # without a HID interface) and Bluetooth devices; also saved to %TEMP%\Taskbar Vitals-dump.txt
-TaskbarVitals.exe --report   # open the "Request support for a device" window
-TaskbarVitals.exe --demo     # sample devices of every brand instead of real ones (screenshots, checking colors)
-TaskbarVitals.exe --quit     # close the running instance
-```
+Run these options from Command Prompt or PowerShell. Diagnostic output is English so it can be pasted into support issues.
 
-The Linux build uses the same flags with `wireless-battery` instead of `TaskbarVitals.exe`, and
-also accepts `--help`. `--json` prints a stable array that scripts and bar widgets can parse:
+| Command | Purpose |
+|---|---|
+| `TaskbarVitals.exe --list` | Print detected devices and battery levels, then exit. |
+| `TaskbarVitals.exe --json` | Print device readings as a JSON array, then exit. |
+| `TaskbarVitals.exe --dump` | Print HID collections, USB devices and Bluetooth devices; also save a report under `%TEMP%`. |
+| `TaskbarVitals.exe --report` | Open **Request support for a device**. The app prepares an issue in your browser; you review and submit it yourself. |
+| `TaskbarVitals.exe --demo` | Show synthetic sample devices for screenshots and appearance checks; no history is saved. |
+| `TaskbarVitals.exe --quit` | Ask a running instance to exit. |
+
+The Linux executable supports the corresponding device and diagnostic options as `wireless-battery --list`, `--json`, `--dump` and `--quit`; `--help` lists them. Example JSON:
 
 ```json
-[{"key":"kysona:373B:1085","name":"CX Wireless mouse","via":"2.4 GHz receiver","kind":"mouse",
-  "percent":85,"level":"","detail":"","charging":false,"asleep":false,"connected":true,
-  "millivolts":4029,"graceSec":1800}]
+[{"key":"kysona:373B:1085","name":"CX Wireless mouse","via":"2.4 GHz receiver","kind":"mouse","percent":85,"level":"","detail":"","charging":false,"asleep":false,"connected":true,"millivolts":4029,"graceSec":1800}]
 ```
 
-`graceSec` is how long the app keeps showing the last known level while the device is asleep.
-Adding new fields is backwards compatible.
+`graceSec` is how long the last known level remains visible while a device sleeps. New JSON fields may be added without changing existing ones.
 
-**Device not shown?** Click the widget or tray icon and choose **Request support for a device...** on the *General* tab. Pick the device, check
-what the issue will contain (it is shown word for word: the device name, its type, its USB/HID ids and interface layout, and your
-optional name and notes) and click **Send**. A new GitHub issue opens in your browser, filled in with exactly that; you submit it there
-(a GitHub account is needed). **Copy full report** puts the complete `--dump` on the clipboard for the issue.
-The app itself sends no report data. Official Windows builds can also contact GitHub
-to check for updates, as described in [Updates on Windows](#updates-on-windows); update checks
-do not send device or battery information.
+**Requesting support:** use **Request support for a device...** on the settings panel's **General** tab, or pass `--report`. Review the device name, IDs, interface details and any notes before opening the prefilled GitHub issue. You must submit it in your browser. **Copy full report** copies the complete `--dump` output to the clipboard; the app does not send the report itself.
 
 ## Build
 
-You need [MinGW-w64](https://www.mingw-w64.org/), e.g. from [MSYS2](https://www.msys2.org/) (`pacman -S mingw-w64-x86_64-gcc make`).
+The Windows app uses C++17, Win32 and MinGW-w64. The usual environment is the MSYS2 **MINGW64** shell with GCC and Make installed (`pacman -S mingw-w64-x86_64-gcc make`). A plain Command Prompt build is also available when `g++` and `windres` are on `PATH`.
 
-```
-make                                      # development build, version 0.0.0
-build.bat                                 # plain cmd with g++ and windres on PATH
-make VERSION=1.2.3 CHANNEL=test            # versioned build, official updates disabled
-build.bat 1.2.3 test                       # equivalent versioned cmd build
-make test VERSION=1.2.3 CHANNEL=test       # device and updater regression tests
-```
+| Goal | Command |
+|---|---|
+| Development build | `make` |
+| Build from Command Prompt | `build.bat` |
+| Versioned test-channel build | `make VERSION=1.2.3 CHANNEL=test` |
+| Run the regression suite | `make test VERSION=1.2.3 CHANNEL=test` |
+| Build installer and portable ZIP | `powershell -File installer\build-installer.ps1 -Version 1.2.3` |
 
-To build the installer and portable zip, install [Inno Setup](https://jrsoftware.org/isinfo.php),
-first build with the intended version (for example `make VERSION=1.2.3 CHANNEL=test`), then run
-`powershell -File installer\build-installer.ps1 -Version 1.2.3`. Packaging rejects a version that
-differs from the executable. It downloads the pinned
-HeadsetControl release and verifies its checksum. GitHub Actions does all of this automatically:
-pushing a tag like `v1.0.0` publishes a release with the installer, the portable zip and the
-HeadsetControl source (as its GPL license requires).
+For packaging, build the executable with the same version first and install [Inno Setup](https://jrsoftware.org/isinfo.php). The packaging script checks the executable version, downloads the pinned HeadsetControl source and verifies its checksum. Windows CI builds and tests both packages. A version tag such as `v1.2.3` triggers the release workflow; only the official repository builds that tag with the stable update channel.
 
-Windows builds also need PowerShell for generating the shared executable/resource version.
-The official repository's version tags build with `CHANNEL=stable`; local builds default to
-`dev`. Forks and pull requests do not enable official updates automatically.
-
-`TaskbarVitals.exe` on its own also works. Without `headsetcontrol.exe` next to it (or on `PATH`) you
-just lose the extra headsets.
+`TaskbarVitals.exe` can run by itself. Without `headsetcontrol.exe` beside it or on `PATH`, only the additional headset models that rely on that helper are unavailable.
 
 ## Linux (experimental)
 
-A Linux build sits alongside the Windows app. It uses the same vendor drivers with a hidraw-based
-HID backend and a GTK4 StatusNotifierItem tray icon; the Windows code path is unchanged.
-All Linux-only files are in `linux/` and `src/linux/`, and `build-linux.sh` builds it (Windows keeps using `build.bat`).
+The experimental Linux build reuses selected device drivers through a `hidraw` backend and GTK4 StatusNotifierItem tray icon. Linux-only code lives in `linux/` and `src/linux/`; the Windows build is separate and unchanged.
 
-| | Fedora | Ubuntu / Debian |
+| Dependency | Fedora | Ubuntu / Debian |
 |---|---|---|
-| Compiler & make | `sudo dnf install gcc-c++ make` | `sudo apt install g++ make` |
-| GTK4 + Cairo | `sudo dnf install gtk4-devel cairo-devel` | `sudo apt install libgtk-4-dev libcairo2-dev` |
+| Compiler and Make | `sudo dnf install gcc-c++ make` | `sudo apt install g++ make` |
+| GTK4 and Cairo | `sudo dnf install gtk4-devel cairo-devel` | `sudo apt install libgtk-4-dev libcairo2-dev` |
 
-No extra HID library is needed (hidraw is used directly).
+No extra HID library is needed. Build and run:
 
 ```sh
 ./build-linux.sh
-./build-linux.sh test         # unit test for the HID report-descriptor parser
-./wireless-battery --list     # print detected levels and exit
-./wireless-battery --dump     # list HID collections
-./wireless-battery --quit     # close the running tray instance
+./wireless-battery --list
+./wireless-battery --dump
+./build-linux.sh test
 ```
 
-HID access needs a udev rule, otherwise the app starts but finds no devices:
+Grant the app HID access with the included udev rule, then sign out and back in:
 
 ```sh
 sudo cp linux/70-wireless-battery.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules && sudo udevadm trigger
-# log out and back in
 ```
 
-If you previously installed `99-wireless-battery.rules`, remove the old
-file from `/etc/udev/rules.d/` before reloading the rules. The `70-`
-prefix ensures that `uaccess` is applied before systemd's
-`73-seat-late.rules` assigns device permissions.
+If you previously installed `99-wireless-battery.rules`, remove that older file before reloading. The `70-` prefix applies `uaccess` before systemd's `73-seat-late.rules` assigns device permissions.
 
-The tray icon works natively on KDE Plasma; GNOME needs an AppIndicator host such as
-`gnome-shell-extension-appindicator`. The optional launcher is `linux/wireless-battery.desktop`
-(install it plus `linux/wireless-battery.svg` and the binary into `~/.local/`).
+The tray icon works natively on KDE Plasma. GNOME needs an AppIndicator host such as `gnome-shell-extension-appindicator`. An optional launcher is provided in `linux/wireless-battery.desktop`.
 
-Phase 1 covers Logitech, Razer, SteelSeries, Corsair, HyperX, PlayStation, Cooler Master, Glorious,
-Finalmouse, Keychron, Ninjutso, Rapoo, Zebronics (3554:FC0A) and the shared Kysona/Pulsar/ATK/G-Wolves
-protocols. Bluetooth/UPower fallbacks, HeadsetControl and the remaining vendors are planned follow-up phases.
+**Current Linux coverage:** Logitech, Razer, SteelSeries, Corsair, HyperX, PlayStation, Cooler Master, Glorious, Finalmouse, Keychron, Ninjutso, Rapoo, Zebronics, shared Kysona/Pulsar/ATK/G-Wolves protocols, LAMZU and AULA. Bluetooth/UPower fallbacks, HeadsetControl and other Windows drivers are not yet included.
+
 
 ## Limitations
 
