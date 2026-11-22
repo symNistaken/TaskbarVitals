@@ -1125,11 +1125,19 @@ void MoveEntry(const std::wstring& key, int dir) {
     UpdateWidget();
 }
 
-void ShowMenu() {
-    ApplyMenuTheme(g_lightTaskbar);
-    MenuIcons icons(g_lightTaskbar);  // freed after the menu closes
-    HMENU m = CreatePopupMenu();
+// The menu and the lists it was built from. Some menu ids are positions in these lists (devices, monitors,
+// languages), so a command must be run against the same model the menu was built with.
+struct MenuModel {
+    HMENU menu = nullptr;
     std::vector<std::wstring> keys;  // device index -> device key; menu id ID_DEVICE_FIRST + index * DEV_STRIDE + command
+    std::vector<i18n::Language> languages;
+    std::vector<widget::MonitorOption> monitors;
+};
+
+// Builds the full menu with the current state (checked, greyed, labels). The settings panel reads it as its model.
+MenuModel BuildMenu(MenuIcons& icons) {
+    HMENU m = CreatePopupMenu();
+    std::vector<std::wstring> keys;
     std::vector<TrayEntry*> all = OrderedEntries(false), shown = OrderedEntries(true);
     if (all.empty()) AppendMenuW(m, MF_STRING | MF_GRAYED, 0, T(L"No devices with battery info found"));
     else AppendMenuW(m, MF_STRING | MF_GRAYED, 0, T(L"Point at a device to show, hide or move it"));
@@ -1318,25 +1326,19 @@ void ShowMenu() {
     icons.Set(m, ID_SUPPORT, false, 0xEB51);         // Heart
     icons.Set(m, ID_UPDATE, false, 0xE777);          // UpdateRestore
     icons.Set(m, ID_EXIT, false, 0xE711);            // Cancel
-    POINT pt;
-    GetCursorPos(&pt);
-    SetForegroundWindow(g_hwnd);
-    // Opened from the taskbar, the menu must not overlap it: Windows only keeps a menu inside the monitor,
-    // so its last items (Exit) ended up under the taskbar. Excluding the taskbar's rectangle makes Windows
-    // open the menu above it (below / beside it for a top or side taskbar).
-    TPMPARAMS tpm{ sizeof(tpm) };
-    HWND under = GetAncestor(WindowFromPoint(pt), GA_ROOT);
-    wchar_t cls[32] = {};
-    if (under) GetClassNameW(under, cls, ARRAYSIZE(cls));
-    bool fromTaskbar = !wcscmp(cls, L"Shell_TrayWnd") || !wcscmp(cls, L"Shell_SecondaryTrayWnd");
-    if (fromTaskbar) GetWindowRect(under, &tpm.rcExclude);
-    bool sideBar = fromTaskbar && tpm.rcExclude.bottom - tpm.rcExclude.top > tpm.rcExclude.right - tpm.rcExclude.left;
-    UINT cmd = TrackPopupMenuEx(m, TPM_RETURNCMD | TPM_NONOTIFY | TPM_RIGHTBUTTON | (sideBar ? TPM_HORIZONTAL : TPM_VERTICAL) |
-                                       (i18n::Rtl() ? TPM_LAYOUTRTL : 0),
-                                pt.x, pt.y, g_hwnd, fromTaskbar ? &tpm : nullptr);
-    PostMessageW(g_hwnd, WM_NULL, 0, 0);
-    DestroyMenu(m);
-    memory_trim::Soon();
+    MenuModel model;
+    model.menu = m;
+    model.keys = std::move(keys);
+    model.languages = std::move(languages);
+    model.monitors = std::move(monitors);
+    return model;
+}
+
+// Runs a command chosen from a menu built by BuildMenu (list-position ids are resolved against `model`).
+void RunCommand(UINT cmd, const MenuModel& model) {
+    const auto& keys = model.keys;
+    const auto& languages = model.languages;
+    const auto& monitors = model.monitors;
     switch (cmd) {
         case ID_REFRESH: SetEvent(g_refreshEvt); break;
         case ID_AUTOSTART: SetAutostart(!AutostartEnabled()); break;
@@ -1414,6 +1416,39 @@ void ShowMenu() {
                 }
             }
     }
+}
+
+// Shows `menu` at the cursor and returns the chosen command (0 if none).
+UINT TrackAtCursor(HMENU menu) {
+    POINT pt;
+    GetCursorPos(&pt);
+    SetForegroundWindow(g_hwnd);
+    // Opened from the taskbar, the menu must not overlap it: Windows only keeps a menu inside the monitor,
+    // so its last items (Exit) ended up under the taskbar. Excluding the taskbar's rectangle makes Windows
+    // open the menu above it (below / beside it for a top or side taskbar).
+    TPMPARAMS tpm{ sizeof(tpm) };
+    HWND under = GetAncestor(WindowFromPoint(pt), GA_ROOT);
+    wchar_t cls[32] = {};
+    if (under) GetClassNameW(under, cls, ARRAYSIZE(cls));
+    bool fromTaskbar = !wcscmp(cls, L"Shell_TrayWnd") || !wcscmp(cls, L"Shell_SecondaryTrayWnd");
+    if (fromTaskbar) GetWindowRect(under, &tpm.rcExclude);
+    bool sideBar = fromTaskbar && tpm.rcExclude.bottom - tpm.rcExclude.top > tpm.rcExclude.right - tpm.rcExclude.left;
+    UINT cmd = TrackPopupMenuEx(menu, TPM_RETURNCMD | TPM_NONOTIFY | TPM_RIGHTBUTTON | (sideBar ? TPM_HORIZONTAL : TPM_VERTICAL) |
+                                          (i18n::Rtl() ? TPM_LAYOUTRTL : 0),
+                                pt.x, pt.y, g_hwnd, fromTaskbar ? &tpm : nullptr);
+    PostMessageW(g_hwnd, WM_NULL, 0, 0);
+    return cmd;
+}
+
+// The full menu (Shift + right click, the keyboard, and tray mode keep it as the complete fallback).
+void ShowMenu() {
+    ApplyMenuTheme(g_lightTaskbar);
+    MenuIcons icons(g_lightTaskbar);  // freed after the menu closes
+    MenuModel model = BuildMenu(icons);
+    UINT cmd = TrackAtCursor(model.menu);
+    DestroyMenu(model.menu);
+    memory_trim::Soon();
+    RunCommand(cmd, model);
 }
 
 // ---- worker thread ----------------------------------------------------------------------------
