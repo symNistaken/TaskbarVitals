@@ -194,3 +194,7 @@ Is one of your devices not shown? Pick it below and press Send: a GitHub issue o
 Your name (optional, shown in the public issue) = Adınız (isteğe bağlı, herkese açık issue'da görünür)
 This is exactly what the issue will contain: = Issue tam olarak şunları içerecek:
 A new GitHub issue opened in your browser. Check it and press Submit there (a GitHub account is needed). = Tarayıcınızda yeni bir GitHub issue açıldı. Kontrol edip oradan Submit'e basın (GitHub hesabı gerekir).
+Show CPU usage = CPU kullanımını göster
+Show RAM usage = RAM kullanımını göster
+CPU usage = CPU kullanımı
+RAM usage = RAM kullanımı

@@ -38,6 +38,8 @@ test: test-update-core test-update-win test-update-signature
 	@mkdir -p build
 	$(CXX) -std=c++17 -O2 -Wall tests/device_aliases_test.cpp -o build/device_aliases_test.exe
 	./build/device_aliases_test.exe
+	$(CXX) -std=c++17 -O2 -Wall -Wextra tests/sysmon_test.cpp -o build/sysmon_test.exe
+	./build/sysmon_test.exe
 	$(CXX) -std=c++17 -O2 -Wall -Wextra tests/alert_rules_test.cpp -o build/alert_rules_test.exe
 	./build/alert_rules_test.exe
 	$(CXX) -std=c++17 -O2 -Wall -Wextra tests/refresh_policy_test.cpp -o build/refresh_policy_test.exe

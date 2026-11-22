@@ -226,3 +226,7 @@ Is one of your devices not shown? Pick it below and press Send: a GitHub issue o
 Your name (optional, shown in the public issue) = 
 This is exactly what the issue will contain: = 
 A new GitHub issue opened in your browser. Check it and press Submit there (a GitHub account is needed). = 
+Show CPU usage = 
+Show RAM usage = 
+CPU usage = 
+RAM usage = 

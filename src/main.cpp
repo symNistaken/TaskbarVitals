@@ -32,6 +32,7 @@
 #include "report.h"
 #include "rename_dialog.h"
 #include "offset_dialog.h"
+#include "sysmon.h"
 #include "widget.h"
 #include "update_win.h"
 #include "update_apply.h"
@@ -58,7 +59,7 @@ constexpr UINT ALERT_ICON_ID = 2;
 enum MenuId : UINT {
     ID_REFRESH = 100, ID_AUTOSTART, ID_HIDE_LAST_KNOWN, ID_WIDGET_BACKGROUND, ID_EXIT, ID_MODE_WIDGET, ID_MODE_TRAY, ID_SUPPORT, ID_REPORT,
     ID_BRAND_COLORS, ID_STACKED, ID_SHOW_DISCONNECTED, ID_RECORD_HISTORY, ID_DIM_SLEEPING,
-    ID_TRAY_WHEN_EMPTY, ID_MAKE_ROOM, ID_FAR_LEFT,
+    ID_TRAY_WHEN_EMPTY, ID_MAKE_ROOM, ID_FAR_LEFT, ID_SHOW_CPU, ID_SHOW_RAM,
     ID_PLACE_AUTO, ID_PLACE_TOP, ID_PLACE_TRAY, ID_PLACE_BOTTOM,  // "Position on a vertical taskbar"
     ID_POSITION_FIRST = 700,  // "Position on the taskbar": ID_POSITION_FIRST + 0..5, then the custom value
     ID_POLL_FIRST = 500,  // "Check battery every": ID_POLL_FIRST + 0..7
@@ -102,6 +103,9 @@ bool g_makeRoom = true;      // step past other apps' taskbar widgets (menu opti
 const int POSITION_OFFSETS[] = { 0, 40, 80, 120, 160, 200 };
 widget::VerticalPlace g_verticalPlace = widget::VerticalPlace::Auto;  // column position on a left / right taskbar
 bool g_farLeft = false;      // widget at the left end of the taskbar instead of next to the clock (menu option)
+bool g_showCpu = false, g_showRam = false;  // system readings on the strip (menu options)
+sysmon::Reading g_sys;       // last CPU / RAM sample, taken every 2 s while one of them is shown
+int g_sysTicks = 0;
 bool g_brandColors = false;  // off by default; known brands get their color (Razer green, Logitech blue, ...)
 std::atomic<DWORD> g_pollIntervalMs{ 60 * 1000 };  // set from the menu, read by the worker thread
 
@@ -424,6 +428,8 @@ void SaveVerticalPlace(widget::VerticalPlace p) {
 }
 bool LoadFarLeft() { return LoadBoolSetting(L"WidgetFarLeft", false); }
 void SaveFarLeft(bool on) { SaveBoolSetting(L"WidgetFarLeft", on); }
+bool LoadShowCpu() { return LoadBoolSetting(L"ShowCpu", false); }
+bool LoadShowRam() { return LoadBoolSetting(L"ShowRam", false); }
 bool LoadBrandColors() { return LoadBoolSetting(L"BrandColors", false); }
 void SaveBrandColors(bool on) { SaveBoolSetting(L"BrandColors", on); }
 DWORD LoadPollSeconds() {
@@ -766,6 +772,19 @@ void UpdateWidget() {
         tip += DisplayName(*e) + L": " + StatusText(*e);
     }
     if (tip.empty()) tip = std::wstring(L"Taskbar Vitals: ") + T(L"No devices with battery info found");
+    auto reading = [&](wchar_t glyph, int pct, const std::wstring& line) {
+        WidgetItem it;
+        it.glyph = glyph;
+        it.text = std::to_wstring(pct) + L"%";
+        items.push_back(it);
+        tip += L"\n" + line;
+    };
+    if (g_showCpu && g_sys.cpu >= 0) reading(0xE950, g_sys.cpu, std::wstring(T(L"CPU usage")) + L": " + std::to_wstring(g_sys.cpu) + L"%");
+    if (g_showRam && g_sys.ram >= 0) {
+        wchar_t gb[64];
+        swprintf(gb, 64, L" (%.1f / %.1f GB)", g_sys.ramUsedGb, g_sys.ramTotalGb);
+        reading(0xE964, g_sys.ram, std::wstring(T(L"RAM usage")) + L": " + std::to_wstring(g_sys.ram) + L"%" + gb);
+    }
     widget::SetItems(items, tip);
 }
 
@@ -823,6 +842,7 @@ void OnResults(std::vector<DeviceStatus>& results) {
 }
 
 bool NothingShown() {
+    if (g_showCpu || g_showRam) return false;  // the readings keep the strip on the taskbar
     for (const auto& [k, e] : g_entries)
         if (IsShown(e)) return false;
     return true;
@@ -954,6 +974,23 @@ void SetWidgetPlace(widget::VerticalPlace p) {
     g_verticalPlace = p;
     SaveVerticalPlace(p);
     widget::SetVerticalPlace(p);
+}
+
+// Takes a CPU / RAM sample every 2 s while a reading is shown; redraws the strip only when a shown value changed.
+void TickSystemReadings(bool now = false) {
+    if (!g_showCpu && !g_showRam) return;
+    if (!now && ++g_sysTicks % 2) return;
+    sysmon::Reading r = sysmon::Sample();
+    bool changed = (g_showCpu && r.cpu != g_sys.cpu) || (g_showRam && r.ram != g_sys.ram);
+    g_sys = r;
+    if (changed) UpdateWidget();
+}
+
+void SetShowReading(bool& flag, const wchar_t* name, bool on) {
+    flag = on;
+    SaveBoolSetting(name, on);
+    TickSystemReadings(true);
+    UpdateWidget();
 }
 
 void SetFarLeft(bool on) {
@@ -1163,6 +1200,8 @@ void ShowMenu() {
         AppendMenuW(m, MF_POPUP, (UINT_PTR)sub, T(L"Position on a vertical taskbar"));
     }
     AppendMenuW(m, MF_STRING | (g_farLeft ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_FAR_LEFT, T(L"At the left end of the taskbar"));
+    AppendMenuW(m, MF_STRING | (g_showCpu ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_CPU, T(L"Show CPU usage"));
+    AppendMenuW(m, MF_STRING | (g_showRam ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_RAM, T(L"Show RAM usage"));
     // With more than one monitor: choose which taskbars show the widget (all, main only, or one monitor).
     auto monitors = widget::OtherMonitors();
     if (monitors.size() > 31) monitors.resize(31);
@@ -1281,6 +1320,8 @@ void ShowMenu() {
         case ID_PLACE_TRAY: SetWidgetPlace(widget::VerticalPlace::AboveTray); break;
         case ID_PLACE_BOTTOM: SetWidgetPlace(widget::VerticalPlace::Bottom); break;
         case ID_FAR_LEFT: SetFarLeft(!g_farLeft); break;
+        case ID_SHOW_CPU: SetShowReading(g_showCpu, L"ShowCpu", !g_showCpu); break;
+        case ID_SHOW_RAM: SetShowReading(g_showRam, L"ShowRam", !g_showRam); break;
         case ID_MODE_WIDGET: SetMode(true); break;
         case ID_MODE_TRAY: SetMode(false); break;
         case ID_SUPPORT: ShellExecuteW(nullptr, L"open", L"https://github.com/symNistaken/TaskbarVitals", nullptr, nullptr, SW_SHOWNORMAL); break;
@@ -1569,7 +1610,7 @@ LRESULT CALLBACK WndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
                 g_awakeBeforeSleep.clear();
                 SetEvent(g_refreshEvt);
             }
-            if (wp == TIMER_WIDGET) { Reconcile(); updates::Tick(h); }
+            if (wp == TIMER_WIDGET) { Reconcile(); TickSystemReadings(); updates::Tick(h); }
             if (wp == TIMER_ALERT_ICON) {
                 KillTimer(h, TIMER_ALERT_ICON);
                 if (g_alertIconAdded) { TrayDelete(ALERT_ICON_ID); g_alertIconAdded = false; }
@@ -1769,6 +1810,8 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR cmdLine, int) {
     g_makeRoom = LoadMakeRoom();
     widget::SetMakeRoom(g_makeRoom);
     g_farLeft = LoadFarLeft();
+    g_showCpu = LoadShowCpu();
+    g_showRam = LoadShowRam();
     g_pollIntervalMs = LoadPollSeconds() * 1000;
     widget::SetStacked(g_stacked);
     g_verticalPlace = LoadVerticalPlace();
