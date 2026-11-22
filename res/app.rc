@@ -1,7 +1,7 @@
 #include <winver.h>
 #include "../build/version.h"
 
-// App icon by nik-txt (app.svg, made by make_icon.py): white for the exe and dark themes, black for light ones.
+// App icon (app.svg, made by make_app_svg.py and make_icon.py): white for the exe and dark themes, black for light ones.
 1 ICON "app.ico"
 2 ICON "app_light.ico"
 1 24 "app.manifest"

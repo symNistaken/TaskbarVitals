@@ -1,4 +1,4 @@
-"""Turns res/app.svg (the app icon by nik-txt) into res/app.ico (white: the exe, Start menu and installer, and
+"""Turns res/app.svg (the Taskbar Vitals app icon, written by res/make_app_svg.py) into res/app.ico (white: the exe, Start menu and installer, and
 dark themes) and res/app_light.ico (black: the request window on light themes). Needs Python 3 and Pillow.
 
 Only the simple SVG subset the icon uses is understood: <path d="..."> with M L H V C S Z commands
