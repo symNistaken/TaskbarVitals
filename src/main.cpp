@@ -1,4 +1,4 @@
-// Wireless Battery - tray app showing the battery level of wireless mice, headsets and Bluetooth devices.
+// Taskbar Vitals - tray app showing the battery level of wireless mice, headsets and Bluetooth devices.
 #include <windows.h>
 #include <shellapi.h>
 #include <dbt.h>
@@ -73,7 +73,7 @@ enum DeviceCmd : UINT {
     DEV_ALERT_FIRST = 6, DEV_ALERT_DEFAULT = DEV_ALERT_FIRST + 8, DEV_ALERT_OFF, DEV_STRIDE = 16
 };
 
-const wchar_t* kAppName = L"Wireless Battery";
+const wchar_t* kAppName = L"Taskbar Vitals";
 const wchar_t* kRunKey = L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 const wchar_t* kRunValue = L"WirelessBattery";
 
@@ -646,7 +646,7 @@ void ShowNotification(TrayEntry& e, const std::wstring& title, const std::wstrin
     // long enough for the shell to display the notification, then remove it.
     if (!g_placeholderIcon) g_placeholderIcon = RenderIcon(L"-", -1, Foreground(), Foreground(), true);
     g_alertIconAdded =
-        TrayShow(g_alertIconAdded, ALERT_ICON_ID, g_placeholderIcon, L"Wireless Battery", title.c_str(), message);
+        TrayShow(g_alertIconAdded, ALERT_ICON_ID, g_placeholderIcon, L"Taskbar Vitals", title.c_str(), message);
     if (g_alertIconAdded) SetTimer(g_hwnd, TIMER_ALERT_ICON, 60 * 1000, nullptr);
 }
 
@@ -671,7 +671,7 @@ void UpdatePlaceholder() {
     if (!any && !g_placeholder) {
         if (!g_placeholderIcon) g_placeholderIcon = RenderIcon(L"-", -1, Foreground(), Foreground(), true);
         g_placeholder = TrayShow(false, PLACEHOLDER_ID, g_placeholderIcon,
-                                 std::wstring(L"Wireless Battery\n") + T(L"No devices with battery info found"));
+                                 std::wstring(L"Taskbar Vitals\n") + T(L"No devices with battery info found"));
     } else if (any && g_placeholder) {
         TrayDelete(PLACEHOLDER_ID);
         g_placeholder = false;
@@ -765,7 +765,7 @@ void UpdateWidget() {
         if (!tip.empty()) tip += L"\n";
         tip += DisplayName(*e) + L": " + StatusText(*e);
     }
-    if (tip.empty()) tip = std::wstring(L"Wireless Battery: ") + T(L"No devices with battery info found");
+    if (tip.empty()) tip = std::wstring(L"Taskbar Vitals: ") + T(L"No devices with battery info found");
     widget::SetItems(items, tip);
 }
 
@@ -1283,7 +1283,7 @@ void ShowMenu() {
         case ID_FAR_LEFT: SetFarLeft(!g_farLeft); break;
         case ID_MODE_WIDGET: SetMode(true); break;
         case ID_MODE_TRAY: SetMode(false); break;
-        case ID_SUPPORT: ShellExecuteW(nullptr, L"open", L"https://github.com/symNistaken/WirelessBattery", nullptr, nullptr, SW_SHOWNORMAL); break;
+        case ID_SUPPORT: ShellExecuteW(nullptr, L"open", L"https://github.com/symNistaken/TaskbarVitals", nullptr, nullptr, SW_SHOWNORMAL); break;
         case ID_REPORT: report::Show(g_inst, g_hwnd); break;
         case ID_UPDATE: updates::Activate(g_hwnd); break;
         case ID_AUTO_UPDATE: updates::ToggleAutomatic(); break;
@@ -1602,7 +1602,7 @@ LRESULT CALLBACK WndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
     return DefWindowProcW(h, msg, wp, lp);
 }
 
-// `WirelessBattery.exe --list` prints what it finds, `--dump` every HID collection.
+// `TaskbarVitals.exe --list` prints what it finds, `--dump` every HID collection.
 int ListToConsole(bool dump) {
     HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
     if (!out || out == INVALID_HANDLE_VALUE) {
@@ -1621,7 +1621,7 @@ int ListToConsole(bool dump) {
         std::wstring text = DumpHidCollections();
         wchar_t path[MAX_PATH] = {};
         GetTempPathW(MAX_PATH, path);
-        wcscat_s(path, L"WirelessBattery-dump.txt");
+        wcscat_s(path, L"TaskbarVitals-dump.txt");
         HANDLE f = CreateFileW(path, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
         if (f != INVALID_HANDLE_VALUE) {
             std::wstring crlf;
@@ -1682,14 +1682,14 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR cmdLine, int) {
     if (cmdLine && wcsstr(cmdLine, L"--json")) return ListJson();
     if (cmdLine && wcsstr(cmdLine, L"--help")) {
         MessageBoxW(nullptr,
-                    L"Wireless Battery options:\n\n"
+                    L"Taskbar Vitals options:\n\n"
                     L"--list   Print devices and battery levels\n"
                     L"--json   Print a JSON array of devices and battery levels\n"
                     L"--dump   Print every HID collection and device\n"
                     L"--report Open the \"Request support for a device\" window\n"
                     L"--demo   Show sample devices\n"
                     L"--quit   Quit a running instance",
-                    L"Wireless Battery", MB_OK | MB_ICONINFORMATION);
+                    L"Taskbar Vitals", MB_OK | MB_ICONINFORMATION);
         return 0;
     }
     int argc = 0;

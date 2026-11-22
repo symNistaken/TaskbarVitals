@@ -1,4 +1,4 @@
-# Wireless Battery UI phrases. To add a language:
+# Taskbar Vitals UI phrases. To add a language:
 #  1. Copy this file to xx.txt (xx = language code, e.g. "it" or "pt-BR") in the lang folder.
 #  2. Fill in @code and @name (the language in its own words); add "@rtl = 1" for right-to-left scripts.
 #  3. Write the translation after " = " on each line. Lines left empty stay English.
@@ -128,7 +128,7 @@ pp = п. п.
 24h ago = 24 год тому
 {days} days ago = {days} дн. тому
 Blue: battery level; green: charging = Синій: рівень заряду; зелений: заряджається
-No readings yet. Keep Wireless Battery running to collect history. = Поки що немає показників. Залиште Wireless Battery запущеним, щоб зібрати історію.
+No readings yet. Keep Taskbar Vitals running to collect history. = Поки що немає показників. Залиште Taskbar Vitals запущеним, щоб зібрати історію.
 No readings in this period = Немає показників за цей період
 Now = Зараз
 Recorded battery levels only; gaps are not estimated. = Лише записані рівні заряду; прогалини не оцінюються.
@@ -181,7 +181,7 @@ Please wait before checking again. GitHub may temporarily limit update checks. =
 Please wait before contacting GitHub again. = Будь ласка, зачекайте перед повторним зверненням до GitHub.
 Release notes = Примітки до випуску
 Setup finished, but the new version could not be confirmed. Please check the installed version. = Встановлення завершено, але не вдалося підтвердити нову версію. Перевірте встановлену версію.
-The previous instance is still running. Close and reopen Wireless Battery to use the update. = Попередній екземпляр усе ще працює. Закрийте та знову відкрийте Wireless Battery, щоб скористатися оновленням.
+The previous instance is still running. Close and reopen Taskbar Vitals to use the update. = Попередній екземпляр усе ще працює. Закрийте та знову відкрийте Taskbar Vitals, щоб скористатися оновленням.
 The update could not be downloaded or its integrity could not be verified. Your current version was kept. = Не вдалося завантажити оновлення або перевірити його цілісність. Вашу поточну версію збережено.
 The update did not finish. You may need to rerun the installer from the official release page. = Оновлення не завершилося. Можливо, вам знадобиться повторно запустити інсталятор з офіційної сторінки випуску.
 The update installer failed verification. Your current version was kept. = Інсталятор оновлення не пройшов перевірку. Вашу поточну версію збережено.
@@ -197,7 +197,7 @@ Update check cancelled or timed out. = Перевірку оновлень ск�
 Update check failed - try again... = Помилка перевірки оновлень — спробуйте ще раз...
 Update download cancelled. = Завантаження оновлення скасовано.
 Windows needs to restart before this update is complete. Your computer will not restart automatically. = Windows потрібно перезавантажити, щоб завершити це оновлення. Ваш комп'ютер не перезавантажиться автоматично.
-Wireless Battery could not reopen. Please start it manually or repair the installation. = Не вдалося знову відкрити Wireless Battery. Будь ласка, запустіть програму вручну або виправте встановлення.
-Wireless Battery is up to date. = Wireless Battery оновлено до останньої версії.
-Wireless Battery update = Оновлення Wireless Battery
-Wireless Battery will close briefly while the update is installed. = Wireless Battery ненадовго закриється під час встановлення оновлення.
+Taskbar Vitals could not reopen. Please start it manually or repair the installation. = Не вдалося знову відкрити Taskbar Vitals. Будь ласка, запустіть програму вручну або виправте встановлення.
+Taskbar Vitals is up to date. = Taskbar Vitals оновлено до останньої версії.
+Taskbar Vitals update = Оновлення Taskbar Vitals
+Taskbar Vitals will close briefly while the update is installed. = Taskbar Vitals ненадовго закриється під час встановлення оновлення.

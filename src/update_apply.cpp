@@ -53,7 +53,7 @@ bool Launch(const std::wstring& executable, const std::wstring& arguments, bool 
     return launched;
 }
 
-void Error(const wchar_t* text) { MessageBoxW(nullptr, T(text), T(L"Wireless Battery update"), MB_OK | MB_ICONINFORMATION); }
+void Error(const wchar_t* text) { MessageBoxW(nullptr, T(text), T(L"Taskbar Vitals update"), MB_OK | MB_ICONINFORMATION); }
 
 void LogResult(DWORD code) {
     wchar_t local[32768];
@@ -92,14 +92,14 @@ bool StartApply(HWND owner, const std::wstring& installer, const ReleaseInfo& re
     auto installed = FindInstallation(target);
     if (!installed.valid || !release.CanInstall() || !VerifyFile(installer, release.sha256, release.size)) {
         MessageBoxW(owner, T(L"The update or installation could not be verified. Please use the official release page."),
-            T(L"Wireless Battery update"), MB_OK | MB_ICONINFORMATION);
+            T(L"Taskbar Vitals update"), MB_OK | MB_ICONINFORMATION);
         return false;
     }
     size_t slash = installer.find_last_of(L'\\');
     if (slash == std::wstring::npos) return false;
     std::wstring helper = installer.substr(0, slash) + L"\\update-helper.exe";
     if (!CopyFileW(target.c_str(), helper.c_str(), TRUE)) {
-        MessageBoxW(owner, T(L"Could not prepare the update helper. Your current version was kept."), T(L"Wireless Battery update"), MB_OK | MB_ICONINFORMATION);
+        MessageBoxW(owner, T(L"Could not prepare the update helper. Your current version was kept."), T(L"Taskbar Vitals update"), MB_OK | MB_ICONINFORMATION);
         return false;
     }
     std::wstring arguments = L"--apply-update " + QuoteArgument(installer) + L" " + QuoteArgument(Wide(release.sha256)) + L" " +
@@ -107,7 +107,7 @@ bool StartApply(HWND owner, const std::wstring& installer, const ReleaseInfo& re
         L" " + std::to_wstring(GetCurrentProcessId());
     if (!Launch(helper, arguments, false, process)) {
         DeleteFileW(helper.c_str());
-        MessageBoxW(owner, T(L"Could not start the update helper. Your current version was kept."), T(L"Wireless Battery update"), MB_OK | MB_ICONINFORMATION);
+        MessageBoxW(owner, T(L"Could not start the update helper. Your current version was kept."), T(L"Taskbar Vitals update"), MB_OK | MB_ICONINFORMATION);
         return false;
     }
     return true;
@@ -181,9 +181,9 @@ int RunApplyMode(int argc, wchar_t** argv) {
     if (parentExited && code != 3010) {
         restarted = GetFileAttributesW(target.c_str()) != INVALID_FILE_ATTRIBUTES &&
                     Launch(target, L"", false, nullptr);
-        if (!restarted) Error(L"Wireless Battery could not reopen. Please start it manually or repair the installation.");
+        if (!restarted) Error(L"Taskbar Vitals could not reopen. Please start it manually or repair the installation.");
     } else if (code == 0 && !parentExited) {
-        Error(L"The previous instance is still running. Close and reopen Wireless Battery to use the update.");
+        Error(L"The previous instance is still running. Close and reopen Taskbar Vitals to use the update.");
     }
     DeleteFileW(installer.c_str());
     // This helper is still in use. Never schedule a reboot just for cleanup.

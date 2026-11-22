@@ -1,7 +1,7 @@
-; Inno Setup script for Wireless Battery (https://jrsoftware.org/isinfo.php).
+; Inno Setup script for Taskbar Vitals (https://jrsoftware.org/isinfo.php).
 ; Per-user install by default: no administrator rights needed, installs to %LOCALAPPDATA%\Programs.
 ; Setup also offers "Install for all users" (Program Files, needs administrator rights).
-; Build with installer\build-installer.ps1 (or: ISCC /DAppVersion=1.2.3 installer\WirelessBattery.iss).
+; Build with installer\build-installer.ps1 (or: ISCC /DAppVersion=1.2.3 installer\TaskbarVitals.iss).
 
 #ifndef AppVersion
   #define AppVersion "1.0.0"
@@ -9,13 +9,13 @@
 #define Root ".."
 
 [Setup]
-; Same AppId as BatteryHub, the original project: installing over it replaces it in place.
+; Same AppId as BatteryHub, the original project (and Wireless Battery): installing over either replaces it.
 AppId={{7E0B5C2A-3F4D-4C8E-9B61-2D5A8F1C4E93}
-AppName=Wireless Battery
+AppName=Taskbar Vitals
 AppVersion={#AppVersion}
-AppVerName=Wireless Battery {#AppVersion}
-AppPublisher=Wireless Battery contributors
-DefaultDirName={autopf}\Wireless Battery
+AppVerName=Taskbar Vitals {#AppVersion}
+AppPublisher=Taskbar Vitals contributors
+DefaultDirName={autopf}\Taskbar Vitals
 DisableProgramGroupPage=yes
 DisableDirPage=auto
 PrivilegesRequired=lowest
@@ -24,37 +24,40 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
 OutputDir={#Root}\dist
-OutputBaseFilename=WirelessBattery-Setup-{#AppVersion}
+OutputBaseFilename=TaskbarVitals-Setup-{#AppVersion}
 SetupIconFile={#Root}\res\app.ico
-UninstallDisplayIcon={app}\WirelessBattery.exe
-UninstallDisplayName=Wireless Battery
+UninstallDisplayIcon={app}\TaskbarVitals.exe
+UninstallDisplayName=Taskbar Vitals
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
 CloseApplications=no
 
 [Tasks]
-Name: "autostart"; Description: "Start Wireless Battery when I sign in to Windows"
+Name: "autostart"; Description: "Start Taskbar Vitals when I sign in to Windows"
 
 [Files]
-Source: "{#Root}\WirelessBattery.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#Root}\TaskbarVitals.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#Root}\third_party\headsetcontrol\headsetcontrol.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#Root}\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
 Source: "{#Root}\installer\THIRD_PARTY_NOTICES.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [InstallDelete]
-; Installing over BatteryHub (the original project, 1.1.x): remove its exe and Start menu shortcut.
+; Installing over an earlier name of this app: remove its exe and Start menu shortcut.
+; BatteryHub is the original project (1.1.x); Wireless Battery was this project's first name.
 Type: files; Name: "{app}\BatteryHub.exe"
 Type: files; Name: "{autoprograms}\BatteryHub.lnk"
+Type: files; Name: "{app}\WirelessBattery.exe"
+Type: files; Name: "{autoprograms}\Wireless Battery.lnk"
 
 [Icons]
-Name: "{autoprograms}\Wireless Battery"; Filename: "{app}\WirelessBattery.exe"
+Name: "{autoprograms}\Taskbar Vitals"; Filename: "{app}\TaskbarVitals.exe"
 
 [Run]
-Filename: "{app}\WirelessBattery.exe"; Description: "Start Wireless Battery now"; Flags: nowait postinstall skipifsilent; Check: not IsUpdate
+Filename: "{app}\TaskbarVitals.exe"; Description: "Start Taskbar Vitals now"; Flags: nowait postinstall skipifsilent; Check: not IsUpdate
 
 [UninstallRun]
-Filename: "{app}\WirelessBattery.exe"; Parameters: "--quit"; Flags: runhidden waituntilterminated; RunOnceId: "QuitApp"
+Filename: "{app}\TaskbarVitals.exe"; Parameters: "--quit"; Flags: runhidden waituntilterminated; RunOnceId: "QuitApp"
 
 [Code]
 const
@@ -65,14 +68,17 @@ begin
   Result := ExpandConstant('{param:WBUPDATE|0}') = '1';
 end;
 
+{ Asks the copy in this folder to quit, whichever name its exe has. }
 function QuitRunningApp(): Boolean;
 var
   Code: Integer;
 begin
   Result := True;
-  if FileExists(ExpandConstant('{app}\WirelessBattery.exe')) then
+  if FileExists(ExpandConstant('{app}\TaskbarVitals.exe')) then
+    Result := Exec(ExpandConstant('{app}\TaskbarVitals.exe'), '--quit', '', SW_HIDE, ewWaitUntilTerminated, Code) and (Code = 0)
+  else if FileExists(ExpandConstant('{app}\WirelessBattery.exe')) then
     Result := Exec(ExpandConstant('{app}\WirelessBattery.exe'), '--quit', '', SW_HIDE, ewWaitUntilTerminated, Code) and (Code = 0)
-  else if FileExists(ExpandConstant('{app}\BatteryHub.exe')) then  { installing over BatteryHub, the original project }
+  else if FileExists(ExpandConstant('{app}\BatteryHub.exe')) then
     Result := Exec(ExpandConstant('{app}\BatteryHub.exe'), '--quit', '', SW_HIDE, ewWaitUntilTerminated, Code) and (Code = 0);
 end;
 
@@ -80,19 +86,20 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   Result := '';
   if IsUpdate() and not QuitRunningApp() then
-    Result := 'Wireless Battery could not close. Close it and try updating again.';
+    Result := 'Taskbar Vitals could not close. Close it and try updating again.';
 end;
 
 function InstalledRunValue(): String;
 begin
-  Result := '"' + ExpandConstant('{app}\WirelessBattery.exe') + '"';
+  Result := '"' + ExpandConstant('{app}\TaskbarVitals.exe') + '"';
 end;
 
-{ The startup entry of BatteryHub (the original project) installed in this folder. The value name
-  'WirelessBattery' is the same, so the entry only needs to point at the new exe. }
-function OldRunValue(): String;
+{ True for a startup entry that starts an earlier exe of this copy (BatteryHub.exe or WirelessBattery.exe).
+  The value name 'WirelessBattery' stays the same for all of them, so only its path changes. }
+function IsOldRunValue(Value: String): Boolean;
 begin
-  Result := '"' + ExpandConstant('{app}\BatteryHub.exe') + '"';
+  Result := (CompareText(Value, '"' + ExpandConstant('{app}\BatteryHub.exe') + '"') = 0) or
+            (CompareText(Value, '"' + ExpandConstant('{app}\WirelessBattery.exe') + '"') = 0);
 end;
 
 { Removes the startup entry only if it points at this installed copy, so a portable copy's
@@ -102,16 +109,16 @@ var
   Value: String;
 begin
   if RegQueryStringValue(HKCU, RunKey, 'WirelessBattery', Value) and
-     ((CompareText(Value, InstalledRunValue()) = 0) or (CompareText(Value, OldRunValue()) = 0)) then
+     ((CompareText(Value, InstalledRunValue()) = 0) or IsOldRunValue(Value)) then
     RegDeleteValue(HKCU, RunKey, 'WirelessBattery');
 end;
 
-{ An entry that still starts BatteryHub.exe of this copy now starts WirelessBattery.exe (also on silent updates). }
+{ An entry that still starts an earlier exe of this copy now starts TaskbarVitals.exe (also on silent updates). }
 procedure MigrateAutostart();
 var
   Value: String;
 begin
-  if RegQueryStringValue(HKCU, RunKey, 'WirelessBattery', Value) and (CompareText(Value, OldRunValue()) = 0) then
+  if RegQueryStringValue(HKCU, RunKey, 'WirelessBattery', Value) and IsOldRunValue(Value) then
     RegWriteStringValue(HKCU, RunKey, 'WirelessBattery', InstalledRunValue());
 end;
 

@@ -13,13 +13,13 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'release-key.psm1') -Force
-$repo = 'symNistaken/WirelessBattery'
+$repo = 'symNistaken/TaskbarVitals'
 if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw 'Version must be MAJOR.MINOR.PATCH, for example 1.2.3.' }
 if (-not (Test-Path -LiteralPath $KeyFile)) { throw "No key file at $KeyFile. Create one with scripts\new-release-key.ps1." }
 if (-not $OutFile) { $OutFile = Join-Path (Get-Location) 'SHA256SUMS.txt.sig' }
 
 if (-not $SumsFile) {
-    $SumsFile = Join-Path ([IO.Path]::GetTempPath()) "WirelessBattery-SHA256SUMS-$Version.txt"
+    $SumsFile = Join-Path ([IO.Path]::GetTempPath()) "TaskbarVitals-SHA256SUMS-$Version.txt"
     $url = "https://github.com/$repo/releases/download/v$Version/SHA256SUMS.txt"
     Write-Host "Downloading $url"
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -27,7 +27,7 @@ if (-not $SumsFile) {
 }
 $data = [IO.File]::ReadAllBytes($SumsFile)
 $text = [Text.Encoding]::ASCII.GetString($data)
-$setup = "WirelessBattery-Setup-$Version.exe"
+$setup = "TaskbarVitals-Setup-$Version.exe"
 if ($text -notmatch "(?m)^[0-9a-fA-F]{64} [ *]$([regex]::Escape($setup))\r?$") { throw "SHA256SUMS.txt does not list $setup." }
 
 # If this PC has the same files (for example a local build), they must match the list.

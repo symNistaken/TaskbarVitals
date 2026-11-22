@@ -1,4 +1,4 @@
-# Wireless Battery UI phrases. To add a language:
+# Taskbar Vitals UI phrases. To add a language:
 #  1. Copy this file to xx.txt (xx = language code, e.g. "it" or "pt-BR") in the lang folder.
 #  2. Fill in @code and @name (the language in its own words); add "@rtl = 1" for right-to-left scripts.
 #  3. Write the translation after " = " on each line. Lines left empty stay English.
@@ -52,7 +52,7 @@ pp =
 24h ago =
 {days} days ago =
 Blue: battery level; green: charging =
-No readings yet. Keep Wireless Battery running to collect history. =
+No readings yet. Keep Taskbar Vitals running to collect history. =
 No readings in this period =
 Now =
 Recorded battery levels only; gaps are not estimated. =
@@ -201,7 +201,7 @@ Please wait before checking again. GitHub may temporarily limit update checks. =
 Please wait before contacting GitHub again. = 
 Release notes = 
 Setup finished, but the new version could not be confirmed. Please check the installed version. = 
-The previous instance is still running. Close and reopen Wireless Battery to use the update. = 
+The previous instance is still running. Close and reopen Taskbar Vitals to use the update. = 
 The update could not be downloaded or its integrity could not be verified. Your current version was kept. = 
 The update did not finish. You may need to rerun the installer from the official release page. = 
 The update installer failed verification. Your current version was kept. = 
@@ -217,10 +217,10 @@ Update check cancelled or timed out. =
 Update check failed - try again... = 
 Update download cancelled. = 
 Windows needs to restart before this update is complete. Your computer will not restart automatically. = 
-Wireless Battery could not reopen. Please start it manually or repair the installation. = 
-Wireless Battery is up to date. = 
-Wireless Battery update = 
-Wireless Battery will close briefly while the update is installed. = 
+Taskbar Vitals could not reopen. Please start it manually or repair the installation. = 
+Taskbar Vitals is up to date. = 
+Taskbar Vitals update = 
+Taskbar Vitals will close briefly while the update is installed. = 
 
 Is one of your devices not shown? Pick it below and press Send: a GitHub issue opens in your browser with these details, and you submit it there. = 
 Your name (optional, shown in the public issue) = 

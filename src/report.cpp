@@ -241,7 +241,7 @@ std::wstring WindowsBuild() {
 
 // The short technical summary that goes into the issue (notes and summary are kept under 500 characters).
 std::wstring TechSummary(const Candidate* c) {
-    std::wstring s = L"[Sent from the Wireless Battery app, Windows build " + WindowsBuild() + L"] ";
+    std::wstring s = L"[Sent from the Taskbar Vitals app, Windows build " + WindowsBuild() + L"] ";
     if (!c) return s + L"Device not in the app's list.";
     wchar_t ids[16];
     swprintf(ids, 16, L"%04X:%04X", c->vid, c->pid);
@@ -549,7 +549,7 @@ LRESULT CALLBACK WndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
                 EnableWindow(GetDlgItem(h, IDC_COPY), FALSE);
                 SetStatus(T(L"Collecting the full report (this takes about 10 seconds)..."));
                 const Candidate* c = Selected();
-                std::wstring header = L"Wireless Battery device report\nWindows build " + WindowsBuild() + L"\n";
+                std::wstring header = L"Taskbar Vitals device report\nWindows build " + WindowsBuild() + L"\n";
                 if (c) {
                     wchar_t ids[16];
                     swprintf(ids, 16, L"%04X:%04X", c->vid, c->pid);
@@ -615,7 +615,7 @@ void Show(HINSTANCE inst, HWND owner) {
     GetMonitorInfoW(mon, &mi);
     int w = rc.right - rc.left, hgt = rc.bottom - rc.top;
     int x = mi.rcWork.left + (mi.rcWork.right - mi.rcWork.left - w) / 2, y = mi.rcWork.top + (mi.rcWork.bottom - mi.rcWork.top - hgt) / 2;
-    HWND h = CreateWindowExW(i18n::Rtl() ? WS_EX_LAYOUTRTL : 0, kClass, (std::wstring(L"Wireless Battery: ") + T(L"request support for a device")).c_str(), style, x, y, w, hgt, nullptr, nullptr, inst,
+    HWND h = CreateWindowExW(i18n::Rtl() ? WS_EX_LAYOUTRTL : 0, kClass, (std::wstring(L"Taskbar Vitals: ") + T(L"request support for a device")).c_str(), style, x, y, w, hgt, nullptr, nullptr, inst,
                              nullptr);
     g_quitOnClose = owner == nullptr;
     if (!h) return;

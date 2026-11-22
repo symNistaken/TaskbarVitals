@@ -1,18 +1,18 @@
-# Wireless Battery
+# Taskbar Vitals
 
-Battery levels of your wireless mouse, headset, keyboard and controller, right on the Windows taskbar.
+Battery levels of your wireless mouse, headset, keyboard and controller, right on the Windows taskbar. CPU, RAM and GPU readings are coming next.
 
 > [!NOTE]
-> **A spiritual successor to BatteryHub.** Wireless Battery continues [BatteryHub](https://github.com/krisgfx9/Wireless-Device-Battery-Monitor) by krisgfx9 and its contributors, after the original repository disappeared from GitHub in November 2026. It starts from the original's last public source (with all of its ~100 device drivers) and keeps the same GPL-3.0 license. The idea, the taskbar strip and the device protocols come from the original project, and the credit for them goes to its authors. This is not an official release of BatteryHub.
+> **A spiritual successor to BatteryHub.** Taskbar Vitals continues [BatteryHub](https://github.com/krisgfx9/Wireless-Device-Battery-Monitor) by krisgfx9 and its contributors, after the original repository disappeared from GitHub in November 2026. It starts from the original's last public source (with all of its ~100 device drivers) and keeps the same GPL-3.0 license. The idea, the taskbar strip and the device protocols come from the original project, and the credit for them goes to its authors. This is not an official release of BatteryHub.
 
-[![Report a device](https://img.shields.io/badge/Report-a%20device-2EA44F?logo=github&logoColor=white)](https://github.com/symNistaken/WirelessBattery/issues/new)
-[![Latest version](https://img.shields.io/github/v/release/symNistaken/WirelessBattery?label=latest%20version)](https://github.com/symNistaken/WirelessBattery/releases/latest)
+[![Report a device](https://img.shields.io/badge/Report-a%20device-2EA44F?logo=github&logoColor=white)](https://github.com/symNistaken/TaskbarVitals/issues/new)
+[![Latest version](https://img.shields.io/github/v/release/symNistaken/TaskbarVitals?label=latest%20version)](https://github.com/symNistaken/TaskbarVitals/releases/latest)
 
-![Wireless Battery on the taskbar](docs/screenshot.png)
+![Taskbar Vitals on the taskbar](docs/screenshot.png)
 
-> **Just want it working?** Download **[WirelessBattery-Setup](https://github.com/symNistaken/WirelessBattery/releases/latest)** from the latest release. Use the per-user installation for setup without administrator rights; see the [installation notes](#install) for unsigned-app warnings and the all-users option.
+> **Just want it working?** Download **[TaskbarVitals-Setup](https://github.com/symNistaken/TaskbarVitals/releases/latest)** from the latest release. Use the per-user installation for setup without administrator rights; see the [installation notes](#install) for unsigned-app warnings and the all-users option.
 >
-> **Coming from BatteryHub?** Install Wireless Battery over it: it uses the same installation, settings, startup entry and battery history. BatteryHub's own updater can't find new versions any more, so this one step is manual.
+> **Coming from BatteryHub?** Install Taskbar Vitals over it: it uses the same installation, settings, startup entry and battery history. BatteryHub's own updater can't find new versions any more, so this one step is manual.
 >
 > **Experienced users** can grab the portable zip, use the [command-line options](#command-line), or [build it from source](#build) with `make` or `build.bat`.
 
@@ -83,7 +83,7 @@ Turn off **Record battery history** in the menu to stop saving readings; what wa
 
 ## Supported devices
 
-Match your model, receiver VID:PID, connection mode and any firmware requirements to the table; `WirelessBattery.exe --dump` shows the IDs. A brand name alone does not confirm support for every model. Hardware-test labels apply only to the stated devices and behaviors.
+Match your model, receiver VID:PID, connection mode and any firmware requirements to the table; `TaskbarVitals.exe --dump` shows the IDs. A brand name alone does not confirm support for every model. Hardware-test labels apply only to the stated devices and behaviors.
 
 Redragon M602-KS battery percentage was verified on the 2.4 GHz receiver (`258A:002F`).
 
@@ -105,7 +105,7 @@ Redragon M602-KS battery percentage was verified on the 2.4 GHz receiver (`258A:
 | **Hitscan** | Hyperlight X, Hyperlight N | Vendor feature report (same protocol as Glorious) |
 | **Kysona / Pulsar / ATK (VXE) / Hitscan** | Kysona M600 / Mercury, Pulsar and ATK VXE wireless mice (e.g. VXE X3 Pro, VXE Dragonfly R1 / R1 Pro Max / R1 SE+, ATK F1 Extreme), Hitscan Hyperlight, Chimera V2 (receiver 3554:F512); R1 cables share their receiver's entry (`3554:F58F` on R1 SE+ pairs with `373B:1085`, `373B:1272` on R1 Pro pairs with `3554:F58A`) | Shared vendor protocol with checksummed replies |
 | **Pulsar X2 V3** | X2 V3 on the 1K dongle (`3710:5402`) or USB cable (`3710:3402`); X2 V3 eS on the 8K dongle (`3710:5403`) or USB cable (`3710:3406`) | 64-byte vendor feature report, battery register `08 81 01` (read-only) |
-| **Pulsar Feinmann FO1 / 8K** | Dedicated 2.4 GHz dongle (`3710:5404`; Wireless Battery hardware-untested) | Read-only SONiX 64-byte feature battery query `08 81 01` on `FFFF:0001`, interface 3; protocol [verified on hardware in pulsar-mouse-linux](https://github.com/packerlschupfer/pulsar-mouse-linux/blob/main/src/pulsar_mouse/drivers/feinmann8k.py); no charging-state reading |
+| **Pulsar Feinmann FO1 / 8K** | Dedicated 2.4 GHz dongle (`3710:5404`; Taskbar Vitals hardware-untested) | Read-only SONiX 64-byte feature battery query `08 81 01` on `FFFF:0001`, interface 3; protocol [verified on hardware in pulsar-mouse-linux](https://github.com/packerlschupfer/pulsar-mouse-linux/blob/main/src/pulsar_mouse/drivers/feinmann8k.py); no charging-state reading |
 | **ATK / VXE NK** | VXE R1 NK and other NearLink mice on the NK mouse NANO dongle (`373B:1216`) | ATK BITMOUSE output report 08 on `FF05:0001` (battery and charging) |
 | **ATK Zero** | USB cable (`373B:1154`) and 8K L0 / L1 receivers (`373B:124F` / `373B:1155`) on Windows | 64-byte ATK BITMOUSE report 08 on `FF05:0001` (battery on both links, charging over the cable) |
 | **ATK 8K Nano** | ATK / VXE mice on the ATK 8K Nano Dongle (`373B:1178`) | Holtek GetConfigData (`82`) feature report on `FF10:0001` (from ATK HUB; battery and charging) |
@@ -248,20 +248,20 @@ These reports cover the listed connection modes and behaviors; battery confirmat
 - SteelSeries Aerox 3 Wireless CS2 Dragon Lore Edition (receiver `1038:1878` and USB cable `1038:187A`), including charging, switching off (the last level stays, dimmed) and with SteelSeries GG running; GG only shows a three-step bar, which the level matched.
 - RAWM Leviathan V4 (RAWM HS Receiver `1915:2346`; battery level read, charging untested).
 
-**Hardware coverage:** Devices without recorded hardware confirmation are implemented from protocol documentation and other projects. Fantech Raigor II WG10 is still untested (it shares the tested Raigor III's `1EA7:0066` dongle and collection). If you own an untested device, please report whether it works by [opening an issue](https://github.com/symNistaken/WirelessBattery/issues).
+**Hardware coverage:** Devices without recorded hardware confirmation are implemented from protocol documentation and other projects. Fantech Raigor II WG10 is still untested (it shares the tested Raigor III's `1EA7:0066` dongle and collection). If you own an untested device, please report whether it works by [opening an issue](https://github.com/symNistaken/TaskbarVitals/issues).
 
 ## Install
 
-[![Latest version](https://img.shields.io/github/v/release/symNistaken/WirelessBattery?label=latest%20version&style=for-the-badge)](https://github.com/symNistaken/WirelessBattery/releases/latest)
+[![Latest version](https://img.shields.io/github/v/release/symNistaken/TaskbarVitals?label=latest%20version&style=for-the-badge)](https://github.com/symNistaken/TaskbarVitals/releases/latest)
 
-1. Download **`WirelessBattery-Setup-<version>.exe`** from the [latest release](https://github.com/symNistaken/WirelessBattery/releases/latest).
+1. Download **`TaskbarVitals-Setup-<version>.exe`** from the [latest release](https://github.com/symNistaken/TaskbarVitals/releases/latest).
 2. Run the installer. The default per-user installation needs no administrator rights.
    **Install for all users** requires administrator permission. Windows may show a SmartScreen warning because the app is not code-signed (see below).
 3. No separate runtime is required. HeadsetControl is bundled for the headsets that use it; check your device's table entry and [Limitations](#limitations) for any setup or firmware requirements.
 
 The installer adds a Start menu entry and an uninstaller (*Settings → Apps*), and can start the app
-when you sign in. Prefer no installer? Download `Wireless Battery-<version>-portable.zip`, unzip it
-anywhere and run `WirelessBattery.exe`.
+when you sign in. Prefer no installer? Download `Taskbar Vitals-<version>-portable.zip`, unzip it
+anywhere and run `TaskbarVitals.exe`.
 
 **Notes:**
 - **SmartScreen warning:** the exe is not code-signed, so Windows may say "Windows protected your PC". Click *More info → Run anyway*, or build it yourself.
@@ -305,16 +305,16 @@ automatic replacement of portable copies are deferred.
 ## Command line
 
 ```
-WirelessBattery.exe --list     # print every device and its battery level, then exit
-WirelessBattery.exe --json     # print a JSON array of devices and battery levels, then exit
-WirelessBattery.exe --dump     # every HID collection, HID devices that could not be opened, all USB devices (also ones
-                               # without a HID interface) and Bluetooth devices; also saved to %TEMP%\Wireless Battery-dump.txt
-WirelessBattery.exe --report   # open the "Request support for a device" window
-WirelessBattery.exe --demo     # sample devices of every brand instead of real ones (screenshots, checking colors)
-WirelessBattery.exe --quit     # close the running instance
+TaskbarVitals.exe --list     # print every device and its battery level, then exit
+TaskbarVitals.exe --json     # print a JSON array of devices and battery levels, then exit
+TaskbarVitals.exe --dump     # every HID collection, HID devices that could not be opened, all USB devices (also ones
+                               # without a HID interface) and Bluetooth devices; also saved to %TEMP%\Taskbar Vitals-dump.txt
+TaskbarVitals.exe --report   # open the "Request support for a device" window
+TaskbarVitals.exe --demo     # sample devices of every brand instead of real ones (screenshots, checking colors)
+TaskbarVitals.exe --quit     # close the running instance
 ```
 
-The Linux build uses the same flags with `wireless-battery` instead of `WirelessBattery.exe`, and
+The Linux build uses the same flags with `wireless-battery` instead of `TaskbarVitals.exe`, and
 also accepts `--help`. `--json` prints a stable array that scripts and bar widgets can parse:
 
 ```json
@@ -358,7 +358,7 @@ Windows builds also need PowerShell for generating the shared executable/resourc
 The official repository's version tags build with `CHANNEL=stable`; local builds default to
 `dev`. Forks and pull requests do not enable official updates automatically.
 
-`WirelessBattery.exe` on its own also works. Without `headsetcontrol.exe` next to it (or on `PATH`) you
+`TaskbarVitals.exe` on its own also works. Without `headsetcontrol.exe` next to it (or on `PATH`) you
 just lose the extra headsets.
 
 ## Linux (experimental)

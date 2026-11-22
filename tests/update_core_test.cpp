@@ -12,9 +12,9 @@ std::string Release(const std::string& tag = "v1.0.10", const std::string& asset
 }
 
 std::string Asset() {
-    return std::string("{\"name\":\"WirelessBattery-Setup-1.0.10.exe\",\"state\":\"uploaded\",\"size\":42,") +
+    return std::string("{\"name\":\"TaskbarVitals-Setup-1.0.10.exe\",\"state\":\"uploaded\",\"size\":42,") +
         "\"digest\":\"sha256:" + std::string(64, 'a') + "\",\"browser_download_url\":\"https://github.com/" + Repository +
-        "/releases/download/v1.0.10/WirelessBattery-Setup-1.0.10.exe\"}";
+        "/releases/download/v1.0.10/TaskbarVitals-Setup-1.0.10.exe\"}";
 }
 
 // The signed checksum list and its signature, both required for an install.

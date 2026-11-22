@@ -30,12 +30,12 @@ jobs:
           if ($env:GITHUB_REF -like 'refs/tags/v*') {
             $version = $env:GITHUB_REF_NAME.Substring(1)
             if ($version -notmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') { throw 'Unsupported release tag' }
-            if ($env:GITHUB_REPOSITORY -eq 'symNistaken/WirelessBattery') { $channel = 'stable' }
+            if ($env:GITHUB_REPOSITORY -eq 'symNistaken/TaskbarVitals') { $channel = 'stable' }
           }
           "WB_VERSION=$version" >> $env:GITHUB_ENV
           "WB_CHANNEL=$channel" >> $env:GITHUB_ENV
 
-      - name: Build WirelessBattery.exe
+      - name: Build TaskbarVitals.exe
         shell: msys2 {0}
         run: make VERSION="$WB_VERSION" CHANNEL="$WB_CHANNEL"
 
@@ -60,7 +60,7 @@ jobs:
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: WirelessBattery
+          name: TaskbarVitals
           path: dist/*
 
   # Only this job can publish, and only for version tags pushed by the maintainer.
@@ -73,7 +73,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: WirelessBattery
+          name: TaskbarVitals
           path: dist
       - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:

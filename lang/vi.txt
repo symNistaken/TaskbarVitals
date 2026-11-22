@@ -1,4 +1,4 @@
-# Wireless Battery UI phrases. To add a language:
+# Taskbar Vitals UI phrases. To add a language:
 #  1. Copy this file to xx.txt (xx = language code, e.g. "it" or "pt-BR") in the lang folder.
 #  2. Fill in @code and @name (the language in its own words); add "@rtl = 1" for right-to-left scripts.
 #  3. Write the translation after " = " on each line. Lines left empty stay English.
@@ -48,7 +48,7 @@ pp = điểm phần trăm
 24h ago = 24 giờ trước
 {days} days ago = {days} ngày trước
 Blue: battery level; green: charging = Xanh dương: mức pin; xanh lá: đang sạc
-No readings yet. Keep Wireless Battery running to collect history. = Chưa có dữ liệu. Hãy duy trì mở Wireless Battery để thu thập lịch sử.
+No readings yet. Keep Taskbar Vitals running to collect history. = Chưa có dữ liệu. Hãy duy trì mở Taskbar Vitals để thu thập lịch sử.
 No readings in this period = Không có dữ liệu trong khoảng thời gian này
 Now = Hiện tại
 Recorded battery levels only; gaps are not estimated. = Chỉ hiển thị các mức pin đã ghi nhận; không ước lượng khoảng trống.
@@ -181,7 +181,7 @@ Please wait before checking again. GitHub may temporarily limit update checks. =
 Please wait before contacting GitHub again. = Vui lòng đợi một lát trước khi kết nối lại GitHub.
 Release notes = Nhật ký cập nhật (Release notes)
 Setup finished, but the new version could not be confirmed. Please check the installed version. = Cài đặt hoàn tất nhưng chưa thể xác nhận phiên bản mới. Vui lòng kiểm tra lại phiên bản.
-The previous instance is still running. Close and reopen Wireless Battery to use the update. = Phiên bản cũ vẫn đang chạy. Hãy đóng và mở lại Wireless Battery để áp dụng bản cập nhật.
+The previous instance is still running. Close and reopen Taskbar Vitals to use the update. = Phiên bản cũ vẫn đang chạy. Hãy đóng và mở lại Taskbar Vitals để áp dụng bản cập nhật.
 The update could not be downloaded or its integrity could not be verified. Your current version was kept. = Không thể tải xuống hoặc không xác thực được tính toàn vẹn của bản cập nhật. Phiên bản hiện tại vẫn được giữ nguyên.
 The update did not finish. You may need to rerun the installer from the official release page. = Bản cập nhật chưa hoàn tất. Bạn có thể cần chạy lại trình cài đặt từ trang phát hành chính thức.
 The update installer failed verification. Your current version was kept. = Trình cài đặt cập nhật không vượt qua bước xác thực. Phiên bản hiện tại vẫn được giữ nguyên.
@@ -197,7 +197,7 @@ Update check cancelled or timed out. = Kiểm tra cập nhật đã bị hủy h
 Update check failed - try again... = Kiểm tra cập nhật thất bại - vui lòng thử lại...
 Update download cancelled. = Đã hủy tải xuống bản cập nhật.
 Windows needs to restart before this update is complete. Your computer will not restart automatically. = Cần khởi động lại Windows để hoàn tất cập nhật. Máy tính sẽ không tự khởi động lại.
-Wireless Battery could not reopen. Please start it manually or repair the installation. = Không thể mở lại Wireless Battery. Vui lòng mở thủ công hoặc sửa lại bản cài đặt.
-Wireless Battery is up to date. = Wireless Battery đã là phiên bản mới nhất.
-Wireless Battery update = Cập nhật Wireless Battery
-Wireless Battery will close briefly while the update is installed. = Wireless Battery sẽ tạm đóng trong chốc lát để cài đặt bản cập nhật.
+Taskbar Vitals could not reopen. Please start it manually or repair the installation. = Không thể mở lại Taskbar Vitals. Vui lòng mở thủ công hoặc sửa lại bản cài đặt.
+Taskbar Vitals is up to date. = Taskbar Vitals đã là phiên bản mới nhất.
+Taskbar Vitals update = Cập nhật Taskbar Vitals
+Taskbar Vitals will close briefly while the update is installed. = Taskbar Vitals sẽ tạm đóng trong chốc lát để cài đặt bản cập nhật.

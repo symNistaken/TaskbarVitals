@@ -32,7 +32,7 @@ function Protect-ReleaseKey([byte[]]$PrivateBlob, [Security.SecureString]$Passwo
 
 function Unprotect-ReleaseKey([byte[]]$File, [Security.SecureString]$Password) {
     if ($File.Length -lt 4 + 16 + 16 + 32 + 16 -or [Text.Encoding]::ASCII.GetString($File, 0, 4) -ne 'WBK1') {
-        throw 'This is not a Wireless Battery release key file.'
+        throw 'This is not a Taskbar Vitals release key file.'
     }
     $salt = $File[4..19]; $iv = $File[20..35]; $mac = $File[36..67]; $cipher = $File[68..($File.Length - 1)]
     $keys = Get-DerivedKeys $Password $salt

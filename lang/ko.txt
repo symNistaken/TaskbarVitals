@@ -1,4 +1,4 @@
-# Wireless Battery UI phrases. To add a language:
+# Taskbar Vitals UI phrases. To add a language:
 #  1. Copy this file to xx.txt (xx = language code, e.g. "it" or "pt-BR") in the lang folder.
 #  2. Fill in @code and @name (the language in its own words); add "@rtl = 1" for right-to-left scripts.
 #  3. Write the translation after " = " on each line. Lines left empty stay English.
@@ -48,7 +48,7 @@ pp = %p
 24h ago = 24시간 전
 {days} days ago = {days}일 전
 Blue: battery level; green: charging = 파란색: 배터리 잔량, 초록색: 충전 중
-No readings yet. Keep Wireless Battery running to collect history. = 아직 측정값이 없습니다. 기록을 수집하려면 Wireless Battery를 계속 실행해 주세요.
+No readings yet. Keep Taskbar Vitals running to collect history. = 아직 측정값이 없습니다. 기록을 수집하려면 Taskbar Vitals를 계속 실행해 주세요.
 No readings in this period = 이 기간의 측정값이 없습니다
 Now = 지금
 Recorded battery levels only; gaps are not estimated. = 기록된 배터리 잔량만 표시하며, 누락된 구간은 추정하지 않습니다.
@@ -181,7 +181,7 @@ Please wait before checking again. GitHub may temporarily limit update checks. =
 Please wait before contacting GitHub again. = GitHub에 다시 연결하기 전에 잠시 기다려 주세요.
 Release notes = 릴리스 노트
 Setup finished, but the new version could not be confirmed. Please check the installed version. = 설치는 완료되었지만 새 버전을 확인하지 못했습니다. 설치된 버전을 확인해 주세요.
-The previous instance is still running. Close and reopen Wireless Battery to use the update. = 이전 Wireless Battery가 아직 실행 중입니다. 업데이트를 적용하려면 Wireless Battery를 종료한 후 다시 실행하세요.
+The previous instance is still running. Close and reopen Taskbar Vitals to use the update. = 이전 Taskbar Vitals가 아직 실행 중입니다. 업데이트를 적용하려면 Taskbar Vitals를 종료한 후 다시 실행하세요.
 The update could not be downloaded or its integrity could not be verified. Your current version was kept. = 업데이트를 다운로드하지 못했거나 무결성을 검증하지 못했습니다. 현재 버전이 유지되었습니다.
 The update did not finish. You may need to rerun the installer from the official release page. = 업데이트가 완료되지 않았습니다. 공식 릴리스 페이지에서 설치 프로그램을 받아 다시 실행해야 할 수 있습니다.
 The update installer failed verification. Your current version was kept. = 업데이트 설치 프로그램 검증에 실패했습니다. 현재 버전이 유지되었습니다.
@@ -197,7 +197,7 @@ Update check cancelled or timed out. = 업데이트 확인이 취소되었거나
 Update check failed - try again... = 업데이트 확인 실패 - 다시 시도...
 Update download cancelled. = 업데이트 다운로드가 취소되었습니다.
 Windows needs to restart before this update is complete. Your computer will not restart automatically. = 업데이트를 완료하려면 Windows를 다시 시작해야 합니다. 컴퓨터가 자동으로 다시 시작되지는 않습니다.
-Wireless Battery could not reopen. Please start it manually or repair the installation. = Wireless Battery를 다시 실행하지 못했습니다. 직접 실행하거나 설치를 복구해 주세요.
-Wireless Battery is up to date. = Wireless Battery가 최신 버전입니다.
-Wireless Battery update = Wireless Battery 업데이트
-Wireless Battery will close briefly while the update is installed. = 업데이트를 설치하는 동안 Wireless Battery가 잠시 종료됩니다.
+Taskbar Vitals could not reopen. Please start it manually or repair the installation. = Taskbar Vitals를 다시 실행하지 못했습니다. 직접 실행하거나 설치를 복구해 주세요.
+Taskbar Vitals is up to date. = Taskbar Vitals가 최신 버전입니다.
+Taskbar Vitals update = Taskbar Vitals 업데이트
+Taskbar Vitals will close briefly while the update is installed. = 업데이트를 설치하는 동안 Taskbar Vitals가 잠시 종료됩니다.

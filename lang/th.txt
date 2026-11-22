@@ -1,4 +1,4 @@
-# Wireless Battery — ภาษาไทย
+# Taskbar Vitals — ภาษาไทย
 # UTF-8. Keep English keys and {placeholders} unchanged.
 @code = th
 @name = ไทย
@@ -44,7 +44,7 @@ pp = จุดเปอร์เซ็นต์
 24h ago = 24 ชั่วโมงก่อน
 {days} days ago = {days} วันก่อน
 Blue: battery level; green: charging = สีน้ำเงิน: ระดับแบตเตอรี่; สีเขียว: กำลังชาร์จ
-No readings yet. Keep Wireless Battery running to collect history. = ยังไม่มีข้อมูล เปิด Wireless Battery ไว้เพื่อบันทึกประวัติ
+No readings yet. Keep Taskbar Vitals running to collect history. = ยังไม่มีข้อมูล เปิด Taskbar Vitals ไว้เพื่อบันทึกประวัติ
 No readings in this period = ไม่มีข้อมูลในช่วงเวลานี้
 Now = ตอนนี้
 Recorded battery levels only; gaps are not estimated. = แสดงเฉพาะระดับแบตเตอรี่ที่บันทึกไว้ โดยไม่ประมาณค่าในช่วงที่ไม่มีข้อมูล
@@ -177,7 +177,7 @@ Please wait before checking again. GitHub may temporarily limit update checks. =
 Please wait before contacting GitHub again. = โปรดรอสักครู่ก่อนเชื่อมต่อกับ GitHub อีกครั้ง
 Release notes = รายละเอียดเวอร์ชัน
 Setup finished, but the new version could not be confirmed. Please check the installed version. = ติดตั้งเสร็จแล้ว แต่ยืนยันเวอร์ชันใหม่ไม่ได้ โปรดตรวจสอบเวอร์ชันที่ติดตั้ง
-The previous instance is still running. Close and reopen Wireless Battery to use the update. = Wireless Battery ที่เปิดไว้ก่อนหน้านี้ยังทำงานอยู่ โปรดปิดแล้วเปิดใหม่เพื่อใช้เวอร์ชันที่อัปเดต
+The previous instance is still running. Close and reopen Taskbar Vitals to use the update. = Taskbar Vitals ที่เปิดไว้ก่อนหน้านี้ยังทำงานอยู่ โปรดปิดแล้วเปิดใหม่เพื่อใช้เวอร์ชันที่อัปเดต
 The update could not be downloaded or its integrity could not be verified. Your current version was kept. = ดาวน์โหลดไฟล์อัปเดตหรือตรวจสอบความสมบูรณ์ของไฟล์ไม่ได้ ยังคงใช้เวอร์ชันปัจจุบัน
 The update did not finish. You may need to rerun the installer from the official release page. = อัปเดตไม่เสร็จสมบูรณ์ คุณอาจต้องเรียกใช้ตัวติดตั้งจากหน้าเผยแพร่เวอร์ชันอย่างเป็นทางการอีกครั้ง
 The update installer failed verification. Your current version was kept. = ตัวติดตั้งอัปเดตไม่ผ่านการตรวจสอบ ยังคงใช้เวอร์ชันปัจจุบัน
@@ -193,7 +193,7 @@ Update check cancelled or timed out. = การตรวจสอบการ�
 Update check failed - try again... = ตรวจสอบการอัปเดตไม่สำเร็จ - ลองอีกครั้ง...
 Update download cancelled. = ยกเลิกการดาวน์โหลดอัปเดตแล้ว
 Windows needs to restart before this update is complete. Your computer will not restart automatically. = ต้องรีสตาร์ต Windows เพื่อให้การอัปเดตนี้เสร็จสมบูรณ์ คอมพิวเตอร์จะไม่รีสตาร์ตโดยอัตโนมัติ
-Wireless Battery could not reopen. Please start it manually or repair the installation. = เปิด Wireless Battery อีกครั้งไม่ได้ โปรดเปิดด้วยตนเองหรือซ่อมแซมการติดตั้ง
-Wireless Battery is up to date. = Wireless Battery เป็นเวอร์ชันล่าสุดแล้ว
-Wireless Battery update = อัปเดต Wireless Battery
-Wireless Battery will close briefly while the update is installed. = Wireless Battery จะปิดชั่วคราวระหว่างติดตั้งอัปเดต
+Taskbar Vitals could not reopen. Please start it manually or repair the installation. = เปิด Taskbar Vitals อีกครั้งไม่ได้ โปรดเปิดด้วยตนเองหรือซ่อมแซมการติดตั้ง
+Taskbar Vitals is up to date. = Taskbar Vitals เป็นเวอร์ชันล่าสุดแล้ว
+Taskbar Vitals update = อัปเดต Taskbar Vitals
+Taskbar Vitals will close briefly while the update is installed. = Taskbar Vitals จะปิดชั่วคราวระหว่างติดตั้งอัปเดต
