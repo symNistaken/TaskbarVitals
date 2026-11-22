@@ -1,0 +1,12 @@
+# Every change needs a code owner's review (enforced when "Require review from Code Owners" is on).
+* @krisgfx9 @DuBistMutig
+
+# Extra care: these files control how the app is built, checked and released, so only the owner
+# can approve them (the last matching line wins).
+/.github/   @krisgfx9
+/installer/ @krisgfx9
+/scripts/   @krisgfx9
+/build.bat  @krisgfx9
+/Makefile   @krisgfx9
+/build-linux.sh @krisgfx9
+/linux/     @krisgfx9

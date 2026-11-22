@@ -1,0 +1,143 @@
+diff --git a/keyboards/keychron/common/keychron_raw_hid.c b/keyboards/keychron/common/keychron_raw_hid.c
+index b3657af..f045c31 100644
+--- a/keyboards/keychron/common/keychron_raw_hid.c
++++ b/keyboards/keychron/common/keychron_raw_hid.c
+@@ -34,6 +34,8 @@
+ #endif
+ #if defined(LK_WIRELESS_ENABLE) || defined(KC_BLUETOOTH_ENABLE)
+ #    include "wireless.h"
++#    include "transport.h"
++#    include "battery.h"
+ #    ifdef LK_WIRELESS_ENABLE
+ #        include "lkbt51.h"
+ #    else
+@@ -71,7 +73,11 @@ void get_support_feature(uint8_t *data) {
+ #    endif
+         ;
+ 
+-    data[2] = (FEATURE_QUICK_START | FEATURE_NKRO) >> 8;
++    data[2] = (FEATURE_QUICK_START | FEATURE_NKRO
++#    if defined(LK_WIRELESS_ENABLE) || defined(KC_BLUETOOTH_ENABLE)
++               | FEATURE_BATTERY
++#    endif
++               ) >> 8;
+ }
+ 
+ #    ifdef ANANLOG_MATRIX
+@@ -168,6 +174,18 @@ bool kc_raw_hid_rx(uint8_t src, uint8_t *data, uint8_t length) {
+             data[2] = get_highest_layer(layer_state);
+             break;
+ 
++#    if defined(LK_WIRELESS_ENABLE) || defined(KC_BLUETOOTH_ENABLE)
++        case KC_GET_BATTERY: {
++            uint16_t bat_voltage = battery_get_voltage();
++            data[1]              = battery_get_percentage();
++            data[2]              = bat_voltage & 0xFF;
++            data[3]              = (bat_voltage >> 8) & 0xFF;
++            data[4]              = battery_get_charging_state();
++            data[5]              = get_transport();
++            data[6]              = KC_BATTERY_MODEL_ID;
++        } break;
++#    endif
++
+         case KC_MISC_CMD_GROUP:
+             switch (data[1]) {
+                 case MISC_GET_PROTOCOL_VER:
+diff --git a/keyboards/keychron/common/keychron_raw_hid.h b/keyboards/keychron/common/keychron_raw_hid.h
+index e10f659..6d25571 100644
+--- a/keyboards/keychron/common/keychron_raw_hid.h
++++ b/keyboards/keychron/common/keychron_raw_hid.h
+@@ -25,6 +25,7 @@ enum {
+     KC_GET_FIRMWARE_VERSION = 0xA1,
+     KC_GET_SUPPORT_FEATURE  = 0xA2,
+     KC_GET_DEFAULT_LAYER    = 0xA3,
++    KC_GET_BATTERY          = 0xA4,
+     KC_MISC_CMD_GROUP       = 0xA7,
+     KC_KEYCHRON_RGB         = 0xA8,
+     KC_ANALOG_MATRIX        = 0xA9,
+@@ -45,6 +46,7 @@ enum {
+     // Byte 1
+     FEATURE_QUICK_START         = 0x01U << 8,
+     FEATURE_NKRO                = 0x01U << 9,
++    FEATURE_BATTERY             = 0x01U << 10,
+ };
+ 
+ enum {
+@@ -86,3 +88,9 @@ enum {
+ };
+ 
+ void kc_raw_hid_send(uint8_t src, uint8_t *data, uint8_t len);
++
++// Model identifier carried in KC_GET_BATTERY replies (data[6]), same numbering as
++// Keychron/qmk_firmware#477. Define per keyboard in config.h; 0 means unspecified.
++#ifndef KC_BATTERY_MODEL_ID
++#    define KC_BATTERY_MODEL_ID 0
++#endif
+diff --git a/keyboards/keychron/common/wireless/battery.c b/keyboards/keychron/common/wireless/battery.c
+index edc99b6..ab26412 100644
+--- a/keyboards/keychron/common/wireless/battery.c
++++ b/keyboards/keychron/common/wireless/battery.c
+@@ -158,6 +158,15 @@ uint8_t battery_get_percentage(void) {
+         return 0;
+ }
+ 
++uint8_t battery_get_charging_state(void) {
++#if defined(BAT_CHARGING_PIN)
++    if (usb_power_connected()) {
++        return gpio_read_pin(BAT_CHARGING_PIN) == BAT_CHARGING_LEVEL ? BAT_CHARGING : BAT_FULL_CHARGED;
++    }
++#endif
++    return BAT_NOT_CHARGING;
++}
++
+ bool battery_is_empty(void) {
+     return bat_empty > BATTERY_EMPTY_COUNT;
+ }
+diff --git a/keyboards/keychron/common/wireless/battery.h b/keyboards/keychron/common/wireless/battery.h
+index b2c572e..685be13 100644
+--- a/keyboards/keychron/common/wireless/battery.h
++++ b/keyboards/keychron/common/wireless/battery.h
+@@ -55,6 +55,7 @@ void     battery_calculate_voltage(bool vol_src_bt, uint16_t value);
+ void     battery_set_voltage(uint16_t value);
+ uint16_t battery_get_voltage(void);
+ uint8_t  battery_get_percentage(void);
++uint8_t  battery_get_charging_state(void);
+ bool     battery_is_empty(void);
+ bool     battery_is_critical_low(void);
+ bool     battery_power_on_sample(void);
+diff --git a/keyboards/keychron/common/wireless/wireless.c b/keyboards/keychron/common/wireless/wireless.c
+index f5483be..d80e6d8 100644
+--- a/keyboards/keychron/common/wireless/wireless.c
++++ b/keyboards/keychron/common/wireless/wireless.c
+@@ -610,7 +610,7 @@ void wireless_event_task(void) {
+ #if defined(RAW_ENABLE) && defined(WILRESS_RAW_ENABLE)
+             case EVT_RAW_HID:
+ #    ifdef VIA_ENABLE
+-                via_raw_hid_receive(RAW_HID_SRC_WIRELESS, event.params.raw_hid_data, 32);
++                raw_hid_receive(RAW_HID_SRC_WIRELESS, event.params.raw_hid_data, 32);
+ #    else
+                 kc_raw_hid_rx(RAW_HID_SRC_WIRELESS, event.params.raw_hid_data, 32);
+ #    endif
+diff --git a/keyboards/keychron/k5_max/config.h b/keyboards/keychron/k5_max/config.h
+index 2084534..3b8a0ee 100644
+--- a/keyboards/keychron/k5_max/config.h
++++ b/keyboards/keychron/k5_max/config.h
+@@ -17,6 +17,9 @@
+ #pragma once
+ #include "eeconfig_kb.h"
+ 
++/* Model identifier reported in KC_GET_BATTERY replies (data[6]); 0 = unspecified */
++#define KC_BATTERY_MODEL_ID 0
++
+ /* SPI configuration */
+ #if defined(RGB_MATRIX_ENABLE) || defined(LED_MATRIX_ENABLE) || defined(LK_WIRELESS_ENABLE)
+ #    define SPI_DRIVER SPID1
+@@ -76,6 +79,8 @@
+ /* Enable wireless NKRO */
+ #    define WIRELESS_NKRO_ENABLE
+ 
++/* Answer raw HID requests over the wireless link, e.g. KC_GET_BATTERY via Keychron Link */
++#    define WILRESS_RAW_ENABLE
+ #endif
+ 
+ /* Factory test keys */
