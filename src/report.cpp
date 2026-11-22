@@ -1,14 +1,14 @@
 // "Request support for a device" window and the extra `--dump` sections. See report.h.
 //
-// Privacy: the only network call in the app is the POST in SendRequest, made when the user clicks Send.
-// What is sent is shown word for word in the window first: the device name, its type, the user's optional
-// name and notes, and a short technical summary (vendor/product id, HID usage pages and report sizes, USB
-// interface classes, the Windows build). No serial numbers, device paths or Bluetooth addresses.
+// Privacy: this window sends nothing itself. Send opens a new GitHub issue in the browser, filled in with what
+// the window shows word for word: the device name, its type, the user's optional name and notes, and a short
+// technical summary (vendor/product id, HID usage pages and report sizes, USB interface classes, the Windows
+// build). No serial numbers, device paths or Bluetooth addresses. The user submits the issue there.
 #include "report.h"
 
 #include <commctrl.h>
 #include <setupapi.h>
-#include <winhttp.h>
+#include <shellapi.h>
 
 #include <algorithm>
 #include <cwctype>
@@ -21,12 +21,10 @@
 #include "hid.h"
 #include "i18n.h"
 #include "memory_trim.h"
+#include "update_core.h"
 
 namespace {
 
-const wchar_t kApiHost[] = L"krisgfx.com";
-const wchar_t kApiPath[] = L"/tools/api/requests";
-const wchar_t kRequestedPage[] = L"krisgfx.com/tools/#requested";
 
 const DEVPROPKEY kBusReportedDesc = { { 0x540B947E, 0x8B40, 0x45BC, { 0xA8, 0xA2, 0x6A, 0x0B, 0x89, 0x4C, 0xBD, 0xA2 } }, 4 };
 const DEVPROPKEY kBtBattery = { { 0x104EA319, 0x6EE2, 0x4701, { 0xBD, 0x47, 0x8D, 0xDB, 0xF4, 0x25, 0xBB, 0xE5 } }, 2 };
@@ -241,9 +239,9 @@ std::wstring WindowsBuild() {
     return std::wstring(build) + L"." + std::to_wstring(ubr);
 }
 
-// The short technical summary that goes into the request's notes (the API allows 500 characters).
+// The short technical summary that goes into the issue (notes and summary are kept under 500 characters).
 std::wstring TechSummary(const Candidate* c) {
-    std::wstring s = L"[Sent from the BatteryHub app, Windows build " + WindowsBuild() + L"] ";
+    std::wstring s = L"[Sent from the Wireless Battery app, Windows build " + WindowsBuild() + L"] ";
     if (!c) return s + L"Device not in the app's list.";
     wchar_t ids[16];
     swprintf(ids, 16, L"%04X:%04X", c->vid, c->pid);
@@ -283,122 +281,47 @@ std::wstring Wide(const std::string& s) {
     return out;
 }
 
-std::string JsonString(const std::wstring& w) {
-    std::string out = "\"";
-    for (unsigned char ch : Utf8(w)) {
-        switch (ch) {
-            case '"': out += "\\\""; break;
-            case '\\': out += "\\\\"; break;
-            case '\n': out += "\\n"; break;
-            case '\r': break;
-            case '\t': out += "\\t"; break;
-            default:
-                if (ch < 0x20) {
-                    char esc[8];
-                    snprintf(esc, sizeof(esc), "\\u%04x", ch);
-                    out += esc;
-                } else {
-                    out += (char)ch;
-                }
-        }
-    }
-    return out + "\"";
-}
-
 struct Request {
     std::wstring name, model, type, notes;
 };
 
-std::string RequestJson(const Request& r) {
-    std::string j = "{";
-    if (!r.name.empty()) j += "\"name\":" + JsonString(r.name) + ",";
-    j += "\"model\":" + JsonString(r.model) + ",\"type\":" + JsonString(r.type) + ",\"notes\":" + JsonString(r.notes) + "}";
-    return j;
-}
-
-// POSTs the JSON body. Returns the HTTP status (0 = could not reach the server) and the reply body.
-int Post(const std::string& body, std::string& reply) {
-    int status = 0;
-    HINTERNET s = WinHttpOpen(L"WirelessBattery", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
-    if (!s) return 0;
-    WinHttpSetTimeouts(s, 10000, 10000, 15000, 15000);
-    HINTERNET c = WinHttpConnect(s, kApiHost, INTERNET_DEFAULT_HTTPS_PORT, 0);
-    HINTERNET r = c ? WinHttpOpenRequest(c, L"POST", kApiPath, nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE)
-                    : nullptr;
-    if (r && WinHttpSendRequest(r, L"Content-Type: application/json\r\n", (DWORD)-1L, (LPVOID)body.data(), (DWORD)body.size(),
-                                (DWORD)body.size(), 0) &&
-        WinHttpReceiveResponse(r, nullptr)) {
-        DWORD code = 0, len = sizeof(code);
-        if (WinHttpQueryHeaders(r, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &code, &len,
-                                WINHTTP_NO_HEADER_INDEX))
-            status = (int)code;
-        for (DWORD avail = 0; WinHttpQueryDataAvailable(r, &avail) && avail && reply.size() < 16384;) {
-            std::string chunk(avail, 0);
-            DWORD got = 0;
-            if (!WinHttpReadData(r, chunk.data(), avail, &got) || !got) break;
-            reply.append(chunk.data(), got);
+// Percent-encodes UTF-8 for a URL query value.
+std::wstring UrlEncode(const std::wstring& w) {
+    static const char* hex = "0123456789ABCDEF";
+    std::wstring out;
+    for (unsigned char ch : Utf8(w)) {
+        if ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '-' || ch == '_' ||
+            ch == '.' || ch == '~') {
+            out += (wchar_t)ch;
+        } else {
+            out += L'%';
+            out += (wchar_t)hex[ch >> 4];
+            out += (wchar_t)hex[ch & 15];
         }
     }
-    if (r) WinHttpCloseHandle(r);
-    if (c) WinHttpCloseHandle(c);
-    WinHttpCloseHandle(s);
-    return status;
+    return out;
 }
 
-// The "error" string of a JSON reply, or empty.
-std::wstring JsonError(const std::string& reply) {
-    size_t k = reply.find("\"error\"");
-    if (k == std::string::npos) return L"";
-    size_t q = reply.find('"', reply.find(':', k) + 1);
-    if (q == std::string::npos) return L"";
-    std::string v;
-    for (size_t i = q + 1; i < reply.size() && reply[i] != '"'; i++) {
-        if (reply[i] == '\\' && i + 1 < reply.size()) i++;
-        v += reply[i];
-    }
-    return Wide(v);
-}
-
-// What the site answered; the message is put together (and translated) on the UI thread.
-struct SendResult {
-    int status = 0;
-    bool repeat = false;
-    std::wstring error;  // the site's own sentence for a 400
-};
-
-SendResult SendRequest(Request req) {
-    std::string reply;
-    int status = Post(RequestJson(req), reply);
-    if (status == 400 && req.name.empty() && Upper(JsonError(reply)).find(L"NAME") != std::wstring::npos) {
-        req.name = L"App user";  // the site needs a name: use a neutral one rather than asking again
-        reply.clear();
-        status = Post(RequestJson(req), reply);
-    }
-    return { status, reply.find("\"repeat\":true") != std::string::npos, JsonError(reply) };
-}
-
-std::wstring ResultMessage(const SendResult& r) {
-    if (r.status == 201 || (r.status == 200 && !r.repeat))
-        return TF(L"Thank you! Your request was sent. You can follow it at {page}.", { { L"page", kRequestedPage } });
-    if (r.status == 200) return T(L"You already sent this device in the last 24 hours, so it's on the list. Thank you!");
-    if (r.status == 400)
-        return TF(L"The request was not accepted: {reason}", { { L"reason", r.error.empty() ? std::wstring(T(L"please check the fields.")) : r.error } });
-    if (r.status == 429) return T(L"Too many requests from your network. Please try again in an hour.");
-    if (r.status == 0) return T(L"Couldn't reach krisgfx.com. Check your connection, or use \"Copy full report\" and post it on GitHub.");
-    return TF(L"The site answered with an error ({code}). Please try again later.", { { L"code", std::to_wstring(r.status) } });
+// A new issue in the project's repository, filled in with the request (the user reviews and submits it).
+std::wstring IssueUrl(const Request& r) {
+    std::wstring title = L"Device support: " + r.model + L" (" + r.type + L")";
+    std::wstring body = L"**Device:** " + r.model + L"\n**Type:** " + r.type + L"\n";
+    if (!r.name.empty()) body += L"**From:** " + r.name + L"\n";
+    body += L"\n" + r.notes + L"\n";
+    return L"https://github.com/" + Wide(updates::Repository) + L"/issues/new?title=" + UrlEncode(title) + L"&body=" + UrlEncode(body);
 }
 
 // ---- window ---------------------------------------------------------------------------------------
 
 enum : int { IDC_DEVICE = 101, IDC_MODEL, IDC_TYPE, IDC_NAME, IDC_NOTES, IDC_PREVIEW, IDC_COPY, IDC_SEND, IDC_STATUS };
-constexpr UINT WM_CANDIDATES = WM_APP + 20, WM_SENT = WM_APP + 21, WM_FULLREPORT = WM_APP + 22;
+constexpr UINT WM_CANDIDATES = WM_APP + 20, WM_FULLREPORT = WM_APP + 22;
 const wchar_t* const kTypes[] = { L"mouse", L"keyboard", L"headset", L"controller", L"other" };
 const wchar_t kClass[] = L"WirelessBatteryReport";
 
 HWND g_wnd;
 HFONT g_font;
 std::vector<Candidate> g_cands;
-bool g_scanned = false, g_sending = false, g_quitOnClose = false;
+bool g_scanned = false, g_quitOnClose = false;
 
 std::wstring Text(int id) {
     HWND h = GetDlgItem(g_wnd, id);
@@ -435,10 +358,10 @@ void UpdatePreview() {
     Request r = CurrentRequest();
     std::wstring p = std::wstring(T(L"Device")) + L": " + (r.model.empty() ? std::wstring(T(L"(type the device name)")) : r.model) +
                      L"\r\n" + T(L"Type") + L": " + T(r.type) + L"\r\n" + T(L"Your name") + L": " +
-                     (r.name.empty() ? std::wstring(T(L"(not sent)")) : r.name + L" " + T(L"(kept private)")) + L"\r\n" + T(L"Notes") + L": ";
+                     (r.name.empty() ? std::wstring(T(L"(not sent)")) : r.name) + L"\r\n" + T(L"Notes") + L": ";
     for (wchar_t ch : r.notes) p += ch == L'\n' ? std::wstring(L"\r\n") : std::wstring(1, ch);
     SetDlgItemTextW(g_wnd, IDC_PREVIEW, p.c_str());
-    EnableWindow(GetDlgItem(g_wnd, IDC_SEND), !g_sending && DeviceChosen() && r.model.size() >= 2);
+    EnableWindow(GetDlgItem(g_wnd, IDC_SEND), DeviceChosen() && r.model.size() >= 2);
 }
 
 void SetStatus(const std::wstring& s) { SetDlgItemTextW(g_wnd, IDC_STATUS, s.c_str()); }
@@ -488,8 +411,8 @@ void CreateControls() {
     MakeFont();
     const int L = 16, W = 428;
     Add(L"STATIC",
-        T(L"Is one of your devices not shown? Pick it below and send it to us. It goes on the public request list at "
-          L"krisgfx.com/tools, and we'll look into supporting it."),
+        T(L"Is one of your devices not shown? Pick it below and press Send: a GitHub issue opens in your browser with "
+          L"these details, and you submit it there."),
         0, -1, L, 12, W, 56);
     Add(L"STATIC", T(L"Device"), 0, -1, L, 74, W, 18);
     HWND dev = Add(WC_COMBOBOXW, L"", CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP, IDC_DEVICE, L, 92, W, 300);
@@ -503,14 +426,14 @@ void CreateControls() {
     HWND type = Add(WC_COMBOBOXW, L"", CBS_DROPDOWNLIST | WS_TABSTOP, IDC_TYPE, L, 192, 200, 200);
     for (auto t : kTypes) SendMessageW(type, CB_ADDSTRING, 0, (LPARAM)T(t));  // shown translated, sent in English
     SendMessageW(type, CB_SETCURSEL, 4, 0);
-    Add(L"STATIC", T(L"Your name (optional, kept private and never shown)"), 0, -1, L, 224, W, 18);
+    Add(L"STATIC", T(L"Your name (optional, shown in the public issue)"), 0, -1, L, 224, W, 18);
     HWND name = Add(WC_EDITW, L"", ES_AUTOHSCROLL | WS_TABSTOP, IDC_NAME, L, 242, W, 24, WS_EX_CLIENTEDGE);
     SendMessageW(name, EM_LIMITTEXT, 40, 0);
     Add(L"STATIC", T(L"Anything else we should know? (optional)"), 0, -1, L, 274, W, 18);
     HWND notes = Add(WC_EDITW, L"", ES_MULTILINE | ES_AUTOVSCROLL | ES_WANTRETURN | WS_VSCROLL | WS_TABSTOP, IDC_NOTES, L, 292, W, 54,
                      WS_EX_CLIENTEDGE);
     SendMessageW(notes, EM_LIMITTEXT, 200, 0);
-    Add(L"STATIC", T(L"This is exactly what will be sent:"), 0, -1, L, 354, W, 18);
+    Add(L"STATIC", T(L"This is exactly what the issue will contain:"), 0, -1, L, 354, W, 18);
     Add(WC_EDITW, L"", ES_MULTILINE | ES_READONLY | WS_VSCROLL | WS_TABSTOP, IDC_PREVIEW, L, 372, W, 110, WS_EX_CLIENTEDGE);
     Add(L"STATIC", T(L"Scanning your devices..."), 0, IDC_STATUS, L, 490, W, 36);
     Add(WC_BUTTONW, T(L"Copy full report"), WS_TABSTOP, IDC_COPY, L, 532, 226, 28);
@@ -526,17 +449,6 @@ void PostOrDelete(HWND h, UINT msg, T* data) {
 
 DWORD WINAPI ScanThread(LPVOID p) {
     PostOrDelete((HWND)p, WM_CANDIDATES, new std::vector<Candidate>(BuildCandidates()));
-    return 0;
-}
-
-struct SendJob {
-    HWND wnd;
-    Request req;
-};
-
-DWORD WINAPI SendThread(LPVOID p) {
-    std::unique_ptr<SendJob> job((SendJob*)p);
-    PostOrDelete(job->wnd, WM_SENT, new SendResult(SendRequest(job->req)));
     return 0;
 }
 
@@ -615,13 +527,6 @@ LRESULT CALLBACK WndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             FillDevices();
             return 0;
         }
-        case WM_SENT: {
-            std::unique_ptr<SendResult> s((SendResult*)lp);
-            g_sending = false;
-            SetStatus(ResultMessage(*s));
-            UpdatePreview();
-            return 0;
-        }
         case WM_FULLREPORT: {
             std::unique_ptr<std::wstring> s((std::wstring*)lp);
             CopyToClipboard(*s);
@@ -636,17 +541,15 @@ LRESULT CALLBACK WndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             if ((id == IDC_MODEL || id == IDC_NAME || id == IDC_NOTES) && code == EN_CHANGE) { UpdatePreview(); return 0; }
             if (id == IDC_TYPE && code == CBN_SELCHANGE) { UpdatePreview(); return 0; }
             if ((id == IDC_SEND || id == IDOK) && IsWindowEnabled(GetDlgItem(h, IDC_SEND))) {
-                g_sending = true;
-                EnableWindow(GetDlgItem(h, IDC_SEND), FALSE);
-                SetStatus(T(L"Sending..."));
-                StartThread(SendThread, new SendJob{ h, CurrentRequest() });
+                ShellExecuteW(h, L"open", IssueUrl(CurrentRequest()).c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+                SetStatus(T(L"A new GitHub issue opened in your browser. Check it and press Submit there (a GitHub account is needed)."));
                 return 0;
             }
             if (id == IDC_COPY) {
                 EnableWindow(GetDlgItem(h, IDC_COPY), FALSE);
                 SetStatus(T(L"Collecting the full report (this takes about 10 seconds)..."));
                 const Candidate* c = Selected();
-                std::wstring header = L"BatteryHub device report\nWindows build " + WindowsBuild() + L"\n";
+                std::wstring header = L"Wireless Battery device report\nWindows build " + WindowsBuild() + L"\n";
                 if (c) {
                     wchar_t ids[16];
                     swprintf(ids, 16, L"%04X:%04X", c->vid, c->pid);
@@ -663,7 +566,7 @@ LRESULT CALLBACK WndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_DESTROY:
             g_wnd = nullptr;
             g_cands.clear();
-            g_scanned = g_sending = false;
+            g_scanned = false;
             if (g_font) { DeleteObject(g_font); g_font = nullptr; }
             if (g_quitOnClose) PostQuitMessage(0);  // opened with --report: the process ends with the window
             else memory_trim::Soon();
@@ -712,7 +615,7 @@ void Show(HINSTANCE inst, HWND owner) {
     GetMonitorInfoW(mon, &mi);
     int w = rc.right - rc.left, hgt = rc.bottom - rc.top;
     int x = mi.rcWork.left + (mi.rcWork.right - mi.rcWork.left - w) / 2, y = mi.rcWork.top + (mi.rcWork.bottom - mi.rcWork.top - hgt) / 2;
-    HWND h = CreateWindowExW(i18n::Rtl() ? WS_EX_LAYOUTRTL : 0, kClass, (std::wstring(L"BatteryHub: ") + T(L"request support for a device")).c_str(), style, x, y, w, hgt, nullptr, nullptr, inst,
+    HWND h = CreateWindowExW(i18n::Rtl() ? WS_EX_LAYOUTRTL : 0, kClass, (std::wstring(L"Wireless Battery: ") + T(L"request support for a device")).c_str(), style, x, y, w, hgt, nullptr, nullptr, inst,
                              nullptr);
     g_quitOnClose = owner == nullptr;
     if (!h) return;

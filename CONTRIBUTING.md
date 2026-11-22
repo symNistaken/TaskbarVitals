@@ -6,13 +6,13 @@ Most drivers were written from protocol documentation and could not be tested on
 Please open an issue with:
 
 - the device name, and whether it is connected by receiver, cable or Bluetooth
-- the output of `BatteryHub.exe --list`
-- the output of `BatteryHub.exe --dump`
+- the output of `WirelessBattery.exe --list`
+- the output of `WirelessBattery.exe --dump`
 - what the vendor's own software shows as the battery level
 
 ## Adding a device
 
-1. Run `BatteryHub.exe --dump` and find your device's vendor and product IDs, and the
+1. Run `WirelessBattery.exe --dump` and find your device's vendor and product IDs, and the
    vendor-defined collections (usage page `FFxx`) with their report sizes.
 2. Find the battery protocol. Good places to look: HeadsetControl, OpenRazer, Solaar, rivalcfg,
    OpenRGB, OpenLinkHub, or a USB capture of the vendor software (Wireshark + USBPcap).

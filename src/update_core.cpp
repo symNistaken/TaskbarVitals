@@ -244,7 +244,7 @@ ReleaseResult ParseRelease(const std::string& json, const Version& current, Rele
     out.page = std::string("https://github.com/") + Repository + "/releases/tag/" + out.tag;
     if (out.page != page->text) { out = {}; return ReleaseResult::Invalid; }
     if (draft->boolean || pre->boolean || !Newer(out.version, current)) { out = {}; return ReleaseResult::NoUpdate; }
-    std::string name = "BatteryHub-Setup-" + VersionText(out.version) + ".exe";
+    std::string name = "WirelessBattery-Setup-" + VersionText(out.version) + ".exe";
     std::string base = std::string("https://github.com/") + Repository + "/releases/download/" + out.tag + "/";
     unsigned matches = 0, sumsMatches = 0, signatureMatches = 0;
     for (const Json& asset : assets->array) {

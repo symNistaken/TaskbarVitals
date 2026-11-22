@@ -1,25 +1,20 @@
-# BatteryHub
-
-*Formerly **Wireless Battery**. Version 1.1.0 renamed the app; an update keeps your settings, startup choice and battery history.*
-
-[![Support me on Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20me-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/krisgfx)
-[![Donate with PayPal](https://img.shields.io/badge/PayPal-Donate-00457C?logo=paypal&logoColor=white)](https://www.paypal.com/paypalme/krisgfx)
-[![GitHub Sponsors](https://img.shields.io/badge/GitHub-Sponsor-EA4AAA?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/krisgfx9)
-[![Join our Discord](https://img.shields.io/badge/Discord-Join%20us-5865F2?logo=discord&logoColor=white)](https://discord.gg/ZgDDUPP8ye)
-[![Star on GitHub](https://img.shields.io/github/stars/krisgfx9/Wireless-Device-Battery-Monitor?style=flat&logo=github&label=Star)](https://github.com/krisgfx9/Wireless-Device-Battery-Monitor)
-[![Share on Reddit](https://img.shields.io/badge/Reddit-Share-FF4500?logo=reddit&logoColor=white)](https://www.reddit.com/submit?url=https%3A%2F%2Fgithub.com%2Fkrisgfx9%2FWireless-Device-Battery-Monitor&title=Wireless%20Battery%3A%20battery%20levels%20of%20your%20wireless%20devices%20on%20the%20Windows%20taskbar)
-[![Report a device](https://img.shields.io/badge/Report-a%20device-2EA44F?logo=github&logoColor=white)](https://github.com/krisgfx9/Wireless-Device-Battery-Monitor/issues/new)
-[![Help translate](https://img.shields.io/badge/Help-translate-6F42C1?logo=googletranslate&logoColor=white)](https://github.com/krisgfx9/Wireless-Device-Battery-Monitor/pull/129)
+# Wireless Battery
 
 Battery levels of your wireless mouse, headset, keyboard and controller, right on the Windows taskbar.
 
-![BatteryHub on the taskbar](docs/screenshot.png)
+> [!NOTE]
+> **A spiritual successor to BatteryHub.** Wireless Battery continues [BatteryHub](https://github.com/krisgfx9/Wireless-Device-Battery-Monitor) by krisgfx9 and its contributors, after the original repository disappeared from GitHub in November 2026. It starts from the original's last public source (with all of its ~100 device drivers) and keeps the same GPL-3.0 license. The idea, the taskbar strip and the device protocols come from the original project, and the credit for them goes to its authors. This is not an official release of BatteryHub.
 
-> **Just want it working?** Download **[BatteryHub-Setup](https://github.com/krisgfx9/Wireless-Device-Battery-Monitor/releases/latest)** from the latest release. Use the per-user installation for setup without administrator rights; see the [installation notes](#install) for unsigned-app warnings and the all-users option.
+[![Report a device](https://img.shields.io/badge/Report-a%20device-2EA44F?logo=github&logoColor=white)](https://github.com/symNistaken/WirelessBattery/issues/new)
+[![Latest version](https://img.shields.io/github/v/release/symNistaken/WirelessBattery?label=latest%20version)](https://github.com/symNistaken/WirelessBattery/releases/latest)
+
+![Wireless Battery on the taskbar](docs/screenshot.png)
+
+> **Just want it working?** Download **[WirelessBattery-Setup](https://github.com/symNistaken/WirelessBattery/releases/latest)** from the latest release. Use the per-user installation for setup without administrator rights; see the [installation notes](#install) for unsigned-app warnings and the all-users option.
+>
+> **Coming from BatteryHub?** Install Wireless Battery over it: it uses the same installation, settings, startup entry and battery history. BatteryHub's own updater can't find new versions any more, so this one step is manual.
 >
 > **Experienced users** can grab the portable zip, use the [command-line options](#command-line), or [build it from source](#build) with `make` or `build.bat`.
->
-> **Like it?** BatteryHub is free and open source. If it saves you a trip into vendor software, you can support it on [Ko-fi](https://ko-fi.com/krisgfx), [PayPal](https://www.paypal.com/paypalme/krisgfx) or [GitHub Sponsors](https://github.com/sponsors/krisgfx9). It helps me keep my apps free alongside my studies. Not able to donate? A ⭐ star, sharing it, or reporting an unsupported device with a `--dump` helps just as much.
 
 - **Tiny**: a ~350 KB app using about 2 MB of RAM. It's plain C++/Win32, with no runtime and no background service, and supports per-user installation without administrator rights.
 - **Vendor apps usually aren't required**: most drivers query devices directly. Some headsets use the bundled [HeadsetControl](https://github.com/Sapd/HeadsetControl) helper. Device-specific setup, firmware patches and conflicts with vendor apps are described in the table and [Limitations](#limitations).
@@ -88,7 +83,7 @@ Turn off **Record battery history** in the menu to stop saving readings; what wa
 
 ## Supported devices
 
-Match your model, receiver VID:PID, connection mode and any firmware requirements to the table; `BatteryHub.exe --dump` shows the IDs. A brand name alone does not confirm support for every model. Hardware-test labels apply only to the stated devices and behaviors.
+Match your model, receiver VID:PID, connection mode and any firmware requirements to the table; `WirelessBattery.exe --dump` shows the IDs. A brand name alone does not confirm support for every model. Hardware-test labels apply only to the stated devices and behaviors.
 
 Redragon M602-KS battery percentage was verified on the 2.4 GHz receiver (`258A:002F`).
 
@@ -110,7 +105,7 @@ Redragon M602-KS battery percentage was verified on the 2.4 GHz receiver (`258A:
 | **Hitscan** | Hyperlight X, Hyperlight N | Vendor feature report (same protocol as Glorious) |
 | **Kysona / Pulsar / ATK (VXE) / Hitscan** | Kysona M600 / Mercury, Pulsar and ATK VXE wireless mice (e.g. VXE X3 Pro, VXE Dragonfly R1 / R1 Pro Max / R1 SE+, ATK F1 Extreme), Hitscan Hyperlight, Chimera V2 (receiver 3554:F512); R1 cables share their receiver's entry (`3554:F58F` on R1 SE+ pairs with `373B:1085`, `373B:1272` on R1 Pro pairs with `3554:F58A`) | Shared vendor protocol with checksummed replies |
 | **Pulsar X2 V3** | X2 V3 on the 1K dongle (`3710:5402`) or USB cable (`3710:3402`); X2 V3 eS on the 8K dongle (`3710:5403`) or USB cable (`3710:3406`) | 64-byte vendor feature report, battery register `08 81 01` (read-only) |
-| **Pulsar Feinmann FO1 / 8K** | Dedicated 2.4 GHz dongle (`3710:5404`; BatteryHub hardware-untested) | Read-only SONiX 64-byte feature battery query `08 81 01` on `FFFF:0001`, interface 3; protocol [verified on hardware in pulsar-mouse-linux](https://github.com/packerlschupfer/pulsar-mouse-linux/blob/main/src/pulsar_mouse/drivers/feinmann8k.py); no charging-state reading |
+| **Pulsar Feinmann FO1 / 8K** | Dedicated 2.4 GHz dongle (`3710:5404`; Wireless Battery hardware-untested) | Read-only SONiX 64-byte feature battery query `08 81 01` on `FFFF:0001`, interface 3; protocol [verified on hardware in pulsar-mouse-linux](https://github.com/packerlschupfer/pulsar-mouse-linux/blob/main/src/pulsar_mouse/drivers/feinmann8k.py); no charging-state reading |
 | **ATK / VXE NK** | VXE R1 NK and other NearLink mice on the NK mouse NANO dongle (`373B:1216`) | ATK BITMOUSE output report 08 on `FF05:0001` (battery and charging) |
 | **ATK Zero** | USB cable (`373B:1154`) and 8K L0 / L1 receivers (`373B:124F` / `373B:1155`) on Windows | 64-byte ATK BITMOUSE report 08 on `FF05:0001` (battery on both links, charging over the cable) |
 | **ATK 8K Nano** | ATK / VXE mice on the ATK 8K Nano Dongle (`373B:1178`) | Holtek GetConfigData (`82`) feature report on `FF10:0001` (from ATK HUB; battery and charging) |
@@ -249,24 +244,24 @@ These reports cover the listed connection modes and behaviors; battery confirmat
 - Chimera V2 (receiver `3554:F512`; battery level and charging read)
 - Machenike L7 Arctic / L7 Mix (`248A:FF4C` receiver and `248A:FF4E` cable), including charging and cable/receiver duplicate suppression. Bluetooth and low-battery/full-charge boundaries were not hardware-tested.
 - MCHOSE V9 Pro 2 (`3837:6011` dongle); battery level read, charging and sleep untested.
-- EPOMAKER EA75 on its `05AC:024F` 2.4 GHz receiver, using the existing SONiX driver from [PR #60](https://github.com/krisgfx9/Wireless-Device-Battery-Monitor/pull/60). Battery percentage, receiver reconnection and power-on recovery were verified. Charging indication and wired battery reporting are not supported by this driver; Bluetooth battery reporting was not tested. The reported percentage can jump to 100% when USB power is attached, which is not a reliable charging indicator.
+- EPOMAKER EA75 on its `05AC:024F` 2.4 GHz receiver, using the existing SONiX driver from [BatteryHub PR #60](https://github.com/krisgfx9/Wireless-Device-Battery-Monitor/pull/60). Battery percentage, receiver reconnection and power-on recovery were verified. Charging indication and wired battery reporting are not supported by this driver; Bluetooth battery reporting was not tested. The reported percentage can jump to 100% when USB power is attached, which is not a reliable charging indicator.
 - SteelSeries Aerox 3 Wireless CS2 Dragon Lore Edition (receiver `1038:1878` and USB cable `1038:187A`), including charging, switching off (the last level stays, dimmed) and with SteelSeries GG running; GG only shows a three-step bar, which the level matched.
 - RAWM Leviathan V4 (RAWM HS Receiver `1915:2346`; battery level read, charging untested).
 
-**Hardware coverage:** Devices without recorded hardware confirmation are implemented from protocol documentation and other projects. Fantech Raigor II WG10 is still untested (it shares the tested Raigor III's `1EA7:0066` dongle and collection). If you own an untested device, please report whether it works by [opening an issue](https://github.com/krisgfx9/Wireless-Device-Battery-Monitor/issues).
+**Hardware coverage:** Devices without recorded hardware confirmation are implemented from protocol documentation and other projects. Fantech Raigor II WG10 is still untested (it shares the tested Raigor III's `1EA7:0066` dongle and collection). If you own an untested device, please report whether it works by [opening an issue](https://github.com/symNistaken/WirelessBattery/issues).
 
 ## Install
 
-[![Latest version](https://img.shields.io/github/v/release/krisgfx9/Wireless-Device-Battery-Monitor?label=latest%20version&style=for-the-badge)](https://github.com/krisgfx9/Wireless-Device-Battery-Monitor/releases/latest)
+[![Latest version](https://img.shields.io/github/v/release/symNistaken/WirelessBattery?label=latest%20version&style=for-the-badge)](https://github.com/symNistaken/WirelessBattery/releases/latest)
 
-1. Download **`BatteryHub-Setup-<version>.exe`** from the [latest release](https://github.com/krisgfx9/Wireless-Device-Battery-Monitor/releases/latest).
+1. Download **`WirelessBattery-Setup-<version>.exe`** from the [latest release](https://github.com/symNistaken/WirelessBattery/releases/latest).
 2. Run the installer. The default per-user installation needs no administrator rights.
    **Install for all users** requires administrator permission. Windows may show a SmartScreen warning because the app is not code-signed (see below).
 3. No separate runtime is required. HeadsetControl is bundled for the headsets that use it; check your device's table entry and [Limitations](#limitations) for any setup or firmware requirements.
 
 The installer adds a Start menu entry and an uninstaller (*Settings → Apps*), and can start the app
-when you sign in. Prefer no installer? Download `BatteryHub-<version>-portable.zip`, unzip it
-anywhere and run `BatteryHub.exe`.
+when you sign in. Prefer no installer? Download `Wireless Battery-<version>-portable.zip`, unzip it
+anywhere and run `WirelessBattery.exe`.
 
 **Notes:**
 - **SmartScreen warning:** the exe is not code-signed, so Windows may say "Windows protected your PC". Click *More info → Run anyway*, or build it yourself.
@@ -310,16 +305,16 @@ automatic replacement of portable copies are deferred.
 ## Command line
 
 ```
-BatteryHub.exe --list     # print every device and its battery level, then exit
-BatteryHub.exe --json     # print a JSON array of devices and battery levels, then exit
-BatteryHub.exe --dump     # every HID collection, HID devices that could not be opened, all USB devices (also ones
-                               # without a HID interface) and Bluetooth devices; also saved to %TEMP%\BatteryHub-dump.txt
-BatteryHub.exe --report   # open the "Request support for a device" window
-BatteryHub.exe --demo     # sample devices of every brand instead of real ones (screenshots, checking colors)
-BatteryHub.exe --quit     # close the running instance
+WirelessBattery.exe --list     # print every device and its battery level, then exit
+WirelessBattery.exe --json     # print a JSON array of devices and battery levels, then exit
+WirelessBattery.exe --dump     # every HID collection, HID devices that could not be opened, all USB devices (also ones
+                               # without a HID interface) and Bluetooth devices; also saved to %TEMP%\Wireless Battery-dump.txt
+WirelessBattery.exe --report   # open the "Request support for a device" window
+WirelessBattery.exe --demo     # sample devices of every brand instead of real ones (screenshots, checking colors)
+WirelessBattery.exe --quit     # close the running instance
 ```
 
-The Linux build uses the same flags with `wireless-battery` instead of `BatteryHub.exe`, and
+The Linux build uses the same flags with `wireless-battery` instead of `WirelessBattery.exe`, and
 also accepts `--help`. `--json` prints a stable array that scripts and bar widgets can parse:
 
 ```json
@@ -332,10 +327,10 @@ also accepts `--help`. `--json` prints a stable array that scripts and bar widge
 Adding new fields is backwards compatible.
 
 **Device not shown?** Right-click the widget or tray icon and choose **Request support for a device...**. Pick the device, check
-what will be sent (it is shown word for word: the device name, its type, its USB/HID ids and interface layout, and your optional
-name and notes) and click **Send**. It goes on the public list at [krisgfx.com/tools](https://krisgfx.com/tools/#requested) and
-opens or updates a GitHub issue. **Copy full report** puts the complete `--dump` on the clipboard for the issue.
-Report data is sent only when you click Send. Official Windows builds can also contact GitHub
+what the issue will contain (it is shown word for word: the device name, its type, its USB/HID ids and interface layout, and your
+optional name and notes) and click **Send**. A new GitHub issue opens in your browser, filled in with exactly that; you submit it there
+(a GitHub account is needed). **Copy full report** puts the complete `--dump` on the clipboard for the issue.
+The app itself sends no report data. Official Windows builds can also contact GitHub
 to check for updates, as described in [Updates on Windows](#updates-on-windows); update checks
 do not send device or battery information.
 
@@ -363,7 +358,7 @@ Windows builds also need PowerShell for generating the shared executable/resourc
 The official repository's version tags build with `CHANNEL=stable`; local builds default to
 `dev`. Forks and pull requests do not enable official updates automatically.
 
-`BatteryHub.exe` on its own also works. Without `headsetcontrol.exe` next to it (or on `PATH`) you
+`WirelessBattery.exe` on its own also works. Without `headsetcontrol.exe` next to it (or on `PATH`) you
 just lose the extra headsets.
 
 ## Linux (experimental)

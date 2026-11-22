@@ -4,7 +4,7 @@
 
 namespace updates {
 constexpr std::uint64_t MaxDownloadBytes = 100ULL * 1024 * 1024;
-constexpr const char* Repository = "krisgfx9/Wireless-Device-Battery-Monitor";
+constexpr const char* Repository = "symNistaken/WirelessBattery";
 
 struct Version {
     unsigned major = 0, minor = 0, patch = 0;

@@ -12,7 +12,7 @@
 //
 // Where languages come from:
 //  * the lang\*.txt files of the repository, built into the exe (adding one = adding a file, no code)
-//  * a "lang" folder next to BatteryHub.exe and %APPDATA%\WirelessBattery\lang: any .txt file there
+//  * a "lang" folder next to WirelessBattery.exe and %APPDATA%\WirelessBattery\lang: any .txt file there
 //    appears in the Language menu without rebuilding, and one with the same @code as a built-in language
 //    replaces its phrases (to fix a word locally).
 // The --list / --dump output stays English on purpose (it is pasted into GitHub issues).

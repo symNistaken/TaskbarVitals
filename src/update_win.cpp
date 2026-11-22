@@ -50,7 +50,7 @@ HWND DialogOwner(HWND owner) {
 void ShowMessage(HWND owner, const wchar_t* text) {
     if (dialogOpen || shuttingDown) return;
     dialogOpen = true;
-    MessageBoxW(DialogOwner(owner), T(text), T(L"BatteryHub update"), MB_OK | MB_ICONINFORMATION);
+    MessageBoxW(DialogOwner(owner), T(text), T(L"Wireless Battery update"), MB_OK | MB_ICONINFORMATION);
     dialogOpen = false;
 }
 
@@ -111,7 +111,7 @@ std::uint64_t Decimal(const std::wstring& text) {
 Result FetchRelease() {
     Result out;
     ULONGLONG deadline = GetTickCount64() + 30000;
-    HINTERNET session = WinHttpOpen(L"BatteryHub/" WB_VERSION_WSTRING, WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+    HINTERNET session = WinHttpOpen(L"WirelessBattery/" WB_VERSION_WSTRING, WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
                                    WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
     if (!session) { out.error = L"Could not initialize the Windows network connection."; return out; }
     if (!WinHttpSetTimeouts(session, 5000, 5000, 5000, 5000)) {
@@ -121,7 +121,7 @@ Result FetchRelease() {
     }
     HINTERNET connection = WinHttpConnect(session, L"api.github.com", INTERNET_DEFAULT_HTTPS_PORT, 0);
     HINTERNET req = connection ? WinHttpOpenRequest(connection, L"GET",
-        L"/repos/krisgfx9/Wireless-Device-Battery-Monitor/releases/latest", nullptr,
+        L"/repos/symNistaken/WirelessBattery/releases/latest", nullptr,
         WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE) : nullptr;
     DWORD redirect = WINHTTP_OPTION_REDIRECT_POLICY_NEVER;
     bool configured = req && WinHttpSetOption(req, WINHTTP_OPTION_REDIRECT_POLICY, &redirect, sizeof(redirect));
@@ -273,7 +273,7 @@ void Tick(HWND owner) {
             manual = false;
             if (!completed.success) ShowMessage(owner, lastError.c_str());
             else if (!known.tag.empty()) ShowAvailable(owner);
-            else ShowMessage(owner, L"BatteryHub is up to date.");
+            else ShowMessage(owner, L"Wireless Battery is up to date.");
         }
     }
     if (appversion::official && automatic && operation == Operation::Idle && GetTickCount64() - started >= 30000 && schedule.Due(Now()))
@@ -368,7 +368,7 @@ std::wstring NewDownloadDirectory() {
 // hand so every hop is checked, and exactly `expected` bytes handed to `write`.
 bool HttpGet(std::wstring url, std::uint64_t expected, ULONGLONG deadline, bool showProgress,
              const std::function<bool(const char*, DWORD)>& write) {
-    HINTERNET session = WinHttpOpen(L"BatteryHub/" WB_VERSION_WSTRING, WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+    HINTERNET session = WinHttpOpen(L"WirelessBattery/" WB_VERSION_WSTRING, WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
         WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
     if (session && !WinHttpSetTimeouts(session, 5000, 5000, 5000, 5000)) {
         WinHttpCloseHandle(session);
@@ -437,7 +437,7 @@ Result DownloadRelease() {
     // First the maintainer's signature: the setup is only accepted if its hash is in a checksum list
     // signed with a key GitHub never sees, and the same hash GitHub lists for the file.
     std::string sums, signature, signedHash;
-    std::string setupName = "BatteryHub-Setup-" + VersionText(out.release.version) + ".exe";
+    std::string setupName = "WirelessBattery-Setup-" + VersionText(out.release.version) + ".exe";
     if (!GetText(out.release.sumsUrl, out.release.sumsSize, deadline, sums) ||
         !GetText(out.release.signatureUrl, out.release.signatureSize, deadline, signature)) {
         out.error = cancelled ? L"Update download cancelled." : L"Could not download the update's signature. Please try again later.";
@@ -517,9 +517,9 @@ void DownloadAndInstall(HWND owner) {
     config.hwndParent = DialogOwner(owner);
     config.dwFlags = TDF_SHOW_PROGRESS_BAR | TDF_CALLBACK_TIMER;
     config.dwCommonButtons = TDCBF_CANCEL_BUTTON;
-    config.pszWindowTitle = T(L"BatteryHub update");
+    config.pszWindowTitle = T(L"Wireless Battery update");
     config.pszMainInstruction = T(L"Downloading and verifying the update");
-    config.pszContent = T(L"BatteryHub will close briefly while the update is installed.");
+    config.pszContent = T(L"Wireless Battery will close briefly while the update is installed.");
     config.pfCallback = DownloadDialog;
     config.lpCallbackData = reinterpret_cast<LONG_PTR>(&state);
     HRESULT dialogResult = TaskDialogIndirect(&config, nullptr, nullptr, nullptr);
@@ -553,7 +553,7 @@ void ShowAvailable(HWND owner) {
     };
     TASKDIALOGCONFIG config{ sizeof(config) };
     config.hwndParent = DialogOwner(owner);
-    config.pszWindowTitle = T(L"BatteryHub update");
+    config.pszWindowTitle = T(L"Wireless Battery update");
     config.pszMainInstruction = T(L"A new version is available");
     config.pszContent = content.c_str();
     config.pButtons = installed.valid ? buttons : buttons + 1;

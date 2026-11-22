@@ -1,7 +1,7 @@
-; Inno Setup script for BatteryHub (https://jrsoftware.org/isinfo.php).
+; Inno Setup script for Wireless Battery (https://jrsoftware.org/isinfo.php).
 ; Per-user install by default: no administrator rights needed, installs to %LOCALAPPDATA%\Programs.
 ; Setup also offers "Install for all users" (Program Files, needs administrator rights).
-; Build with installer\build-installer.ps1 (or: ISCC /DAppVersion=1.2.3 installer\BatteryHub.iss).
+; Build with installer\build-installer.ps1 (or: ISCC /DAppVersion=1.2.3 installer\WirelessBattery.iss).
 
 #ifndef AppVersion
   #define AppVersion "1.0.0"
@@ -9,12 +9,13 @@
 #define Root ".."
 
 [Setup]
+; Same AppId as BatteryHub, the original project: installing over it replaces it in place.
 AppId={{7E0B5C2A-3F4D-4C8E-9B61-2D5A8F1C4E93}
-AppName=BatteryHub
+AppName=Wireless Battery
 AppVersion={#AppVersion}
-AppVerName=BatteryHub {#AppVersion}
-AppPublisher=BatteryHub contributors
-DefaultDirName={autopf}\BatteryHub
+AppVerName=Wireless Battery {#AppVersion}
+AppPublisher=Wireless Battery contributors
+DefaultDirName={autopf}\Wireless Battery
 DisableProgramGroupPage=yes
 DisableDirPage=auto
 PrivilegesRequired=lowest
@@ -23,38 +24,37 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
 OutputDir={#Root}\dist
-OutputBaseFilename=BatteryHub-Setup-{#AppVersion}
+OutputBaseFilename=WirelessBattery-Setup-{#AppVersion}
 SetupIconFile={#Root}\res\app.ico
-UninstallDisplayIcon={app}\BatteryHub.exe
-UninstallDisplayName=BatteryHub
+UninstallDisplayIcon={app}\WirelessBattery.exe
+UninstallDisplayName=Wireless Battery
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
 CloseApplications=no
 
 [Tasks]
-Name: "autostart"; Description: "Start BatteryHub when I sign in to Windows"
+Name: "autostart"; Description: "Start Wireless Battery when I sign in to Windows"
 
 [Files]
-Source: "{#Root}\BatteryHub.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#Root}\WirelessBattery.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#Root}\third_party\headsetcontrol\headsetcontrol.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#Root}\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
 Source: "{#Root}\installer\THIRD_PARTY_NOTICES.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [InstallDelete]
-; Before 1.1.0 the app was called Wireless Battery: remove its exe and Start menu shortcut on upgrade.
-Type: files; Name: "{app}\WirelessBattery.exe"
-Type: files; Name: "{autoprograms}\Wireless Battery.lnk"
+; Installing over BatteryHub (the original project, 1.1.x): remove its exe and Start menu shortcut.
+Type: files; Name: "{app}\BatteryHub.exe"
+Type: files; Name: "{autoprograms}\BatteryHub.lnk"
 
 [Icons]
-Name: "{autoprograms}\BatteryHub"; Filename: "{app}\BatteryHub.exe"
+Name: "{autoprograms}\Wireless Battery"; Filename: "{app}\WirelessBattery.exe"
 
 [Run]
-Filename: "{app}\BatteryHub.exe"; Description: "Start BatteryHub now"; Flags: nowait postinstall skipifsilent; Check: not IsUpdate
-Filename: "https://ko-fi.com/krisgfx"; Description: "Enjoying BatteryHub? Support it on Ko-fi"; Flags: shellexec postinstall unchecked skipifsilent nowait runasoriginaluser
+Filename: "{app}\WirelessBattery.exe"; Description: "Start Wireless Battery now"; Flags: nowait postinstall skipifsilent; Check: not IsUpdate
 
 [UninstallRun]
-Filename: "{app}\BatteryHub.exe"; Parameters: "--quit"; Flags: runhidden waituntilterminated; RunOnceId: "QuitApp"
+Filename: "{app}\WirelessBattery.exe"; Parameters: "--quit"; Flags: runhidden waituntilterminated; RunOnceId: "QuitApp"
 
 [Code]
 const
@@ -70,29 +70,29 @@ var
   Code: Integer;
 begin
   Result := True;
-  if FileExists(ExpandConstant('{app}\BatteryHub.exe')) then
-    Result := Exec(ExpandConstant('{app}\BatteryHub.exe'), '--quit', '', SW_HIDE, ewWaitUntilTerminated, Code) and (Code = 0)
-  else if FileExists(ExpandConstant('{app}\WirelessBattery.exe')) then  { upgrading from before the rename }
-    Result := Exec(ExpandConstant('{app}\WirelessBattery.exe'), '--quit', '', SW_HIDE, ewWaitUntilTerminated, Code) and (Code = 0);
+  if FileExists(ExpandConstant('{app}\WirelessBattery.exe')) then
+    Result := Exec(ExpandConstant('{app}\WirelessBattery.exe'), '--quit', '', SW_HIDE, ewWaitUntilTerminated, Code) and (Code = 0)
+  else if FileExists(ExpandConstant('{app}\BatteryHub.exe')) then  { installing over BatteryHub, the original project }
+    Result := Exec(ExpandConstant('{app}\BatteryHub.exe'), '--quit', '', SW_HIDE, ewWaitUntilTerminated, Code) and (Code = 0);
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   Result := '';
   if IsUpdate() and not QuitRunningApp() then
-    Result := 'BatteryHub could not close. Close it and try updating again.';
+    Result := 'Wireless Battery could not close. Close it and try updating again.';
 end;
 
 function InstalledRunValue(): String;
 begin
-  Result := '"' + ExpandConstant('{app}\BatteryHub.exe') + '"';
+  Result := '"' + ExpandConstant('{app}\WirelessBattery.exe') + '"';
 end;
 
-{ The startup entry of this copy before the rename (Wireless Battery, before 1.1.0). The value name
-  stays 'WirelessBattery' so existing entries keep working. }
+{ The startup entry of BatteryHub (the original project) installed in this folder. The value name
+  'WirelessBattery' is the same, so the entry only needs to point at the new exe. }
 function OldRunValue(): String;
 begin
-  Result := '"' + ExpandConstant('{app}\WirelessBattery.exe') + '"';
+  Result := '"' + ExpandConstant('{app}\BatteryHub.exe') + '"';
 end;
 
 { Removes the startup entry only if it points at this installed copy, so a portable copy's
@@ -106,7 +106,7 @@ begin
     RegDeleteValue(HKCU, RunKey, 'WirelessBattery');
 end;
 
-{ An entry that still starts the old exe of this copy now starts BatteryHub.exe (also on silent updates). }
+{ An entry that still starts BatteryHub.exe of this copy now starts WirelessBattery.exe (also on silent updates). }
 procedure MigrateAutostart();
 var
   Value: String;

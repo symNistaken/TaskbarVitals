@@ -5,6 +5,6 @@
 // Empty means no key yet: official builds then refuse to compile, and updates cannot be installed.
 namespace updates {
 inline constexpr const char* ReleaseKeys[] = {
-    "RUNTMSAAAABHVmMa+jOhQf2lyG+uIwvN9qe/NV1cjLaPUS4q24cZQYGYwwSZneuwZwXglzei+4JLyaXAzpUf48BywGB4SAA5",
+    "",
 };
 }

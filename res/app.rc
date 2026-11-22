@@ -19,11 +19,11 @@ BEGIN
   BEGIN
     BLOCK "040904B0"
     BEGIN
-      VALUE "FileDescription", "BatteryHub"
-      VALUE "ProductName", "BatteryHub"
+      VALUE "FileDescription", "Wireless Battery"
+      VALUE "ProductName", "Wireless Battery"
       VALUE "FileVersion", WB_VERSION_STRING
       VALUE "ProductVersion", WB_VERSION_STRING
-      VALUE "OriginalFilename", "BatteryHub.exe"
+      VALUE "OriginalFilename", "WirelessBattery.exe"
     END
   END
   BLOCK "VarFileInfo"

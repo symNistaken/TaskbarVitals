@@ -50,7 +50,7 @@ the next release by hand.
 - The release is the repository's latest, not a draft or prerelease, and newer than the app.
 - `SHA256SUMS.txt.sig` is a valid ECDSA P-256 signature of `SHA256SUMS.txt` by a key in
   `src\update_public_key.h` (Windows BCrypt, no third-party code).
-- The signed list names `BatteryHub-Setup-<version>.exe` exactly once, with the same SHA-256
+- The signed list names `WirelessBattery-Setup-<version>.exe` exactly once, with the same SHA-256
   that GitHub reports for the file.
 - The downloaded setup has exactly that size and SHA-256. A copy of the app then checks it again
   right before starting it, and keeps the file locked so it cannot be swapped in between.
