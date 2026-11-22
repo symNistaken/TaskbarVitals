@@ -25,19 +25,19 @@ Battery levels of your wireless mouse, headset, keyboard and controller, right o
 **On the taskbar (default):** `🎧 30%  🖱 93%` next to the notification area, drawn with the Windows icon font.
 - **Low battery:** a red number means 15% or less.
 - **Charging:** a blue ⚡ appears next to the number. Once the device is fully charged and still on power, it turns into a green ✓.
-- **Asleep:** dimmed text means the device is asleep and the last known value is shown. Turn off *Dim sleeping devices* in the menu to keep that value at full brightness.
+- **Asleep:** dimmed text means the device is asleep and the last known value is shown. Turn off *Dim sleeping devices* in the settings panel to keep that value at full brightness.
 - **Disconnected (optional):** turn on *Show disconnected devices* to display a dimmed `×` for devices whose driver explicitly reports an offline wireless link. This does not infer disconnection from a missed battery poll; the default remains to hide offline devices.
 - **Two devices of one kind:** with two mice (or two controllers...) both would get the same icon, so each one gets a tiny caption of up to 3 letters in the corner of its icon, taken from its name (`MX`, `PRO`), or a number when the names do not tell them apart. A device that is alone in its kind shows no caption.
 - **Theme:** it follows light/dark mode and DPI scaling.
-- **Transparent taskbar themes** (e.g. Windhawk's Taskbar Styler): turn on *Background behind taskbar text* in the menu to keep the text readable over the wallpaper.
-- **Several monitors:** the widget shows on every monitor's taskbar, next to its clock, so it stays visible while a game runs fullscreen. *Show the widget on* in the menu picks *All monitors*, *Main monitor only*, or one display (e.g. only *Display 3*).
+- **Transparent taskbar themes** (e.g. Windhawk's Taskbar Styler): turn on *Background behind taskbar text* in the settings panel to keep the text readable over the wallpaper.
+- **Several monitors:** the widget shows on every monitor's taskbar, next to its clock, so it stays visible while a game runs fullscreen. *Show the widget on* in the settings panel picks *All monitors*, *Main monitor only*, or one display (e.g. only *Display 3*).
 - **More display options:** *Icons above percentages* stacks each icon over its level to save width; *Brand colors* shows known brands in their color (Razer green, HyperX red, ...) with a small level bar; two devices of the same kind get a tiny caption so they can be told apart; left and right taskbars get a column of devices.
-- **Languages:** English, العربية, Deutsch, Español, فارسی, Français, עברית, 日本語, 한국어, Magyar, Polski, Português (Brasil), Русский, Svenska, Tiếng Việt, ภาษาไทย, Türkçe, Українська, 简体中文 and 繁體中文. The app follows the Windows display language; *Language* in the menu picks another one. See [Translations](#translations) to add or improve a language.
+- **Languages:** English, العربية, Deutsch, Español, فارسی, Français, עברית, 日本語, 한국어, Magyar, Polski, Português (Brasil), Русский, Svenska, Tiếng Việt, ภาษาไทย, Türkçe, Українська, 简体中文 and 繁體中文. The app follows the Windows display language; *Language* in the settings panel picks another one. See [Translations](#translations) to add or improve a language.
 - **Brand colors:** devices of 15 known brands get their maker's color, with a soft glow and a thin level bar under the
   percentage: Razer green, Logitech blue, SteelSeries orange, Corsair yellow, HyperX / ROG / ZOWIE red, PlayStation,
   Xbox, Samsung, Apple, Jabra, JBL, Cooler Master and Steam. Each color has a dark- and a light-taskbar shade. The brand
   comes from the driver that found the device, then the vendor ID, then the name; colors and rules are in
-  `src/brands.cpp`. Turn it off with *Brand colors* in the menu.
+  `src/brands.cpp`. Turn it off with *Brand colors* in the settings panel.
 
 **Tray icons:** one icon per device with the number drawn in it, plus a "Low battery" notification at 15%. The app switches to this automatically when the taskbar is vertical or can't be found.
 
@@ -49,7 +49,7 @@ Windows registry (`Software\WirelessBattery`, `DeviceAliases`), using the stable
 device key. Renaming never changes driver matching, protocol queries, or `--list` /
 `--dump` diagnostic output. No account or network access is needed.
 
-Hover for details. Click for the menu: every device (click one to hide or show it), display mode, *Refresh now*, *Start with Windows*, and *Exit*. Levels refresh every 60 seconds (*Check battery every* in the menu changes this), and right away when a device is plugged in or the PC wakes up.
+Hover for details. Click (left or right) for the settings panel: tabs for *Devices* (every device; click one to hide, move, rename it or set its alert), *System* (CPU, RAM and GPU readings), *Appearance* and *General*, with *Refresh now* and *Exit* at the bottom. Hold **Shift** while clicking for the full menu with the same options (the keyboard opens it too). Levels refresh every 60 seconds (*Check battery every* in the settings panel changes this), and right away when a device is plugged in or the PC wakes up.
 
 ## Smart Battery Alerts (experimental)
 
@@ -74,12 +74,12 @@ original global 15% threshold, independently of the notification setting.
 
 ## Battery history & insights
 
-Right-click a device in the taskbar widget or tray menu and choose **Battery history...**.
+Click the widget or tray icon, click a device on the *Devices* tab of the settings panel and choose **Battery history...**.
 The native, DPI-aware viewer (it follows the Windows light/dark theme) shows recorded battery levels with connected sample lines over the last **24 hours**, **7 days**, or **30 days**, along with the latest reading, lowest/highest level, change in percentage points, and sample count. You can clear the selected device's history from the viewer.
 
 History is recorded **locally only** for connected, awake devices reporting a numeric percentage. Readings are sampled at most once every 30 minutes per device (except charging-state transitions, with a 60-second minimum). Data is kept for up to 30 days and the local file is kept under about 2 MB. The app never probes hardware beyond its existing polling, sends no history data over the network, and makes a conservative, approximate time-to-empty estimate from recent discharge observations only. At least four points, two hours, a three-percentage-point decline, a fresh reading and a stable discharge segment are required. Charging, old readings or insufficient data suppress the estimate; device-reported runtime is not available. The estimate is not a guarantee. Missing chart data is shown as gaps, not interpolated.
 
-Turn off **Record battery history** in the menu to stop saving readings; what was already saved stays until you clear it in the viewer. The file is stored in `%LOCALAPPDATA%\WirelessBattery\battery_history.tsv`. Its device identities are encoded (not encrypted); the file is local to your Windows account. In `--demo`, the chart uses synthetic data that is never saved. **Note:** history starts collecting only after this feature is installed and the app has been running for a while.
+Turn off **Record battery history** in the settings panel to stop saving readings; what was already saved stays until you clear it in the viewer. The file is stored in `%LOCALAPPDATA%\WirelessBattery\battery_history.tsv`. Its device identities are encoded (not encrypted); the file is local to your Windows account. In `--demo`, the chart uses synthetic data that is never saved. **Note:** history starts collecting only after this feature is installed and the app has been running for a while.
 
 ## Supported devices
 
@@ -275,7 +275,7 @@ background, 30 seconds after startup and then every 24 hours while the app is ru
 menu to see **Update available: vX.Y.Z...**, or choose **Check for updates...** yourself.
 Update information appears only in this menu: battery icons, percentages and tooltips stay the
 same, and automatic checks never show a notification or dialog. Turn off
-**Automatically check for updates** in the menu to disable background checks.
+**Automatically check for updates** in the settings panel to disable background checks.
 
 For an installed copy, click the update entry and **Download and install**. Nothing is installed
 without that click. The app downloads the release's `SHA256SUMS.txt` and its signature, checks the
@@ -288,14 +288,14 @@ your current version. Portable copies offer the release page for downloading the
 
 Checks contact GitHub's public API without an account or token. No device or battery information
 is sent. Offline failures and GitHub rate limits leave battery monitoring running; a previously
-found release stays in the menu until a successful check supersedes it or it is installed.
+found release stays in the settings panel until a successful check supersedes it or it is installed.
 Cancelling a download waits for the current network operation to finish its finite timeout.
 The installer never restarts Windows automatically.
 
 **Why updates are safe to install:** the signing key never goes to GitHub. The maintainer signs
 each release's checksum list on their own PC (see [docs/releasing.md](docs/releasing.md)), so
 even someone who took over the GitHub account or its build workflow could not publish an update
-the app would install. A release without a valid signature is shown in the menu but can only be
+the app would install. A release without a valid signature is shown in the settings panel but can only be
 downloaded by hand. The signature does not replace Windows' own SmartScreen or UAC prompts.
 
 Install the first release containing this feature manually once. Development/test builds disable
@@ -326,7 +326,7 @@ also accepts `--help`. `--json` prints a stable array that scripts and bar widge
 `graceSec` is how long the app keeps showing the last known level while the device is asleep.
 Adding new fields is backwards compatible.
 
-**Device not shown?** Right-click the widget or tray icon and choose **Request support for a device...**. Pick the device, check
+**Device not shown?** Click the widget or tray icon and choose **Request support for a device...** on the *General* tab. Pick the device, check
 what the issue will contain (it is shown word for word: the device name, its type, its USB/HID ids and interface layout, and your
 optional name and notes) and click **Send**. A new GitHub issue opens in your browser, filled in with exactly that; you submit it there
 (a GitHub account is needed). **Copy full report** puts the complete `--dump` on the clipboard for the issue.
@@ -408,7 +408,7 @@ protocols. Bluetooth/UPower fallbacks, HeadsetControl and the remaining vendors 
 - **Crowded taskbars:** with a very full centered Windows 11 taskbar, the app buttons can reach the widget. On Windows 10 the task-button area is narrowed automatically.
 - **Phones:** read from a file Phone Link writes for the Start menu companion card, which is not a documented API and may change with Phone Link updates. The phone shows while Phone Link reports it as connected; a card older than 3 hours is shown dimmed. The card also says when the phone is charging, which shows as the charging bolt.
 - **Razer HyperSpeed Multi-Device:** compatible receivers can report the mouse and keyboard separately, even when one sleeps. See [receiver protocol and tested hardware](docs/razer_hyperspeed.md).
-- **Sleeping devices:** a device that is asleep may not answer. Its last value stays visible, dimmed unless *Dim sleeping devices* is turned off in the menu. Logitech receivers drop sleeping devices from the link, so their last value is kept for 30 minutes.
+- **Sleeping devices:** a device that is asleep may not answer. Its last value stays visible, dimmed unless *Dim sleeping devices* is turned off in the settings panel. Logitech receivers drop sleeping devices from the link, so their last value is kept for 30 minutes.
 - **Logitech mice on the `046D:C542` receiver** (C-U0019 "Wireless Receiver", shipped with the M280 and some M185 / M190 / M220): this receiver does not speak HID++. It exposes only a standard mouse and one vendor feature report (ID 5, 7 bytes), with no HID++ short or long reports, so the Logitech driver has nothing to ask and the mouse is not listed. [Solaar](https://github.com/pwr-Solaar/Solaar/issues/1835) does not support it for the same reason, and no battery query for it is documented.
 - **HECATE G2 Wireless 7.1 headset** (2.4 GHz dongle `35BB:A009` / `A209`): no battery query for its dongle is documented yet, so it is not read. A USB capture while the HECATE software shows the headset battery (see CONTRIBUTING.md) is the way to add it.
 - **Keychron keyboards:** with stock firmware they only report their battery over Bluetooth (shown via the Bluetooth support). Over the 2.4 GHz receiver or the cable they need firmware with the battery patch ([docs/keychron_keyboard_firmware/README.md](docs/keychron_keyboard_firmware/README.md)); updating the keyboard from Keychron Launcher removes it. Keychron mice are supported.
@@ -438,7 +438,7 @@ Refresh now = Aggiorna ora
 {name} is at {percent}% = {name} è al {percent}%
 ```
 
-- **Use your own language right away:** choose *Language → Add your own language...* in the menu. It opens `%APPDATA%\WirelessBattery\lang` with `_template.txt`, which lists every phrase. Copy it to e.g. `it.txt`, fill in `@code`, `@name` and the translations, and the language appears in the menu (no restart needed). A file there with the same `@code` as a built-in language replaces its phrases, so you can also fix a single word locally.
+- **Use your own language right away:** choose *Language → Add your own language...* in the settings panel. It opens `%APPDATA%\WirelessBattery\lang` with `_template.txt`, which lists every phrase. Copy it to e.g. `it.txt`, fill in `@code`, `@name` and the translations, and the language appears in the settings panel (no restart needed). A file there with the same `@code` as a built-in language replaces its phrases, so you can also fix a single word locally.
 - **Share it with everyone:** send the file as a pull request to [`lang/`](lang). The build includes every file in that folder automatically; no code change is needed.
 - Keep `{placeholders}` as they are, and add `@rtl = 1` for right-to-left scripts. Phrases left empty stay English, so a partial translation is fine.
 - The `--list` and `--dump` output stays English on purpose: it is pasted into GitHub issues.
