@@ -211,3 +211,6 @@ Battery strip position = Pil şeridinin yeri
 CPU / RAM / GPU strip position = CPU / RAM / GPU şeridinin yeri
 Left end of the taskbar = Görev çubuğunun sol ucu
 Next to the clock = Saatin yanı
+Show CPU power (watts) = CPU gücünü (watt) göster
+Show GPU power (watts) = GPU gücünü (watt) göster
+CPU = CPU

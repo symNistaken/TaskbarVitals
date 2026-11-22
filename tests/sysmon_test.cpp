@@ -24,6 +24,10 @@ int main() {
     assert(sysmon::HeatLevel(-1) == 0 && sysmon::HeatLevel(79) == 0);
     assert(sysmon::HeatLevel(80) == 1 && sysmon::HeatLevel(89) == 1);
     assert(sysmon::HeatLevel(90) == 2 && sysmon::HeatLevel(105) == 2);
-    std::puts("System monitor tests passed (CPU share, rounding, idle and busy, bad samples, heat levels).");
+    // The package power meter among the Energy Meter instances (as seen on an i5-12450HX).
+    assert(sysmon::IsPackageMeter(L"rapl_package0_pkg") && sysmon::IsPackageMeter(L"RAPL_Package0_PKG"));
+    assert(!sysmon::IsPackageMeter(L"rapl_package0_pp0") && !sysmon::IsPackageMeter(L"rapl_package0_dram"));
+    assert(!sysmon::IsPackageMeter(L"_total") && !sysmon::IsPackageMeter(L"pkg") && !sysmon::IsPackageMeter(nullptr));
+    std::puts("System monitor tests passed (CPU share, rounding, idle and busy, bad samples, heat levels, power meter).");
     return 0;
 }

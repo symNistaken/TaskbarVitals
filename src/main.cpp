@@ -64,7 +64,7 @@ enum MenuId : UINT {
     ID_REFRESH = 100, ID_AUTOSTART, ID_HIDE_LAST_KNOWN, ID_WIDGET_BACKGROUND, ID_EXIT, ID_MODE_WIDGET, ID_MODE_TRAY, ID_SUPPORT, ID_REPORT,
     ID_BRAND_COLORS, ID_STACKED, ID_SHOW_DISCONNECTED, ID_RECORD_HISTORY, ID_DIM_SLEEPING,
     ID_TRAY_WHEN_EMPTY, ID_MAKE_ROOM, ID_BAT_LEFT, ID_BAT_CLOCK, ID_VIT_LEFT, ID_VIT_CLOCK, ID_SHOW_CPU, ID_SHOW_RAM,
-    ID_SHOW_GPU, ID_SHOW_GPU_TEMP, ID_SHOW_VRAM,
+    ID_SHOW_GPU, ID_SHOW_GPU_TEMP, ID_SHOW_VRAM, ID_SHOW_CPU_W, ID_SHOW_GPU_W,
     ID_PLACE_AUTO, ID_PLACE_TOP, ID_PLACE_TRAY, ID_PLACE_BOTTOM,  // "Position on a vertical taskbar"
     ID_POSITION_FIRST = 700,  // "Position on the taskbar": ID_POSITION_FIRST + 0..5, then the custom value
     ID_POLL_FIRST = 500,  // "Check battery every": ID_POLL_FIRST + 0..7
@@ -112,11 +112,13 @@ bool g_vitalsFarLeft = false;  // CPU / RAM / GPU readings at the left end of th
 bool g_leftEndPlaced = false;  // with two strips: the left-end one found room there at the last update
 bool g_showCpu = false, g_showRam = false;  // system readings on the strip (menu options)
 bool g_showGpu = false, g_showGpuTemp = false, g_showVram = false;
+bool g_showCpuW = false, g_showGpuW = false;  // power draw in watts
 sysmon::Reading g_sys;       // last CPU / RAM sample, taken every 2 s while one of them is shown
 gpumon::Reading g_gpu;       // last GPU sample, likewise
 int g_sysTicks = 0;
-bool AnyGpuReading() { return g_showGpu || g_showGpuTemp || g_showVram; }
-bool AnyReading() { return g_showCpu || g_showRam || AnyGpuReading(); }
+bool AnyGpuReading() { return g_showGpu || g_showGpuTemp || g_showVram || g_showGpuW; }
+bool AnyCpuReading() { return g_showCpu || g_showRam || g_showCpuW; }
+bool AnyReading() { return AnyCpuReading() || AnyGpuReading(); }
 bool g_brandColors = false;  // off by default; known brands get their color (Razer green, Logitech blue, ...)
 std::atomic<DWORD> g_pollIntervalMs{ 60 * 1000 };  // set from the menu, read by the worker thread
 
@@ -796,7 +798,15 @@ void UpdateWidget() {
         readings.push_back(it);
         readingsTip += (readingsTip.empty() ? L"" : L"\n") + line;
     };
-    if (g_showCpu && g_sys.cpu >= 0) reading(0xE950, g_sys.cpu, std::wstring(T(L"CPU usage")) + L": " + std::to_wstring(g_sys.cpu) + L"%");
+    // CPU: use and power share one item ("14% 18W"), like the GPU's use and temperature.
+    int cpuUse = g_showCpu ? g_sys.cpu : -1;
+    int cpuW = g_showCpuW ? g_sys.cpuWatts : -1;
+    if (cpuUse >= 0 || cpuW >= 0) {
+        std::wstring line = std::wstring(T(L"CPU")) + L": ";
+        if (cpuUse >= 0) line += std::to_wstring(cpuUse) + L"%";
+        if (cpuW >= 0) line += (cpuUse >= 0 ? L", " : L"") + std::to_wstring(cpuW) + L" W";
+        reading(0xE950, cpuUse, line, cpuW >= 0 ? std::to_wstring(cpuW) + L"W" : L"");
+    }
     if (g_showRam && g_sys.ram >= 0) {
         wchar_t gb[64];
         swprintf(gb, 64, L" (%.1f / %.1f GB)", g_sys.ramUsedGb, g_sys.ramTotalGb);
@@ -805,11 +815,14 @@ void UpdateWidget() {
     // GPU: use and temperature share one item ("12% 58°"); VRAM is the memory icon with a "GPU" caption.
     int gpuUse = g_showGpu ? g_gpu.use : -1;
     int gpuTemp = g_showGpuTemp ? g_gpu.tempC : -1;
-    if (g_gpu.available && (gpuUse >= 0 || gpuTemp >= 0)) {
-        std::wstring temp = gpuTemp >= 0 ? std::to_wstring(gpuTemp) + L"°" : L"";
+    int gpuW = g_showGpuW ? g_gpu.watts : -1;
+    if (g_gpu.available && (gpuUse >= 0 || gpuTemp >= 0 || gpuW >= 0)) {
+        std::wstring temp = (gpuTemp >= 0 ? std::to_wstring(gpuTemp) + L"°" : L"") +
+                            (gpuW >= 0 ? (gpuTemp >= 0 ? L" " : L"") + std::to_wstring(gpuW) + L"W" : L"");
         std::wstring line = L"GPU (" + g_gpu.name + L"): ";
         if (gpuUse >= 0) line += std::to_wstring(gpuUse) + L"%";
         if (gpuTemp >= 0) line += (gpuUse >= 0 ? L", " : L"") + std::to_wstring(gpuTemp) + L" °C";
+        if (gpuW >= 0) line += (gpuUse >= 0 || gpuTemp >= 0 ? L", " : L"") + std::to_wstring(gpuW) + L" W";
         reading(0xE7F4, gpuUse, line, temp);  // TVMonitor: reads as "graphics" and stays apart from the CPU chip
         readings.back().heat = sysmon::HeatLevel(gpuTemp);
     }
@@ -1063,15 +1076,15 @@ void TickSystemReadings(bool now = false) {
     if (!AnyReading()) return;
     if (!now && ++g_sysTicks % 2) return;
     bool changed = false;
-    if (g_showCpu || g_showRam) {
-        sysmon::Reading r = sysmon::Sample();
-        changed |= (g_showCpu && r.cpu != g_sys.cpu) || (g_showRam && r.ram != g_sys.ram);
+    if (AnyCpuReading()) {
+        sysmon::Reading r = sysmon::Sample(g_showCpuW);
+        changed |= (g_showCpu && r.cpu != g_sys.cpu) || (g_showRam && r.ram != g_sys.ram) || (g_showCpuW && r.cpuWatts != g_sys.cpuWatts);
         g_sys = r;
     }
     if (AnyGpuReading()) {
-        gpumon::Reading g = gpumon::Sample(g_showGpuTemp);
+        gpumon::Reading g = gpumon::Sample(g_showGpuTemp, g_showGpuW);
         changed |= g.available != g_gpu.available || (g_showGpu && g.use != g_gpu.use) ||
-                   (g_showGpuTemp && g.tempC != g_gpu.tempC) || (g_showVram && g.vram != g_gpu.vram);
+                   (g_showGpuTemp && g.tempC != g_gpu.tempC) || (g_showVram && g.vram != g_gpu.vram) || (g_showGpuW && g.watts != g_gpu.watts);
         g_gpu = g;
     }
     if (changed) UpdateWidget();
@@ -1080,6 +1093,7 @@ void TickSystemReadings(bool now = false) {
 void SetShowReading(bool& flag, const wchar_t* name, bool on) {
     flag = on;
     SaveBoolSetting(name, on);
+    if (!g_showCpuW) sysmon::StopPower();  // the Energy Meter counters are only open while CPU power is shown
     if (!AnyGpuReading()) {  // free the GPU counters and adapter handle once no GPU reading is shown
         gpumon::Stop();
         g_gpu = gpumon::Reading();
@@ -1331,6 +1345,8 @@ MenuModel BuildMenu(MenuIcons& icons) {
     AppendMenuW(m, MF_STRING | (g_showRam ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_RAM, T(L"Show RAM usage"));
     AppendMenuW(m, MF_STRING | (g_showGpu ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_GPU, T(L"Show GPU usage"));
     AppendMenuW(m, MF_STRING | (g_showGpuTemp ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_GPU_TEMP, T(L"Show GPU temperature"));
+    AppendMenuW(m, MF_STRING | (g_showCpuW ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_CPU_W, T(L"Show CPU power (watts)"));
+    AppendMenuW(m, MF_STRING | (g_showGpuW ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_GPU_W, T(L"Show GPU power (watts)"));
     AppendMenuW(m, MF_STRING | (g_showVram ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_VRAM, T(L"Show GPU memory"));
     placeMenu(ID_VIT_LEFT, ID_VIT_CLOCK, g_vitalsFarLeft, g_wantWidget && AnyReading(), L"CPU / RAM / GPU strip position");
     // With more than one monitor: choose which taskbars show the widget (all, main only, or one monitor).
@@ -1452,6 +1468,8 @@ void RunCommand(UINT cmd, const MenuModel& model) {
         case ID_SHOW_RAM: SetShowReading(g_showRam, L"ShowRam", !g_showRam); break;
         case ID_SHOW_GPU: SetShowReading(g_showGpu, L"ShowGpu", !g_showGpu); break;
         case ID_SHOW_GPU_TEMP: SetShowReading(g_showGpuTemp, L"ShowGpuTemp", !g_showGpuTemp); break;
+        case ID_SHOW_CPU_W: SetShowReading(g_showCpuW, L"ShowCpuWatts", !g_showCpuW); break;
+        case ID_SHOW_GPU_W: SetShowReading(g_showGpuW, L"ShowGpuWatts", !g_showGpuW); break;
         case ID_SHOW_VRAM: SetShowReading(g_showVram, L"ShowVram", !g_showVram); break;
         case ID_MODE_WIDGET: SetMode(true); break;
         case ID_MODE_TRAY: SetMode(false); break;
@@ -1591,6 +1609,8 @@ panel::Place PanelPlace(UINT id) {
         case ID_SHOW_RAM:
         case ID_SHOW_GPU:
         case ID_SHOW_GPU_TEMP:
+        case ID_SHOW_CPU_W:
+        case ID_SHOW_GPU_W:
         case ID_SHOW_VRAM: return { S::System, K::Toggle };
         case ID_MODE_WIDGET:
         case ID_MODE_TRAY: return { S::Appearance, K::Radio };
@@ -2071,6 +2091,8 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR cmdLine, int) {
     g_showRam = LoadShowRam();
     g_showGpu = LoadBoolSetting(L"ShowGpu", false);
     g_showGpuTemp = LoadBoolSetting(L"ShowGpuTemp", false);
+    g_showCpuW = LoadBoolSetting(L"ShowCpuWatts", false);
+    g_showGpuW = LoadBoolSetting(L"ShowGpuWatts", false);
     g_showVram = LoadBoolSetting(L"ShowVram", false);
     g_pollIntervalMs = LoadPollSeconds() * 1000;
     widget::SetStacked(g_stacked);

@@ -243,3 +243,6 @@ Battery strip position =
 CPU / RAM / GPU strip position = 
 Left end of the taskbar = 
 Next to the clock = 
+Show CPU power (watts) = 
+Show GPU power (watts) = 
+CPU = 

@@ -26,9 +26,26 @@ struct Reading {
     int cpu = -1;               // percent, -1 until two samples exist
     int ram = -1;               // percent of physical memory in use
     double ramUsedGb = 0, ramTotalGb = 0;
+    int cpuWatts = -1;          // processor package power, -1 when not asked for or not reported
 };
 
-// Reads the counters now. The CPU value covers the time since the previous call.
-Reading Sample();
+// The package power instance among Windows' "Energy Meter" counters (RAPL on Intel and recent AMD):
+// "rapl_package0_pkg" and the like. Empty instance names and the other domains (pp0 = cores, dram) do not count.
+inline bool IsPackageMeter(const wchar_t* name) {
+    if (!name) return false;
+    size_t n = 0;
+    while (name[n]) n++;
+    if (n < 4) return false;
+    const wchar_t* tail = name + n - 4;
+    auto lower = [](wchar_t c) { return c >= L'A' && c <= L'Z' ? (wchar_t)(c + 32) : c; };
+    return lower(tail[0]) == L'_' && lower(tail[1]) == L'p' && lower(tail[2]) == L'k' && lower(tail[3]) == L'g';
+}
+
+// Reads the counters now. The CPU value covers the time since the previous call. With `wantPower`, the
+// processor power comes from the "Energy Meter" performance counters (no driver; pdh.dll loaded on first use).
+Reading Sample(bool wantPower = false);
+
+// Frees the power counters (when CPU power is switched off, and at exit).
+void StopPower();
 
 }  // namespace sysmon

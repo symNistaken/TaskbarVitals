@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cwchar>
 #include <map>
+#include <string>
 
 namespace gpumon {
 
@@ -150,25 +151,73 @@ UINT g_kmtAdapter;
 QueryInfoFn g_queryInfo;
 CloseAdapterFn g_closeAdapter;
 
-int Temperature() {
+// Temperature (-1 if unknown) and power share (-1 if unknown) from one ADAPTERPERFDATA query.
+void PerfData(int& tempC, int& powerPct) {
+    tempC = powerPct = -1;
     if (!g_kmtAdapter) {
         HMODULE gdi = GetModuleHandleW(L"gdi32.dll");
         auto open = Proc<OpenAdapterFn>(gdi, "D3DKMTOpenAdapterFromLuid");
         g_queryInfo = Proc<QueryInfoFn>(gdi, "D3DKMTQueryAdapterInfo");
         g_closeAdapter = Proc<CloseAdapterFn>(gdi, "D3DKMTCloseAdapter");
         OpenFromLuid args{ g_adapter.raw, 0 };
-        if (!open || !g_queryInfo || !g_closeAdapter || open(&args) != 0) return -1;
+        if (!open || !g_queryInfo || !g_closeAdapter || open(&args) != 0) return;
         g_kmtAdapter = args.hAdapter;
     }
     AdapterPerfData perf{};
     QueryInfoArgs q{ g_kmtAdapter, kAdapterPerfData, &perf, sizeof(perf) };
-    if (g_queryInfo(&q) != 0 || perf.Temperature == 0 || perf.Temperature > 1500) return -1;
-    return (int)((perf.Temperature + 5) / 10);
+    if (g_queryInfo(&q) != 0) return;
+    if (perf.Temperature != 0 && perf.Temperature <= 1500) tempC = (int)((perf.Temperature + 5) / 10);
+    if (perf.Power != 0 && perf.Power <= 3000) powerPct = (int)((perf.Power + 5) / 10);
+}
+
+// ---- board power in watts (nvml.dll, NVIDIA's management library; ships with the display driver) ----
+using NvmlInitFn = int(*)();
+using NvmlCountFn = int(*)(unsigned*);
+using NvmlHandleFn = int(*)(unsigned, void**);
+using NvmlNameFn = int(*)(void*, char*, unsigned);
+using NvmlPowerFn = int(*)(void*, unsigned*);
+HMODULE g_nvml;
+NvmlInitFn g_nvmlShutdown;
+NvmlPowerFn g_nvmlPower;
+void* g_nvmlDevice;
+bool g_nvmlTried;
+
+// The NVML device whose name is the DXGI adapter's (or the only one).
+void StartNvml() {
+    if (g_nvmlTried) return;
+    g_nvmlTried = true;
+    g_nvml = LoadLibraryExW(L"nvml.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+    auto init = Proc<NvmlInitFn>(g_nvml, "nvmlInit_v2");
+    auto count = Proc<NvmlCountFn>(g_nvml, "nvmlDeviceGetCount_v2");
+    auto handle = Proc<NvmlHandleFn>(g_nvml, "nvmlDeviceGetHandleByIndex_v2");
+    auto name = Proc<NvmlNameFn>(g_nvml, "nvmlDeviceGetName");
+    g_nvmlPower = Proc<NvmlPowerFn>(g_nvml, "nvmlDeviceGetPowerUsage");
+    g_nvmlShutdown = Proc<NvmlInitFn>(g_nvml, "nvmlShutdown");
+    unsigned n = 0;
+    if (!init || !count || !handle || !name || !g_nvmlPower || init() != 0 || count(&n) != 0) return;
+    std::string want;
+    for (wchar_t c : g_adapter.name) want += (char)(c < 128 ? c : '?');
+    for (unsigned i = 0; i < n; i++) {
+        void* d = nullptr;
+        char got[96] = {};
+        if (handle(i, &d) != 0 || name(d, got, sizeof(got)) != 0) continue;
+        if (n == 1 || want.find(got) != std::string::npos || std::string(got).find(want) != std::string::npos) {
+            g_nvmlDevice = d;
+            return;
+        }
+    }
+}
+
+int NvmlWatts() {
+    StartNvml();
+    unsigned mw = 0;
+    if (!g_nvmlDevice || g_nvmlPower(g_nvmlDevice, &mw) != 0) return -1;
+    return (int)((mw + 500) / 1000);
 }
 
 }  // namespace
 
-Reading Sample(bool wantTemperature) {
+Reading Sample(bool wantTemperature, bool wantPower) {
     Reading r;
     if (!g_adapterLooked) {
         g_adapter = FindAdapter();
@@ -206,7 +255,15 @@ Reading Sample(bool wantTemperature) {
             r.vram = (int)std::min(100.0, used * 100.0 / (double)g_adapter.vramBytes + 0.5);
         }
     }
-    if (wantTemperature) r.tempC = Temperature();
+    if (wantTemperature || wantPower) {
+        int temp = -1, pct = -1;
+        PerfData(temp, pct);
+        if (wantTemperature) r.tempC = temp;
+        if (wantPower) {
+            r.powerPct = pct;
+            r.watts = NvmlWatts();
+        }
+    }
     return r;
 }
 
@@ -220,6 +277,13 @@ void Stop() {
         g_closeAdapter(&c);
     }
     g_kmtAdapter = 0;
+    if (g_nvml) {
+        if (g_nvmlDevice && g_nvmlShutdown) g_nvmlShutdown();
+        FreeLibrary(g_nvml);
+    }
+    g_nvml = nullptr;
+    g_nvmlDevice = nullptr;
+    g_nvmlTried = false;
     g_adapterLooked = false;  // look again next time: a GPU may have been added or switched
 }
 

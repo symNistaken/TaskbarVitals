@@ -34,11 +34,13 @@ struct Reading {
     int vram = -1;           // percent of dedicated memory in use
     double vramUsedGb = 0, vramTotalGb = 0;
     int tempC = -1;          // -1 when the driver does not report it
+    int watts = -1;          // board power in W (NVIDIA, through nvml.dll); -1 when not asked for or not reported
+    int powerPct = -1;       // power as a share of the power limit (any WDDM 2.4+ driver); -1 when not reported
 };
 
 // Samples the adapter with the most dedicated memory (the discrete GPU on a laptop with two).
 // Runs on the UI thread every few seconds while a GPU reading is shown.
-Reading Sample(bool wantTemperature);
+Reading Sample(bool wantTemperature, bool wantPower = false);
 
 // Frees the counters and the adapter handle (when the readings are switched off, and at exit).
 void Stop();
