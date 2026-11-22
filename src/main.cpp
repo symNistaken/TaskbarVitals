@@ -32,6 +32,7 @@
 #include "report.h"
 #include "rename_dialog.h"
 #include "offset_dialog.h"
+#include "gpumon.h"
 #include "sysmon.h"
 #include "widget.h"
 #include "update_win.h"
@@ -60,6 +61,7 @@ enum MenuId : UINT {
     ID_REFRESH = 100, ID_AUTOSTART, ID_HIDE_LAST_KNOWN, ID_WIDGET_BACKGROUND, ID_EXIT, ID_MODE_WIDGET, ID_MODE_TRAY, ID_SUPPORT, ID_REPORT,
     ID_BRAND_COLORS, ID_STACKED, ID_SHOW_DISCONNECTED, ID_RECORD_HISTORY, ID_DIM_SLEEPING,
     ID_TRAY_WHEN_EMPTY, ID_MAKE_ROOM, ID_FAR_LEFT, ID_SHOW_CPU, ID_SHOW_RAM,
+    ID_SHOW_GPU, ID_SHOW_GPU_TEMP, ID_SHOW_VRAM,
     ID_PLACE_AUTO, ID_PLACE_TOP, ID_PLACE_TRAY, ID_PLACE_BOTTOM,  // "Position on a vertical taskbar"
     ID_POSITION_FIRST = 700,  // "Position on the taskbar": ID_POSITION_FIRST + 0..5, then the custom value
     ID_POLL_FIRST = 500,  // "Check battery every": ID_POLL_FIRST + 0..7
@@ -104,8 +106,12 @@ const int POSITION_OFFSETS[] = { 0, 40, 80, 120, 160, 200 };
 widget::VerticalPlace g_verticalPlace = widget::VerticalPlace::Auto;  // column position on a left / right taskbar
 bool g_farLeft = false;      // widget at the left end of the taskbar instead of next to the clock (menu option)
 bool g_showCpu = false, g_showRam = false;  // system readings on the strip (menu options)
+bool g_showGpu = false, g_showGpuTemp = false, g_showVram = false;
 sysmon::Reading g_sys;       // last CPU / RAM sample, taken every 2 s while one of them is shown
+gpumon::Reading g_gpu;       // last GPU sample, likewise
 int g_sysTicks = 0;
+bool AnyGpuReading() { return g_showGpu || g_showGpuTemp || g_showVram; }
+bool AnyReading() { return g_showCpu || g_showRam || AnyGpuReading(); }
 bool g_brandColors = false;  // off by default; known brands get their color (Razer green, Logitech blue, ...)
 std::atomic<DWORD> g_pollIntervalMs{ 60 * 1000 };  // set from the menu, read by the worker thread
 
@@ -772,10 +778,12 @@ void UpdateWidget() {
         tip += DisplayName(*e) + L": " + StatusText(*e);
     }
     if (tip.empty()) tip = std::wstring(L"Taskbar Vitals: ") + T(L"No devices with battery info found");
-    auto reading = [&](wchar_t glyph, int pct, const std::wstring& line) {
+    auto reading = [&](wchar_t glyph, int pct, const std::wstring& line, const std::wstring& extra = L"",
+                       const std::wstring& caption = L"") {
         WidgetItem it;
         it.glyph = glyph;
-        it.text = std::to_wstring(pct) + L"%";
+        it.text = (pct >= 0 ? std::to_wstring(pct) + L"%" : std::wstring()) + (pct >= 0 && !extra.empty() ? L" " : L"") + extra;
+        it.label = caption;
         items.push_back(it);
         tip += L"\n" + line;
     };
@@ -784,6 +792,21 @@ void UpdateWidget() {
         wchar_t gb[64];
         swprintf(gb, 64, L" (%.1f / %.1f GB)", g_sys.ramUsedGb, g_sys.ramTotalGb);
         reading(0xE964, g_sys.ram, std::wstring(T(L"RAM usage")) + L": " + std::to_wstring(g_sys.ram) + L"%" + gb);
+    }
+    // GPU: use and temperature share one item ("12% 58°"); VRAM is the memory icon with a "GPU" caption.
+    int gpuUse = g_showGpu ? g_gpu.use : -1;
+    int gpuTemp = g_showGpuTemp ? g_gpu.tempC : -1;
+    if (g_gpu.available && (gpuUse >= 0 || gpuTemp >= 0)) {
+        std::wstring temp = gpuTemp >= 0 ? std::to_wstring(gpuTemp) + L"°" : L"";
+        std::wstring line = L"GPU (" + g_gpu.name + L"): ";
+        if (gpuUse >= 0) line += std::to_wstring(gpuUse) + L"%";
+        if (gpuTemp >= 0) line += (gpuUse >= 0 ? L", " : L"") + std::to_wstring(gpuTemp) + L" °C";
+        reading(0xEEA1, gpuUse, line, temp);
+    }
+    if (g_showVram && g_gpu.available && g_gpu.vram >= 0) {
+        wchar_t gb[64];
+        swprintf(gb, 64, L" (%.1f / %.1f GB)", g_gpu.vramUsedGb, g_gpu.vramTotalGb);
+        reading(0xE964, g_gpu.vram, std::wstring(T(L"GPU memory")) + L": " + std::to_wstring(g_gpu.vram) + L"%" + gb, L"", L"GPU");
     }
     widget::SetItems(items, tip);
 }
@@ -842,7 +865,7 @@ void OnResults(std::vector<DeviceStatus>& results) {
 }
 
 bool NothingShown() {
-    if (g_showCpu || g_showRam) return false;  // the readings keep the strip on the taskbar
+    if (AnyReading()) return false;  // the readings keep the strip on the taskbar
     for (const auto& [k, e] : g_entries)
         if (IsShown(e)) return false;
     return true;
@@ -976,19 +999,32 @@ void SetWidgetPlace(widget::VerticalPlace p) {
     widget::SetVerticalPlace(p);
 }
 
-// Takes a CPU / RAM sample every 2 s while a reading is shown; redraws the strip only when a shown value changed.
+// Takes a CPU / RAM / GPU sample every 2 s while a reading is shown; redraws the strip only when a shown value changed.
 void TickSystemReadings(bool now = false) {
-    if (!g_showCpu && !g_showRam) return;
+    if (!AnyReading()) return;
     if (!now && ++g_sysTicks % 2) return;
-    sysmon::Reading r = sysmon::Sample();
-    bool changed = (g_showCpu && r.cpu != g_sys.cpu) || (g_showRam && r.ram != g_sys.ram);
-    g_sys = r;
+    bool changed = false;
+    if (g_showCpu || g_showRam) {
+        sysmon::Reading r = sysmon::Sample();
+        changed |= (g_showCpu && r.cpu != g_sys.cpu) || (g_showRam && r.ram != g_sys.ram);
+        g_sys = r;
+    }
+    if (AnyGpuReading()) {
+        gpumon::Reading g = gpumon::Sample(g_showGpuTemp);
+        changed |= g.available != g_gpu.available || (g_showGpu && g.use != g_gpu.use) ||
+                   (g_showGpuTemp && g.tempC != g_gpu.tempC) || (g_showVram && g.vram != g_gpu.vram);
+        g_gpu = g;
+    }
     if (changed) UpdateWidget();
 }
 
 void SetShowReading(bool& flag, const wchar_t* name, bool on) {
     flag = on;
     SaveBoolSetting(name, on);
+    if (!AnyGpuReading()) {  // free the GPU counters and adapter handle once no GPU reading is shown
+        gpumon::Stop();
+        g_gpu = gpumon::Reading();
+    }
     TickSystemReadings(true);
     UpdateWidget();
 }
@@ -1202,6 +1238,9 @@ void ShowMenu() {
     AppendMenuW(m, MF_STRING | (g_farLeft ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_FAR_LEFT, T(L"At the left end of the taskbar"));
     AppendMenuW(m, MF_STRING | (g_showCpu ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_CPU, T(L"Show CPU usage"));
     AppendMenuW(m, MF_STRING | (g_showRam ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_RAM, T(L"Show RAM usage"));
+    AppendMenuW(m, MF_STRING | (g_showGpu ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_GPU, T(L"Show GPU usage"));
+    AppendMenuW(m, MF_STRING | (g_showGpuTemp ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_GPU_TEMP, T(L"Show GPU temperature"));
+    AppendMenuW(m, MF_STRING | (g_showVram ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_VRAM, T(L"Show GPU memory"));
     // With more than one monitor: choose which taskbars show the widget (all, main only, or one monitor).
     auto monitors = widget::OtherMonitors();
     if (monitors.size() > 31) monitors.resize(31);
@@ -1322,6 +1361,9 @@ void ShowMenu() {
         case ID_FAR_LEFT: SetFarLeft(!g_farLeft); break;
         case ID_SHOW_CPU: SetShowReading(g_showCpu, L"ShowCpu", !g_showCpu); break;
         case ID_SHOW_RAM: SetShowReading(g_showRam, L"ShowRam", !g_showRam); break;
+        case ID_SHOW_GPU: SetShowReading(g_showGpu, L"ShowGpu", !g_showGpu); break;
+        case ID_SHOW_GPU_TEMP: SetShowReading(g_showGpuTemp, L"ShowGpuTemp", !g_showGpuTemp); break;
+        case ID_SHOW_VRAM: SetShowReading(g_showVram, L"ShowVram", !g_showVram); break;
         case ID_MODE_WIDGET: SetMode(true); break;
         case ID_MODE_TRAY: SetMode(false); break;
         case ID_SUPPORT: ShellExecuteW(nullptr, L"open", L"https://github.com/symNistaken/TaskbarVitals", nullptr, nullptr, SW_SHOWNORMAL); break;
@@ -1812,6 +1854,9 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR cmdLine, int) {
     g_farLeft = LoadFarLeft();
     g_showCpu = LoadShowCpu();
     g_showRam = LoadShowRam();
+    g_showGpu = LoadBoolSetting(L"ShowGpu", false);
+    g_showGpuTemp = LoadBoolSetting(L"ShowGpuTemp", false);
+    g_showVram = LoadBoolSetting(L"ShowVram", false);
     g_pollIntervalMs = LoadPollSeconds() * 1000;
     widget::SetStacked(g_stacked);
     g_verticalPlace = LoadVerticalPlace();

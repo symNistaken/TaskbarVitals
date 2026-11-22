@@ -230,3 +230,7 @@ Show CPU usage =
 Show RAM usage = 
 CPU usage = 
 RAM usage = 
+Show GPU usage = 
+Show GPU temperature = 
+Show GPU memory = 
+GPU memory = 

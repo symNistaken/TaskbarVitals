@@ -198,3 +198,7 @@ Show CPU usage = CPU kullanımını göster
 Show RAM usage = RAM kullanımını göster
 CPU usage = CPU kullanımı
 RAM usage = RAM kullanımı
+Show GPU usage = GPU kullanımını göster
+Show GPU temperature = GPU sıcaklığını göster
+Show GPU memory = GPU belleğini (VRAM) göster
+GPU memory = GPU belleği
