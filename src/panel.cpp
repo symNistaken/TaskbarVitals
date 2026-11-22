@@ -23,7 +23,7 @@ struct Row {
 };
 
 constexpr int kTabs = 4;  // Devices, System, Appearance, General; the footer is kept apart
-const wchar_t* const kTabNames[kTabs] = { L"Devices", L"System", L"Appearance", L"General" };
+const wchar_t* const kTabNames[kTabs] = { L"Batteries", L"System", L"Appearance", L"General" };
 
 Host g_host;
 HWND g_wnd;

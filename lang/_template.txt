@@ -238,3 +238,6 @@ Devices =
 System = 
 Appearance = 
 General = 
+Batteries = 
+Batteries at the left end of the taskbar = 
+Readings at the left end of the taskbar = 

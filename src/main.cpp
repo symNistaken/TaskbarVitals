@@ -36,6 +36,7 @@
 #include "offset_dialog.h"
 #include "gpumon.h"
 #include "sysmon.h"
+#include "vitals_strip.h"
 #include "widget.h"
 #include "update_win.h"
 #include "update_apply.h"
@@ -62,7 +63,7 @@ constexpr UINT ALERT_ICON_ID = 2;
 enum MenuId : UINT {
     ID_REFRESH = 100, ID_AUTOSTART, ID_HIDE_LAST_KNOWN, ID_WIDGET_BACKGROUND, ID_EXIT, ID_MODE_WIDGET, ID_MODE_TRAY, ID_SUPPORT, ID_REPORT,
     ID_BRAND_COLORS, ID_STACKED, ID_SHOW_DISCONNECTED, ID_RECORD_HISTORY, ID_DIM_SLEEPING,
-    ID_TRAY_WHEN_EMPTY, ID_MAKE_ROOM, ID_FAR_LEFT, ID_SHOW_CPU, ID_SHOW_RAM,
+    ID_TRAY_WHEN_EMPTY, ID_MAKE_ROOM, ID_FAR_LEFT, ID_VITALS_FAR_LEFT, ID_SHOW_CPU, ID_SHOW_RAM,
     ID_SHOW_GPU, ID_SHOW_GPU_TEMP, ID_SHOW_VRAM,
     ID_PLACE_AUTO, ID_PLACE_TOP, ID_PLACE_TRAY, ID_PLACE_BOTTOM,  // "Position on a vertical taskbar"
     ID_POSITION_FIRST = 700,  // "Position on the taskbar": ID_POSITION_FIRST + 0..5, then the custom value
@@ -107,6 +108,8 @@ bool g_makeRoom = true;      // step past other apps' taskbar widgets (menu opti
 const int POSITION_OFFSETS[] = { 0, 40, 80, 120, 160, 200 };
 widget::VerticalPlace g_verticalPlace = widget::VerticalPlace::Auto;  // column position on a left / right taskbar
 bool g_farLeft = false;      // widget at the left end of the taskbar instead of next to the clock (menu option)
+bool g_vitalsFarLeft = false;  // CPU / RAM / GPU readings at the left end of the taskbar (menu option)
+bool g_leftEndPlaced = false;  // with two strips: the left-end one found room there at the last update
 bool g_showCpu = false, g_showRam = false;  // system readings on the strip (menu options)
 bool g_showGpu = false, g_showGpuTemp = false, g_showVram = false;
 sysmon::Reading g_sys;       // last CPU / RAM sample, taken every 2 s while one of them is shown
@@ -420,6 +423,7 @@ void SetWidgetMonitor(const std::wstring& v) {
     g_widgetMonitor = v;
     SaveWidgetMonitor(v);
     widget::SetMonitorChoice(v);
+    vitals_strip::SetMonitorChoice(v);
 }
 bool LoadStacked() { return LoadBoolSetting(L"StackedLayout", false); }
 void SaveStacked(bool on) { SaveBoolSetting(L"StackedLayout", on); }
@@ -780,14 +784,17 @@ void UpdateWidget() {
         tip += DisplayName(*e) + L": " + StatusText(*e);
     }
     if (tip.empty()) tip = std::wstring(L"Taskbar Vitals: ") + T(L"No devices with battery info found");
+    // CPU / RAM / GPU readings: their own strip when it sits apart from the batteries, else after them.
+    std::vector<WidgetItem> readings;
+    std::wstring readingsTip;
     auto reading = [&](wchar_t glyph, int pct, const std::wstring& line, const std::wstring& extra = L"",
                        const std::wstring& caption = L"") {
         WidgetItem it;
         it.glyph = glyph;
         it.text = (pct >= 0 ? std::to_wstring(pct) + L"%" : std::wstring()) + (pct >= 0 && !extra.empty() ? L" " : L"") + extra;
         it.label = caption;
-        items.push_back(it);
-        tip += L"\n" + line;
+        readings.push_back(it);
+        readingsTip += (readingsTip.empty() ? L"" : L"\n") + line;
     };
     if (g_showCpu && g_sys.cpu >= 0) reading(0xE950, g_sys.cpu, std::wstring(T(L"CPU usage")) + L": " + std::to_wstring(g_sys.cpu) + L"%");
     if (g_showRam && g_sys.ram >= 0) {
@@ -804,14 +811,57 @@ void UpdateWidget() {
         if (gpuUse >= 0) line += std::to_wstring(gpuUse) + L"%";
         if (gpuTemp >= 0) line += (gpuUse >= 0 ? L", " : L"") + std::to_wstring(gpuTemp) + L" °C";
         reading(0xE7F4, gpuUse, line, temp);  // TVMonitor: reads as "graphics" and stays apart from the CPU chip
-        items.back().heat = sysmon::HeatLevel(gpuTemp);
+        readings.back().heat = sysmon::HeatLevel(gpuTemp);
     }
     if (g_showVram && g_gpu.available && g_gpu.vram >= 0) {
         wchar_t gb[64];
         swprintf(gb, 64, L" (%.1f / %.1f GB)", g_gpu.vramUsedGb, g_gpu.vramTotalGb);
         reading(0xE964, g_gpu.vram, std::wstring(T(L"GPU memory")) + L": " + std::to_wstring(g_gpu.vram) + L"%" + gb, L"", L"GPU");
     }
-    widget::SetItems(items, tip);
+    std::vector<WidgetItem> all = items;
+    all.insert(all.end(), readings.begin(), readings.end());
+    std::wstring allTip = readingsTip.empty() ? tip : tip + L"\n" + readingsTip;
+    if (!vitals_strip::Alive()) {
+        widget::SetItems(all, allTip);
+        return;
+    }
+    // Two strips. The one at the left end hides when there is no room there; the other then shows everything.
+    // The left-end strip keeps its own items even while hidden (it needs its width to find room).
+    g_leftEndPlaced = g_farLeft ? widget::AtFarLeft() : vitals_strip::AtFarLeft();
+    bool batteriesAlone = g_farLeft || g_leftEndPlaced;
+    bool readingsAlone = !g_farLeft || g_leftEndPlaced;
+    widget::SetItems(batteriesAlone ? items : all, batteriesAlone ? tip : allTip);
+    vitals_strip::SetItems(readingsAlone ? readings : all, readingsAlone ? readingsTip : allTip);
+}
+
+// Batteries and readings sit on two strips when one is at the left end of a horizontal taskbar and the other is
+// next to the clock. Otherwise (same place, a vertical taskbar, no readings shown) one strip shows everything.
+bool SplitStrips() {
+    return g_useWidget && widget::Alive() && AnyReading() && g_farLeft != g_vitalsFarLeft && !widget::Vertical();
+}
+
+// Creates, keeps or removes the readings strip; called from Reconcile (once a second and after changes).
+void SyncVitalsStrip() {
+    bool want = SplitStrips(), alive = vitals_strip::Alive();
+    if (want && !alive) {
+        vitals_strip::SetBackground(g_widgetBackground);
+        vitals_strip::SetStacked(g_stacked);
+        vitals_strip::SetMakeRoom(g_makeRoom);
+        vitals_strip::SetMonitorChoice(g_widgetMonitor);
+        vitals_strip::SetFarLeft(g_vitalsFarLeft);
+        vitals_strip::SetFarLeftOnly(g_vitalsFarLeft);
+        vitals_strip::Create(g_inst, g_hwnd, WM_WIDGET_CLICK, g_lightTaskbar);
+        widget::SetFarLeftOnly(g_farLeft);
+        UpdateWidget();
+    } else if (!want && alive) {
+        vitals_strip::Destroy();
+        widget::SetFarLeftOnly(false);
+        UpdateWidget();
+    } else if (want) {
+        vitals_strip::Reposition();
+        bool placed = g_farLeft ? widget::AtFarLeft() : vitals_strip::AtFarLeft();
+        if (placed != g_leftEndPlaced) UpdateWidget();  // room at the left end came or went
+    }
 }
 
 void Reconcile();
@@ -907,6 +957,7 @@ void Reconcile() {
         }
         if (anyAdded == g_placeholder) UpdatePlaceholder();
     }
+    SyncVitalsStrip();
 }
 
 void SetMode(bool useWidget) {
@@ -919,6 +970,7 @@ void SetWidgetBackground(bool on) {
     g_widgetBackground = on;
     SaveWidgetBackground(on);
     widget::SetBackground(on);
+    vitals_strip::SetBackground(on);
 }
 
 void SetHideLastKnown(bool on) {
@@ -984,17 +1036,20 @@ void SetStacked(bool on) {
     g_stacked = on;
     SaveStacked(on);
     widget::SetStacked(on);
+    vitals_strip::SetStacked(on);
 }
 
 void SetMakeRoom(bool on) {
     g_makeRoom = on;
     SaveMakeRoom(on);
     widget::SetMakeRoom(on);
+    vitals_strip::SetMakeRoom(on);
 }
 
 void SetTaskbarOffset(int px) {
     SaveTaskbarOffset(px);
     if (g_useWidget) widget::Reposition();
+    if (vitals_strip::Alive()) vitals_strip::Reposition();
 }
 
 void SetWidgetPlace(widget::VerticalPlace p) {
@@ -1030,13 +1085,28 @@ void SetShowReading(bool& flag, const wchar_t* name, bool on) {
         g_gpu = gpumon::Reading();
     }
     TickSystemReadings(true);
+    SyncVitalsStrip();  // the first or last reading may add or remove the readings strip
     UpdateWidget();
 }
 
+// Battery strip at the left end (true) or next to the clock.
 void SetFarLeft(bool on) {
     g_farLeft = on;
     SaveFarLeft(on);
     widget::SetFarLeft(on);
+    widget::SetFarLeftOnly(on && vitals_strip::Alive());
+    SyncVitalsStrip();
+    UpdateWidget();
+}
+
+// Readings strip (CPU / RAM / GPU) at the left end (true) or next to the clock.
+void SetVitalsFarLeft(bool on) {
+    g_vitalsFarLeft = on;
+    SaveBoolSetting(L"VitalsFarLeft", on);
+    vitals_strip::SetFarLeft(on);
+    vitals_strip::SetFarLeftOnly(on);
+    SyncVitalsStrip();
+    UpdateWidget();
 }
 
 void SetBrandColors(bool on) {
@@ -1247,12 +1317,14 @@ MenuModel BuildMenu(MenuIcons& icons) {
                            MF_BYCOMMAND);
         AppendMenuW(m, MF_POPUP, (UINT_PTR)sub, T(L"Position on a vertical taskbar"));
     }
-    AppendMenuW(m, MF_STRING | (g_farLeft ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_FAR_LEFT, T(L"At the left end of the taskbar"));
+    AppendMenuW(m, MF_STRING | (g_farLeft ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_FAR_LEFT, T(L"Batteries at the left end of the taskbar"));
     AppendMenuW(m, MF_STRING | (g_showCpu ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_CPU, T(L"Show CPU usage"));
     AppendMenuW(m, MF_STRING | (g_showRam ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_RAM, T(L"Show RAM usage"));
     AppendMenuW(m, MF_STRING | (g_showGpu ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_GPU, T(L"Show GPU usage"));
     AppendMenuW(m, MF_STRING | (g_showGpuTemp ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_GPU_TEMP, T(L"Show GPU temperature"));
     AppendMenuW(m, MF_STRING | (g_showVram ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_VRAM, T(L"Show GPU memory"));
+    AppendMenuW(m, MF_STRING | (g_vitalsFarLeft ? MF_CHECKED : 0) | (g_wantWidget && AnyReading() ? 0 : MF_GRAYED), ID_VITALS_FAR_LEFT,
+                T(L"Readings at the left end of the taskbar"));
     // With more than one monitor: choose which taskbars show the widget (all, main only, or one monitor).
     auto monitors = widget::OtherMonitors();
     if (monitors.size() > 31) monitors.resize(31);
@@ -1365,6 +1437,7 @@ void RunCommand(UINT cmd, const MenuModel& model) {
         case ID_PLACE_TRAY: SetWidgetPlace(widget::VerticalPlace::AboveTray); break;
         case ID_PLACE_BOTTOM: SetWidgetPlace(widget::VerticalPlace::Bottom); break;
         case ID_FAR_LEFT: SetFarLeft(!g_farLeft); break;
+        case ID_VITALS_FAR_LEFT: SetVitalsFarLeft(!g_vitalsFarLeft); break;
         case ID_SHOW_CPU: SetShowReading(g_showCpu, L"ShowCpu", !g_showCpu); break;
         case ID_SHOW_RAM: SetShowReading(g_showRam, L"ShowRam", !g_showRam); break;
         case ID_SHOW_GPU: SetShowReading(g_showGpu, L"ShowGpu", !g_showGpu); break;
@@ -1511,9 +1584,10 @@ panel::Place PanelPlace(UINT id) {
         case ID_SHOW_VRAM: return { S::System, K::Toggle };
         case ID_MODE_WIDGET:
         case ID_MODE_TRAY: return { S::Appearance, K::Radio };
+        case ID_FAR_LEFT: return { S::Devices, K::Toggle };            // where the battery strip sits
+        case ID_VITALS_FAR_LEFT: return { S::System, K::Toggle };      // where the readings strip sits
         case ID_WIDGET_BACKGROUND:
         case ID_STACKED:
-        case ID_FAR_LEFT:
         case ID_BRAND_COLORS: return { S::Appearance, K::Toggle };
         case ID_PLACE_AUTO:
         case ID_MONITOR_ALL: return { S::Appearance, K::Choice };
@@ -1692,6 +1766,7 @@ void RefreshAfterWake(UINT ms) { SetTimer(g_hwnd, TIMER_RESUME, ms, nullptr); }
 LRESULT CALLBACK WndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
     if (msg == g_taskbarCreatedMsg && msg != 0) {  // Explorer restarted
         widget::Destroy();
+        vitals_strip::Destroy();
         g_useWidget = false;
         g_alertIconAdded = false;
         KillTimer(g_hwnd, TIMER_ALERT_ICON);
@@ -1787,7 +1862,7 @@ LRESULT CALLBACK WndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_SETTINGCHANGE:
             if (lp && !lstrcmpW((LPCWSTR)lp, L"ImmersiveColorSet")) {
                 bool light = ReadLightTaskbar();
-                if (light != g_lightTaskbar) { g_lightTaskbar = light; ApplyMenuTheme(light); RedrawAll(); widget::SetLightTheme(light); panel::Refresh(); }
+                if (light != g_lightTaskbar) { g_lightTaskbar = light; ApplyMenuTheme(light); RedrawAll(); widget::SetLightTheme(light); vitals_strip::SetLightTheme(light); panel::Refresh(); }
             }
             return 0;
         case WM_DESTROY:
@@ -1799,6 +1874,7 @@ LRESULT CALLBACK WndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             if (g_alertIconAdded) { TrayDelete(ALERT_ICON_ID); g_alertIconAdded = false; }
             panel::Close();
             widget::Destroy();
+            vitals_strip::Destroy();
             gpumon::Stop();
             SetEvent(g_stopEvt);
             if (g_worker) WaitForSingleObject(g_worker, 5000);
@@ -1980,6 +2056,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR cmdLine, int) {
     g_makeRoom = LoadMakeRoom();
     widget::SetMakeRoom(g_makeRoom);
     g_farLeft = LoadFarLeft();
+    g_vitalsFarLeft = LoadBoolSetting(L"VitalsFarLeft", false);
     g_showCpu = LoadShowCpu();
     g_showRam = LoadShowRam();
     g_showGpu = LoadBoolSetting(L"ShowGpu", false);

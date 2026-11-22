@@ -1,3 +1,12 @@
+// Built twice: as namespace widget (the battery strip) and, from vitals_strip.cpp, as namespace
+// vitals_strip (the CPU / RAM / GPU strip). Each copy has its own window, state and position.
+#ifndef WIDGET_NS
+#define WIDGET_NS widget
+#endif
+#ifndef WIDGET_CLASS
+#define WIDGET_CLASS L"WirelessBatteryWidget"
+#endif
+
 #include "widget.h"
 
 #include "i18n.h"
@@ -16,8 +25,10 @@ bool g_background;  // opaque rounded plate behind the text, for transparent / r
 bool g_stacked;     // icon above the percentage (menu option, PR #525)
 bool g_vertical;    // the primary taskbar is docked left or right: one block per device, stacked (PR #321)
 bool g_makeRoom = true;  // step past other apps' widgets in the taskbar instead of covering them
-widget::VerticalPlace g_place = widget::VerticalPlace::Auto;  // where the column sits on such a taskbar (menu option)
+WIDGET_NS::VerticalPlace g_place = WIDGET_NS::VerticalPlace::Auto;  // where the column sits on such a taskbar (menu option)
 bool g_farLeft;     // at the left end of the taskbar instead of next to the clock (menu option)
+bool g_placedFarLeft;  // the last placement on the main taskbar was at the left end
+bool g_farLeftOnly;    // left end or nowhere: hidden instead of next to the clock when there is no room there
 std::vector<WidgetItem> g_items;
 std::wstring g_tipText;
 RECT g_lastTray{}, g_lastBar{}, g_lastWidgets{};
@@ -37,6 +48,7 @@ struct Mirror {
     SIZE size{};
     int dpi = 0;
     int lastLeft = INT_MIN;  // client x it was last placed at; INT_MIN = not placed (hidden)
+    bool farOk = false;      // the last placement was at the left end
 };
 std::vector<Mirror> g_mirrors;
 // Which taskbars show the strip: "all", "main", or one monitor's id (MonitorId), e.g. only monitor 3.
@@ -46,7 +58,7 @@ std::wstring g_choice = L"all";
 bool g_primaryHidden = false;
 HWND g_dpiBar;  // while a mirror is painted or placed, Px() uses its taskbar's DPI
 
-const wchar_t* kClass = L"WirelessBatteryWidget";
+const wchar_t* kClass = WIDGET_CLASS;
 const wchar_t* kBridgeClass = L"Windows.UI.Composition.DesktopWindowContentBridge";
 
 int Dpi() {
@@ -896,7 +908,9 @@ void PositionMirror(Mirror& m) {
     int left = right - length - Px(2), farX = 0;
     bool atFarLeft = !v && g_farLeft && FarLeftX(m.bar, m.size.cx, farX);  // horizontal bars only
     if (atFarLeft) left = farX;
+    m.farOk = atFarLeft;
     g_dpiBar = nullptr;
+    if (g_farLeftOnly && !atFarLeft) { HideMirror(m); return; }  // no room at the left end: the other strip shows the items
     if (!atFarLeft && (!known || length <= 0 || left < minLeft)) { HideMirror(m); return; }
     POINT p = v ? POINT{ bar.left, left } : POINT{ left, bar.top };
     ScreenToClient(m.bar, &p);
@@ -1016,7 +1030,7 @@ void SyncMirrors() {
     } else if (g_choice != L"main") {
         std::vector<std::wstring> ids;
         for (HWND b : all) ids.push_back(MonitorId(b));
-        int i = widget::FindMonitor(ids, g_choice);
+        int i = WIDGET_NS::FindMonitor(ids, g_choice);
         if (i >= 0) {
             bars.push_back(all[i]);
             chosenFound = true;
@@ -1057,7 +1071,7 @@ void SetHover(HWND h, bool on) {
         if (g_hover == on) return;
         g_hover = on;
         Paint();
-        widget::Reposition();
+        WIDGET_NS::Reposition();
         return;
     }
     for (auto& m : g_mirrors)
@@ -1091,7 +1105,7 @@ LRESULT CALLBACK WidgetProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
 
 }  // namespace
 
-namespace widget {
+namespace WIDGET_NS {
 
 wchar_t DeviceGlyph(DeviceKind kind, bool bluetooth) { return Glyph(kind, bluetooth); }
 
@@ -1227,7 +1241,28 @@ void SetFarLeft(bool on) {
     g_wbFarLeft = on;
     ReleaseSRWLockExclusive(&g_wbLock);
     if (on && g_wbWake) SetEvent(g_wbWake);  // measure the taskbar now, not in 5 s
+    if (!on) g_placedFarLeft = false;
     if (g_wnd) Reposition();
+}
+
+bool AtFarLeft() {
+    if (!g_wnd || g_vertical || !g_farLeft) return false;
+    if (!g_primaryHidden) return g_placedFarLeft;
+    // Only other monitors show the strip: at the left end when each of them has it there.
+    bool any = false;
+    for (const auto& m : g_mirrors) {
+        if (!m.farOk) return false;
+        any = true;
+    }
+    return any;
+}
+
+void SetFarLeftOnly(bool on) {
+    g_farLeftOnly = on;
+    if (g_wnd) {
+        g_lastLeft = INT_MIN;
+        Reposition();
+    }
 }
 
 void SetMonitorChoice(const std::wstring& choice) {
@@ -1334,7 +1369,7 @@ bool Reposition() {
         AcquireSRWLockShared(&g_wbLock);
         Column col = g_column;
         ReleaseSRWLockShared(&g_wbLock);
-        bool bottom = g_place == widget::VerticalPlace::Bottom && !g_rebar && g_size.cy > 0 &&
+        bool bottom = g_place == WIDGET_NS::VerticalPlace::Bottom && !g_rebar && g_size.cy > 0 &&
                       g_size.cy < client.bottom / 2;
         bool wasReserved = g_reserved;  // the content has had a pass to move up
         ReserveBottom(bottom ? g_size.cy : 0);
@@ -1350,9 +1385,9 @@ bool Reposition() {
         }
         if (bottom) {
             top = client.bottom - g_size.cy;
-        } else if (g_place == widget::VerticalPlace::Top) {
+        } else if (g_place == WIDGET_NS::VerticalPlace::Top) {
             top = 0;
-        } else if (g_place == widget::VerticalPlace::Auto && !g_rebar && col.bar == g_taskbar && col.measured &&
+        } else if (g_place == WIDGET_NS::VerticalPlace::Auto && !g_rebar && col.bar == g_taskbar && col.measured &&
                    col.any) {
             POINT first{ bar.left, col.top }, last{ bar.left, col.bottom };
             ScreenToClient(g_taskbar, &first);
@@ -1429,6 +1464,12 @@ bool Reposition() {
 
     int farX = 0;
     bool atFarLeft = !rtl && g_farLeft && FarLeftX(g_taskbar, g_size.cx, farX);
+    g_placedFarLeft = atFarLeft;
+    if (g_farLeftOnly && !atFarLeft) {  // no room at the left end: hide; the other strip shows the items meanwhile
+        if (IsWindowVisible(g_wnd)) ShowWindow(g_wnd, SW_HIDE);
+        g_lastLeft = INT_MIN;  // placed and shown again once there is room
+        return true;
+    }
     if (atFarLeft) {
         POINT fp{ farX, bar.top };
         ScreenToClient(g_taskbar, &fp);
@@ -1459,4 +1500,4 @@ bool Reposition() {
     return true;
 }
 
-}  // namespace widget
+}  // namespace WIDGET_NS

@@ -206,3 +206,6 @@ Devices = Cihazlar
 System = Sistem
 Appearance = Görünüm
 General = Genel
+Batteries = Piller
+Batteries at the left end of the taskbar = Piller görev çubuğunun en solunda
+Readings at the left end of the taskbar = Sistem bilgileri görev çubuğunun en solunda
