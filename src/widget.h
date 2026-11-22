@@ -20,6 +20,7 @@ struct WidgetItem {
     std::wstring label;      // tiny caption on the icon; set only when two devices of one kind are shown
     Accent accent  = Accent::None;  // brand color for the icon, its glow and the level bar
     wchar_t glyph  = 0;      // Segoe Fluent icon to draw instead of the device kind's (system readings: CPU, RAM)
+    int heat       = 0;      // temperature level of a reading: 1 = elevated (orange text), 2 = high (red text)
 };
 
 namespace widget {

@@ -586,6 +586,7 @@ std::vector<Piece> Layout(int barW, int barH, int& width, int& height) {
     Rgb red = g_light ? Rgb{ 196, 30, 40 } : Rgb{ 255, 90, 90 };
     Rgb charge = g_light ? Rgb{ 0, 120, 212 } : Rgb{ 96, 205, 255 };
     Rgb full = g_light ? Rgb{ 16, 124, 16 } : Rgb{ 108, 203, 95 };  // Windows "success" green
+    Rgb warm = g_light ? Rgb{ 186, 90, 0 } : Rgb{ 255, 170, 60 };    // an elevated temperature
     HFONT icons = MakeFont(Px(16), FW_NORMAL, L"Segoe Fluent Icons", L"Segoe MDL2 Assets");
     HFONT bolt = MakeFont(Px(11), FW_NORMAL, L"Segoe Fluent Icons", L"Segoe MDL2 Assets");
     HFONT text = MakeFont(Px(13), FW_NORMAL, L"Segoe UI Variable Text", L"Segoe UI", Px(12));
@@ -598,7 +599,7 @@ std::vector<Piece> Layout(int barW, int barH, int& width, int& height) {
     for (size_t i = 0; i < g_items.size(); i++) {
         const auto& it = g_items[i];
         int a = it.dim ? 120 : 255;
-        Rgb tc = it.low ? red : fg;
+        Rgb tc = it.low || it.heat >= 2 ? red : it.heat == 1 ? warm : fg;
         bool mark = it.charging || it.full;  // bolt while charging, green check mark once full
         size_t glyph = out.size();
         slots.push_back({ (int)glyph, (int)glyph + 1, mark ? (int)glyph + 2 : -1 });

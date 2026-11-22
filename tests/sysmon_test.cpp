@@ -20,6 +20,10 @@ int main() {
     assert(CpuPercent({ 5, 10, 10 }, { 5, 10, 10 }) == -1);
     assert(CpuPercent({ 5, 10, 10 }, { 4, 20, 20 }) == -1);
     assert(CpuPercent({ 0, 0, 0 }, { 50, 10, 10 }) == -1);
-    std::puts("System monitor tests passed (CPU share, rounding, idle and busy, bad samples).");
+    // Temperature colour levels: normal below 80 °C, elevated from 80, high from 90; unknown (-1) is normal.
+    assert(sysmon::HeatLevel(-1) == 0 && sysmon::HeatLevel(79) == 0);
+    assert(sysmon::HeatLevel(80) == 1 && sysmon::HeatLevel(89) == 1);
+    assert(sysmon::HeatLevel(90) == 2 && sysmon::HeatLevel(105) == 2);
+    std::puts("System monitor tests passed (CPU share, rounding, idle and busy, bad samples, heat levels).");
     return 0;
 }

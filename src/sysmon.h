@@ -19,6 +19,9 @@ inline int CpuPercent(const CpuTimes& before, const CpuTimes& after) {
     return (int)(((total - idle) * 100 + total / 2) / total);
 }
 
+// Colour level of a CPU or GPU temperature on the strip: 0 normal, 1 elevated (from 80 °C), 2 high (from 90 °C).
+inline int HeatLevel(int celsius) { return celsius >= 90 ? 2 : celsius >= 80 ? 1 : 0; }
+
 struct Reading {
     int cpu = -1;               // percent, -1 until two samples exist
     int ram = -1;               // percent of physical memory in use
