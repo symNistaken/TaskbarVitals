@@ -63,7 +63,7 @@ constexpr UINT ALERT_ICON_ID = 2;
 enum MenuId : UINT {
     ID_REFRESH = 100, ID_AUTOSTART, ID_HIDE_LAST_KNOWN, ID_WIDGET_BACKGROUND, ID_EXIT, ID_MODE_WIDGET, ID_MODE_TRAY, ID_SUPPORT, ID_REPORT,
     ID_BRAND_COLORS, ID_STACKED, ID_SHOW_DISCONNECTED, ID_RECORD_HISTORY, ID_DIM_SLEEPING,
-    ID_TRAY_WHEN_EMPTY, ID_MAKE_ROOM, ID_FAR_LEFT, ID_VITALS_FAR_LEFT, ID_SHOW_CPU, ID_SHOW_RAM,
+    ID_TRAY_WHEN_EMPTY, ID_MAKE_ROOM, ID_BAT_LEFT, ID_BAT_CLOCK, ID_VIT_LEFT, ID_VIT_CLOCK, ID_SHOW_CPU, ID_SHOW_RAM,
     ID_SHOW_GPU, ID_SHOW_GPU_TEMP, ID_SHOW_VRAM,
     ID_PLACE_AUTO, ID_PLACE_TOP, ID_PLACE_TRAY, ID_PLACE_BOTTOM,  // "Position on a vertical taskbar"
     ID_POSITION_FIRST = 700,  // "Position on the taskbar": ID_POSITION_FIRST + 0..5, then the custom value
@@ -1317,14 +1317,22 @@ MenuModel BuildMenu(MenuIcons& icons) {
                            MF_BYCOMMAND);
         AppendMenuW(m, MF_POPUP, (UINT_PTR)sub, T(L"Position on a vertical taskbar"));
     }
-    AppendMenuW(m, MF_STRING | (g_farLeft ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_FAR_LEFT, T(L"Batteries at the left end of the taskbar"));
+    // Where each strip sits: the left end of the taskbar, or next to the clock (two strips when they differ).
+    auto placeMenu = [&](UINT leftId, UINT clockId, bool left, bool enabled, const wchar_t* title) {
+        HMENU sub = CreatePopupMenu();
+        UINT f = MF_STRING | (enabled ? 0 : MF_GRAYED);
+        AppendMenuW(sub, f, leftId, T(L"Left end of the taskbar"));
+        AppendMenuW(sub, f, clockId, T(L"Next to the clock"));
+        CheckMenuRadioItem(sub, leftId, clockId, left ? leftId : clockId, MF_BYCOMMAND);
+        AppendMenuW(m, MF_POPUP | (enabled ? 0 : MF_GRAYED), (UINT_PTR)sub, T(title));
+    };
+    placeMenu(ID_BAT_LEFT, ID_BAT_CLOCK, g_farLeft, g_wantWidget, L"Battery strip position");
     AppendMenuW(m, MF_STRING | (g_showCpu ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_CPU, T(L"Show CPU usage"));
     AppendMenuW(m, MF_STRING | (g_showRam ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_RAM, T(L"Show RAM usage"));
     AppendMenuW(m, MF_STRING | (g_showGpu ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_GPU, T(L"Show GPU usage"));
     AppendMenuW(m, MF_STRING | (g_showGpuTemp ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_GPU_TEMP, T(L"Show GPU temperature"));
     AppendMenuW(m, MF_STRING | (g_showVram ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_VRAM, T(L"Show GPU memory"));
-    AppendMenuW(m, MF_STRING | (g_vitalsFarLeft ? MF_CHECKED : 0) | (g_wantWidget && AnyReading() ? 0 : MF_GRAYED), ID_VITALS_FAR_LEFT,
-                T(L"Readings at the left end of the taskbar"));
+    placeMenu(ID_VIT_LEFT, ID_VIT_CLOCK, g_vitalsFarLeft, g_wantWidget && AnyReading(), L"CPU / RAM / GPU strip position");
     // With more than one monitor: choose which taskbars show the widget (all, main only, or one monitor).
     auto monitors = widget::OtherMonitors();
     if (monitors.size() > 31) monitors.resize(31);
@@ -1436,8 +1444,10 @@ void RunCommand(UINT cmd, const MenuModel& model) {
         case ID_PLACE_TOP: SetWidgetPlace(widget::VerticalPlace::Top); break;
         case ID_PLACE_TRAY: SetWidgetPlace(widget::VerticalPlace::AboveTray); break;
         case ID_PLACE_BOTTOM: SetWidgetPlace(widget::VerticalPlace::Bottom); break;
-        case ID_FAR_LEFT: SetFarLeft(!g_farLeft); break;
-        case ID_VITALS_FAR_LEFT: SetVitalsFarLeft(!g_vitalsFarLeft); break;
+        case ID_BAT_LEFT: SetFarLeft(true); break;
+        case ID_BAT_CLOCK: SetFarLeft(false); break;
+        case ID_VIT_LEFT: SetVitalsFarLeft(true); break;
+        case ID_VIT_CLOCK: SetVitalsFarLeft(false); break;
         case ID_SHOW_CPU: SetShowReading(g_showCpu, L"ShowCpu", !g_showCpu); break;
         case ID_SHOW_RAM: SetShowReading(g_showRam, L"ShowRam", !g_showRam); break;
         case ID_SHOW_GPU: SetShowReading(g_showGpu, L"ShowGpu", !g_showGpu); break;
@@ -1584,8 +1594,8 @@ panel::Place PanelPlace(UINT id) {
         case ID_SHOW_VRAM: return { S::System, K::Toggle };
         case ID_MODE_WIDGET:
         case ID_MODE_TRAY: return { S::Appearance, K::Radio };
-        case ID_FAR_LEFT: return { S::Devices, K::Toggle };            // where the battery strip sits
-        case ID_VITALS_FAR_LEFT: return { S::System, K::Toggle };      // where the readings strip sits
+        case ID_BAT_LEFT: return { S::Devices, K::Choice };   // where the battery strip sits
+        case ID_VIT_LEFT: return { S::System, K::Choice };    // where the CPU / RAM / GPU strip sits
         case ID_WIDGET_BACKGROUND:
         case ID_STACKED:
         case ID_BRAND_COLORS: return { S::Appearance, K::Toggle };
