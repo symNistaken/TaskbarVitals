@@ -66,6 +66,7 @@ enum MenuId : UINT {
     ID_TRAY_WHEN_EMPTY, ID_MAKE_ROOM, ID_BAT_LEFT, ID_BAT_CLOCK, ID_VIT_LEFT, ID_VIT_CLOCK, ID_SHOW_CPU, ID_SHOW_RAM,
     ID_SHOW_GPU, ID_SHOW_GPU_TEMP, ID_SHOW_VRAM, ID_SHOW_CPU_W, ID_SHOW_GPU_W,
     ID_PLACE_AUTO, ID_PLACE_TOP, ID_PLACE_TRAY, ID_PLACE_BOTTOM,  // "Position on a vertical taskbar"
+    ID_SYS_MOVE_FIRST = 750,  // System strip item order: CPU, RAM, GPU, GPU memory
     ID_POSITION_FIRST = 700,  // "Position on the taskbar": ID_POSITION_FIRST + 0..5, then the custom value
     ID_POLL_FIRST = 500,  // "Check battery every": ID_POLL_FIRST + 0..7
     ID_LIMIT_OFF = 600, ID_LIMIT_FIRST,  // "Notify when charged to": off, then alerts::kChargeLimits
@@ -113,6 +114,7 @@ bool g_leftEndPlaced = false;  // with two strips: the left-end one found room t
 bool g_showCpu = false, g_showRam = false;  // system readings on the strip (menu options)
 bool g_showGpu = false, g_showGpuTemp = false, g_showVram = false;
 bool g_showCpuW = false, g_showGpuW = false;  // power draw in watts
+std::vector<int> g_systemOrder{ 0, 1, 2, 3 };  // CPU, RAM, GPU, GPU memory
 sysmon::Reading g_sys;       // last CPU / RAM sample, taken every 2 s while one of them is shown
 gpumon::Reading g_gpu;       // last GPU sample, likewise
 int g_sysTicks = 0;
@@ -315,6 +317,26 @@ void SaveOrder() {
     for (const auto& k : g_order) { multi += k; multi.push_back(L'\0'); }
     multi.push_back(L'\0');
     RegSetKeyValueW(HKEY_CURRENT_USER, kSettingsKey, L"DeviceOrder", REG_MULTI_SZ, multi.data(), (DWORD)(multi.size() * sizeof(wchar_t)));
+}
+
+void LoadSystemOrder() {
+    DWORD value = 0, size = sizeof(value);
+    if (RegGetValueW(HKEY_CURRENT_USER, kSettingsKey, L"SystemOrder", RRF_RT_REG_DWORD, nullptr, &value, &size) != ERROR_SUCCESS)
+        return;
+    std::vector<int> order;
+    for (int i = 0; i < 4; ++i) {
+        int item = (value >> (i * 4)) & 0xF;
+        if (item < 4 && std::find(order.begin(), order.end(), item) == order.end()) order.push_back(item);
+    }
+    for (int i = 0; i < 4; ++i)
+        if (std::find(order.begin(), order.end(), i) == order.end()) order.push_back(i);
+    g_systemOrder = std::move(order);
+}
+
+void SaveSystemOrder() {
+    DWORD value = 0;
+    for (size_t i = 0; i < g_systemOrder.size() && i < 4; ++i) value |= (DWORD(g_systemOrder[i]) & 0xF) << (i * 4);
+    RegSetKeyValueW(HKEY_CURRENT_USER, kSettingsKey, L"SystemOrder", REG_DWORD, &value, sizeof(value));
 }
 
 bool IsEntryHidden(const TrayEntry& e) {
@@ -788,15 +810,17 @@ void UpdateWidget() {
     if (tip.empty()) tip = std::wstring(L"Taskbar Vitals: ") + T(L"No devices with battery info found");
     // CPU / RAM / GPU readings: their own strip when it sits apart from the batteries, else after them.
     std::vector<WidgetItem> readings;
-    std::wstring readingsTip;
-    auto reading = [&](wchar_t glyph, int pct, const std::wstring& line, const std::wstring& extra = L"",
+    std::vector<int> readingKeys;
+    std::vector<std::wstring> readingTips;
+    auto reading = [&](int key, wchar_t glyph, int pct, const std::wstring& line, const std::wstring& extra = L"",
                        const std::wstring& caption = L"") {
         WidgetItem it;
         it.glyph = glyph;
         it.text = (pct >= 0 ? std::to_wstring(pct) + L"%" : std::wstring()) + (pct >= 0 && !extra.empty() ? L" " : L"") + extra;
         it.label = caption;
         readings.push_back(it);
-        readingsTip += (readingsTip.empty() ? L"" : L"\n") + line;
+        readingKeys.push_back(key);
+        readingTips.push_back(line);
     };
     // CPU: use and power share one item ("14% 18W"), like the GPU's use and temperature.
     int cpuUse = g_showCpu ? g_sys.cpu : -1;
@@ -805,12 +829,12 @@ void UpdateWidget() {
         std::wstring line = std::wstring(T(L"CPU")) + L": ";
         if (cpuUse >= 0) line += std::to_wstring(cpuUse) + L"%";
         if (cpuW >= 0) line += (cpuUse >= 0 ? L", " : L"") + std::to_wstring(cpuW) + L" W";
-        reading(0xE950, cpuUse, line, cpuW >= 0 ? std::to_wstring(cpuW) + L"W" : L"");
+        reading(0, 0xE950, cpuUse, line, cpuW >= 0 ? std::to_wstring(cpuW) + L"W" : L"");
     }
     if (g_showRam && g_sys.ram >= 0) {
         wchar_t gb[64];
         swprintf(gb, 64, L" (%.1f / %.1f GB)", g_sys.ramUsedGb, g_sys.ramTotalGb);
-        reading(0xE964, g_sys.ram, std::wstring(T(L"RAM usage")) + L": " + std::to_wstring(g_sys.ram) + L"%" + gb);
+        reading(1, 0xE964, g_sys.ram, std::wstring(T(L"RAM usage")) + L": " + std::to_wstring(g_sys.ram) + L"%" + gb);
     }
     // GPU: use and temperature share one item ("12% 58°"); VRAM is the memory icon with a "GPU" caption.
     int gpuUse = g_showGpu ? g_gpu.use : -1;
@@ -823,14 +847,31 @@ void UpdateWidget() {
         if (gpuUse >= 0) line += std::to_wstring(gpuUse) + L"%";
         if (gpuTemp >= 0) line += (gpuUse >= 0 ? L", " : L"") + std::to_wstring(gpuTemp) + L" °C";
         if (gpuW >= 0) line += (gpuUse >= 0 || gpuTemp >= 0 ? L", " : L"") + std::to_wstring(gpuW) + L" W";
-        reading(0xE7F4, gpuUse, line, temp);  // TVMonitor: reads as "graphics" and stays apart from the CPU chip
+        reading(2, 0xE7F4, gpuUse, line, temp);  // TVMonitor: reads as "graphics" and stays apart from the CPU chip
         readings.back().heat = sysmon::HeatLevel(gpuTemp);
     }
     if (g_showVram && g_gpu.available && g_gpu.vram >= 0) {
         wchar_t gb[64];
         swprintf(gb, 64, L" (%.1f / %.1f GB)", g_gpu.vramUsedGb, g_gpu.vramTotalGb);
-        reading(0xE964, g_gpu.vram, std::wstring(T(L"GPU memory")) + L": " + std::to_wstring(g_gpu.vram) + L"%" + gb, L"", L"GPU");
+        reading(3, 0xE964, g_gpu.vram, std::wstring(T(L"GPU memory")) + L": " + std::to_wstring(g_gpu.vram) + L"%" + gb, L"", L"GPU");
     }
+    std::vector<size_t> readingSort(readings.size());
+    for (size_t i = 0; i < readingSort.size(); ++i) readingSort[i] = i;
+    auto orderRank = [&](int key) {
+        auto it = std::find(g_systemOrder.begin(), g_systemOrder.end(), key);
+        return it == g_systemOrder.end() ? g_systemOrder.size() : size_t(it - g_systemOrder.begin());
+    };
+    std::stable_sort(readingSort.begin(), readingSort.end(), [&](size_t a, size_t b) {
+        return orderRank(readingKeys[a]) < orderRank(readingKeys[b]);
+    });
+    std::vector<WidgetItem> sortedReadings;
+    std::wstring readingsTip;
+    for (size_t i : readingSort) {
+        sortedReadings.push_back(readings[i]);
+        if (!readingsTip.empty()) readingsTip += L"\n";
+        readingsTip += readingTips[i];
+    }
+    readings = std::move(sortedReadings);
     std::vector<WidgetItem> all = items;
     all.insert(all.end(), readings.begin(), readings.end());
     std::wstring allTip = readingsTip.empty() ? tip : tip + L"\n" + readingsTip;
@@ -1213,6 +1254,16 @@ void MoveEntry(const std::wstring& key, int dir) {
     UpdateWidget();
 }
 
+void MoveSystemItem(int item, int dir) {
+    auto pos = std::find(g_systemOrder.begin(), g_systemOrder.end(), item);
+    if (pos == g_systemOrder.end()) return;
+    ptrdiff_t i = pos - g_systemOrder.begin(), j = i + dir;
+    if (j < 0 || j >= (ptrdiff_t)g_systemOrder.size()) return;
+    std::swap(g_systemOrder[i], g_systemOrder[j]);
+    SaveSystemOrder();
+    UpdateWidget();
+}
+
 // The menu and the lists it was built from. Some menu ids are positions in these lists (devices, monitors,
 // languages), so a command must be run against the same model the menu was built with.
 struct MenuModel {
@@ -1348,6 +1399,20 @@ MenuModel BuildMenu(MenuIcons& icons) {
     AppendMenuW(m, MF_STRING | (g_showCpuW ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_CPU_W, T(L"Show CPU power (watts)"));
     AppendMenuW(m, MF_STRING | (g_showGpuW ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_GPU_W, T(L"Show GPU power (watts)"));
     AppendMenuW(m, MF_STRING | (g_showVram ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_VRAM, T(L"Show GPU memory"));
+    {
+        const wchar_t* labels[] = { L"CPU", L"RAM", L"GPU", L"GPU memory" };
+        HMENU orderMenu = CreatePopupMenu();
+        for (int item = 0; item < 4; ++item) {
+            auto pos = std::find(g_systemOrder.begin(), g_systemOrder.end(), item);
+            bool canUp = pos != g_systemOrder.end() && pos != g_systemOrder.begin();
+            bool canDown = pos != g_systemOrder.end() && pos + 1 != g_systemOrder.end();
+            HMENU itemMenu = CreatePopupMenu();
+            AppendMenuW(itemMenu, MF_STRING | (canUp ? 0 : MF_GRAYED), ID_SYS_MOVE_FIRST + item * 2, T(L"Move earlier"));
+            AppendMenuW(itemMenu, MF_STRING | (canDown ? 0 : MF_GRAYED), ID_SYS_MOVE_FIRST + item * 2 + 1, T(L"Move later"));
+            AppendMenuW(orderMenu, MF_POPUP | (g_wantWidget ? 0 : MF_GRAYED), (UINT_PTR)itemMenu, T(labels[item]));
+        }
+        AppendMenuW(m, MF_POPUP | (g_wantWidget ? 0 : MF_GRAYED), (UINT_PTR)orderMenu, T(L"System item order"));
+    }
     placeMenu(ID_VIT_LEFT, ID_VIT_CLOCK, g_vitalsFarLeft, g_wantWidget && AnyReading(), L"CPU / RAM / GPU strip position");
     // With more than one monitor: choose which taskbars show the widget (all, main only, or one monitor).
     auto monitors = widget::OtherMonitors();
@@ -1479,6 +1544,11 @@ void RunCommand(UINT cmd, const MenuModel& model) {
         case ID_AUTO_UPDATE: updates::ToggleAutomatic(); break;
         case ID_EXIT: DestroyWindow(g_hwnd); break;
         default:
+            if (cmd >= ID_SYS_MOVE_FIRST && cmd < ID_SYS_MOVE_FIRST + 8) {
+                int offset = int(cmd - ID_SYS_MOVE_FIRST);
+                MoveSystemItem(offset / 2, (offset % 2) ? 1 : -1);
+                break;
+            }
             if (cmd >= ID_POSITION_FIRST && cmd < ID_POSITION_FIRST + ARRAYSIZE(POSITION_OFFSETS)) {
                 SetTaskbarOffset(POSITION_OFFSETS[cmd - ID_POSITION_FIRST]);
                 break;
@@ -1596,6 +1666,7 @@ panel::Place PanelPlace(UINT id) {
     using S = panel::Section;
     using K = panel::Kind;
     if (id >= ID_DEVICE_FIRST) return { S::Devices, K::Device };
+    if (id >= ID_SYS_MOVE_FIRST && id < ID_SYS_MOVE_FIRST + 8) return { S::System, K::Action };
     if (id >= ID_POSITION_FIRST && id <= ID_POSITION_FIRST + ARRAYSIZE(POSITION_OFFSETS)) return { S::Appearance, K::Choice };
     if (id >= ID_POLL_FIRST && id < ID_POLL_FIRST + ARRAYSIZE(POLL_SECONDS)) return { S::Devices, K::Choice };
     switch (id) {
@@ -2105,6 +2176,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR cmdLine, int) {
     widget::SetMonitorChoice(g_widgetMonitor);
     LoadHidden();
     LoadOrder();
+    LoadSystemOrder();
     LoadAliases();
     LoadAlertThresholds();
     battery_history::Initialize(g_demo);
