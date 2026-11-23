@@ -16,16 +16,7 @@ THEMES = {
         bg="#0f1115",
         bg_top="#161b24",
         edge="#252a34",
-        card="#161b22",
-        card_edge="#28303d",
-        panel_bg="#1c1c1c",
-        panel_card="#272727",
-        panel_edge="#383838",
-        panel_pill="#313131",
-        panel_track="#555b66",
-        panel_knob="#0c0c0c",
         accent="#4cc2ff",
-        accent_fg="#0a1929",
         accent_soft="rgba(76,194,255,0.12)",
         accent_edge="rgba(76,194,255,0.32)",
         pill_bg="#181d26",
@@ -37,7 +28,6 @@ THEMES = {
         low="#ff7b72",
         charge="#4cc2ff",
         full="#56d364",
-        heat="#f0b429",
         divider="#2c323e",
         caption_bg="#e6edf3",
         caption_fg="#161b22",
@@ -48,16 +38,7 @@ THEMES = {
         bg="#f8fafc",
         bg_top="#eef4fb",
         edge="#d6dde6",
-        card="#ffffff",
-        card_edge="#d5dde7",
-        panel_bg="#f3f3f3",
-        panel_card="#ffffff",
-        panel_edge="#dedede",
-        panel_pill="#eaeaea",
-        panel_track="#8c929c",
-        panel_knob="#ffffff",
         accent="#0067c0",
-        accent_fg="#ffffff",
         accent_soft="rgba(0,103,192,0.08)",
         accent_edge="rgba(0,103,192,0.25)",
         pill_bg="#ffffff",
@@ -69,7 +50,6 @@ THEMES = {
         low="#cf222e",
         charge="#0969da",
         full="#1a7f37",
-        heat="#bf8700",
         divider="#d0d7de",
         caption_bg="#1f2328",
         caption_fg="#ffffff",
@@ -129,11 +109,10 @@ def glyph(path, x, y, size, color, filled):
     return f'<g transform="translate({x:.1f} {y:.1f}) scale({k:.4f})" {paint}>{path}</g>'
 
 
-def strip_item(t, x, cy, kind, pct, s, state=None, caption=None, dim=False, label=None, bar_color=None, text_color=None):
+def strip_item(t, x, cy, kind, pct, s, state=None, caption=None, dim=False, label=None, bar_color=None):
     """Renders one taskbar strip item starting at x. Returns (svg, width)."""
     isz, fsz = 19 * s, 12.5 * s
-    fg = text_color or t["fg"]
-    parts = [icon(kind, x, cy - isz / 2, isz, fg)]
+    parts = [icon(kind, x, cy - isz / 2, isz, t["fg"])]
     cw = 0.0
     if caption:
         cw = text_w(caption, 7.5 * s) + 4.5 * s
@@ -153,7 +132,7 @@ def strip_item(t, x, cy, kind, pct, s, state=None, caption=None, dim=False, labe
         tx += 16 * s
 
     text = label if label is not None else f"{pct}%"
-    color = text_color or (t["low"] if state == "low" else t["fg"])
+    color = t["low"] if state == "low" else t["fg"]
     parts.append(f'<text x="{tx:.1f}" y="{cy + fsz * 0.36:.1f}" font-size="{fsz:.1f}" font-weight="500" fill="{color}">{text}</text>')
     tw = text_w(text, fsz)
     width = tx + tw - x
@@ -253,11 +232,11 @@ def banner(t, theme_name):
     out.append(f'<text x="{bx0}" y="{by - 16}" font-size="16" font-weight="600" fill="{t["muted"]}">LIVE DUAL-STRIP TASKBAR PREVIEW</text>')
     out.append(f'<rect x="{bx0}" y="{by}" width="{bx1 - bx0}" height="{bh}" rx="14" fill="{t["bar"]}" stroke="{t["bar_edge"]}"/>')
 
-    gap = 22 * s / 2
+    gap = 20 * s / 2
     readings = [
-        dict(kind="cpu", pct=0, label="24% 38W"),
-        dict(kind="ram", pct=0, label="47%"),
-        dict(kind="gpu", pct=0, label="62% 61° 145W"),
+        dict(kind="cpu", pct=0, label="11% 66° 20W"),
+        dict(kind="gpu", pct=0, label="27% 59° 15W"),
+        dict(kind="ram", pct=0, label="57%"),
     ]
     g, left_end = row(t, readings, bx0 + 28, cy, s, gap)
     out.append(g)
@@ -289,7 +268,7 @@ def banner(t, theme_name):
         W,
         H,
         "\n".join(out),
-        "Taskbar Vitals preview: System Vitals (CPU, RAM, GPU) at the left end of the Windows taskbar and wireless peripheral batteries beside the clock",
+        "Taskbar Vitals preview: System Vitals (CPU, GPU, RAM) at the left end of the Windows taskbar and wireless peripheral batteries beside the clock",
     )
 
 
@@ -335,226 +314,9 @@ def states(t):
     )
 
 
-def vitals(t):
-    W, H = 1280, 390
-    out = [
-        f'<rect x="0.5" y="0.5" width="{W - 1}" height="{H - 1}" rx="20" fill="{t["bg"]}" stroke="{t["edge"]}"/>',
-        f'<text x="48" y="42" font-size="15" font-weight="700" letter-spacing="0.8" fill="{t["accent"]}">'
-        f'LIVE SYSTEM TELEMETRY (CPU · RAM · GPU · WATTS · TEMPS)</text>',
-    ]
-    cards = [
-        (48, 380, "Thermal Color Alerts"),
-        (450, 380, "Hover Tooltip Breakdown"),
-        (852, 380, "Zero-Bloat Architecture"),
-    ]
-    cy_top, ch = 64, 290
-    for cx, cw, title in cards:
-        out.append(f'<rect x="{cx}" y="{cy_top}" width="{cw}" height="{ch}" rx="16" fill="{t["card"]}" stroke="{t["card_edge"]}"/>')
-        out.append(f'<text x="{cx + 22}" y="{cy_top + 34}" font-size="18" font-weight="700" fill="{t["fg"]}">{title}</text>')
-
-    # Card 1: Thermal Color Alerts (3 compact strip rows)
-    c1x = 48 + 20
-    c1w = 340
-    thermal_rows = [
-        ("Normal load (&lt;80 °C)", t["muted"], [dict(kind="cpu", pct=0, label="24% 38W"), dict(kind="gpu", pct=0, label="54% 62°")]),
-        ("Elevated (≥80 °C)", t["heat"], [dict(kind="gpu", pct=0, label="88% 83° 195W", text_color=t["heat"])]),
-        ("High temp (≥90 °C)", t["low"], [dict(kind="cpu", pct=0, label="96% 92° 85W", text_color=t["low"])]),
-    ]
-    ry = cy_top + 54
-    for badge_lbl, badge_col, items in thermal_rows:
-        out.append(f'<text x="{c1x}" y="{ry + 13}" font-size="13" font-weight="600" fill="{badge_col}">{badge_lbl}</text>')
-        out.append(f'<rect x="{c1x}" y="{ry + 20}" width="{c1w}" height="44" rx="10" fill="{t["bar"]}" stroke="{t["bar_edge"]}"/>')
-        out.append(row(t, items, c1x + 14, ry + 42, 1.15, 18)[0])
-        ry += 76
-
-    # Card 2: Hover Tooltip Breakdown
-    tx, ty, tw, th = 450 + 20, cy_top + 52, 340, 220
-    out.append(f'<rect x="{tx}" y="{ty}" width="{tw}" height="{th}" rx="12" fill="{t["panel_bg"]}" stroke="{t["panel_edge"]}"/>')
-    out.append(f'<text x="{tx + 16}" y="{ty + 28}" font-size="14" font-weight="700" fill="{t["fg"]}">Taskbar Vitals</text>')
-    out.append(f'<line x1="{tx + 14}" y1="{ty + 39}" x2="{tx + tw - 14}" y2="{ty + 39}" stroke="{t["divider"]}"/>')
-    tt_lines = [
-        ("CPU", "24% · 61 °C · 38 W", t["fg"]),
-        ("RAM", "47% (15.1 / 32.0 GB)", t["fg"]),
-        ("GPU", "NVIDIA RTX 4070", t["accent"]),
-        ("Load", "62% · 61 °C · 145 W", t["fg"]),
-        ("VRAM", "38% (4.6 / 12.0 GB)", t["fg"]),
-    ]
-    ly = ty + 62
-    for k, v, vc in tt_lines:
-        out.append(f'<text x="{tx + 16}" y="{ly}" font-size="13.5" font-weight="600" fill="{t["muted"]}">{k}</text>')
-        out.append(f'<text x="{tx + 72}" y="{ly}" font-size="13.5" font-weight="500" fill="{vc}">{v}</text>')
-        ly += 26
-    out.append(f'<line x1="{tx + 14}" y1="{ty + th - 32}" x2="{tx + tw - 14}" y2="{ty + th - 32}" stroke="{t["divider"]}"/>')
-    out.append(f'<text x="{tx + 16}" y="{ty + th - 12}" font-size="12" fill="{t["muted"]}">Click: Settings · Shift+Click: Full menu</text>')
-
-    # Card 3: Zero-Bloat Architecture
-    ax = 852 + 20
-    aw = 340
-    arch_rows = [
-        ("2s", "Fast non-blocking 2-second sampling"),
-        ("0 MB", "PDH / DXGI / NVML unloaded when off"),
-        ("dGPU", "Auto-selects discrete GPU on laptops"),
-        ("MSR", "Isolated PawnIO helper for CPU temps"),
-    ]
-    ay = cy_top + 54
-    for tag, desc in arch_rows:
-        out.append(f'<rect x="{ax}" y="{ay}" width="{aw}" height="46" rx="10" fill="{t["panel_bg"]}" stroke="{t["panel_edge"]}"/>')
-        out.append(f'<rect x="{ax + 10}" y="{ay + 10}" width="54" height="26" rx="7" fill="{t["accent_soft"]}" stroke="{t["accent_edge"]}"/>')
-        out.append(f'<text x="{ax + 37}" y="{ay + 27}" text-anchor="middle" font-size="12.5" font-weight="700" fill="{t["accent"]}">{tag}</text>')
-        out.append(f'<text x="{ax + 76}" y="{ay + 27}" font-size="13" font-weight="500" fill="{t["fg"]}">{desc}</text>')
-        ay += 56
-
-    return svg(
-        W,
-        H,
-        "\n".join(out),
-        "Taskbar Vitals system telemetry overview: thermal warning colors at 80C and 90C, live hover tooltip details, and zero-bloat DLL architecture",
-    )
-
-
-def toggle_switch(t, x, cy, on=True):
-    w, h = 38, 18
-    y = cy - h / 2
-    if on:
-        track = f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="9" fill="{t["accent"]}"/>'
-        knob = f'<circle cx="{x + w - 9}" cy="{cy}" r="6" fill="{t["accent_fg"]}"/>'
-    else:
-        track = f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="9" fill="none" stroke="{t["panel_track"]}" stroke-width="1.5"/>'
-        knob = f'<circle cx="{x + 9}" cy="{cy}" r="5.5" fill="{t["panel_track"]}"/>'
-    return track + knob
-
-
-def small_btn(t, x, cy, label):
-    return (
-        f'<rect x="{x}" y="{cy - 12}" width="24" height="24" rx="6" fill="{t["panel_pill"]}" stroke="{t["panel_edge"]}"/>'
-        f'<text x="{x + 12}" y="{cy + 4}" text-anchor="middle" font-size="11" font-weight="700" fill="{t["muted"]}">{label}</text>'
-    )
-
-
-def panel_window(t, x, y, w, h, active_tab, body_svg, footer_btns):
-    out = [f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="14" fill="{t["panel_bg"]}" stroke="{t["panel_edge"]}"/>']
-    tabs = ("Batteries", "System", "Appearance", "General")
-    tw = (w - 24) / len(tabs)
-    for i, tab in enumerate(tabs):
-        tx = x + 12 + i * tw
-        mid = tx + tw / 2
-        is_act = tab == active_tab
-        col = t["fg"] if is_act else t["muted"]
-        fw = "700" if is_act else "500"
-        out.append(f'<text x="{mid:.1f}" y="{y + 27}" text-anchor="middle" font-size="13.5" font-weight="{fw}" fill="{col}">{tab}</text>')
-        if is_act:
-            out.append(f'<rect x="{mid - 26:.1f}" y="{y + 38}" width="52" height="3" rx="1.5" fill="{t["accent"]}"/>')
-    out.append(f'<line x1="{x + 1}" y1="{y + 42}" x2="{x + w - 1}" y2="{y + 42}" stroke="{t["panel_edge"]}"/>')
-    out.extend(body_svg)
-    # Footer
-    fy = y + h - 46
-    out.append(f'<line x1="{x + 1}" y1="{fy}" x2="{x + w - 1}" y2="{fy}" stroke="{t["panel_edge"]}"/>')
-    bw = (w - 32 - 16) / len(footer_btns)
-    for i, lbl in enumerate(footer_btns):
-        bx = x + 16 + i * (bw + 8)
-        out.append(f'<rect x="{bx:.1f}" y="{fy + 9}" width="{bw:.1f}" height="28" rx="6" fill="{t["panel_pill"]}" stroke="{t["panel_edge"]}"/>')
-        out.append(f'<text x="{bx + bw / 2:.1f}" y="{fy + 27}" text-anchor="middle" font-size="12.5" font-weight="500" fill="{t["fg"]}">{lbl}</text>')
-    return "\n".join(out)
-
-
-def panel_preview(t):
-    W, H = 1280, 560
-    out = [
-        f'<rect x="0.5" y="0.5" width="{W - 1}" height="{H - 1}" rx="20" fill="{t["bg"]}" stroke="{t["edge"]}"/>',
-        f'<text x="48" y="40" font-size="15" font-weight="700" letter-spacing="0.8" fill="{t["accent"]}">'
-        f'SETTINGS PANEL · SYSTEM TELEMETRY &amp; PERIPHERAL CONTROLS</text>',
-    ]
-
-    pw, ph = 572, 466
-    py = 62
-
-    # Left panel: System tab
-    lx = 48
-    lbody = []
-    lbody.append(f'<text x="{lx + 16}" y="{py + 64}" font-size="12.5" font-weight="700" fill="{t["muted"]}">CPU &amp; RAM</text>')
-    lbody.append(f'<rect x="{lx + 14}" y="{py + 72}" width="{pw - 28}" height="120" rx="10" fill="{t["panel_card"]}" stroke="{t["panel_edge"]}"/>')
-    cpu_rows = [("Show CPU usage", True), ("Show CPU temperature", True), ("Show CPU power (watts)", True), ("Show RAM usage", True)]
-    for i, (lbl, on) in enumerate(cpu_rows):
-        ry = py + 72 + i * 30
-        if i:
-            lbody.append(f'<line x1="{lx + 26}" y1="{ry}" x2="{lx + pw - 26}" y2="{ry}" stroke="{t["divider"]}"/>')
-        lbody.append(f'<text x="{lx + 28}" y="{ry + 19}" font-size="13" fill="{t["fg"]}">{lbl}</text>')
-        lbody.append(toggle_switch(t, lx + pw - 66, ry + 15, on))
-
-    lbody.append(f'<text x="{lx + 16}" y="{py + 214}" font-size="12.5" font-weight="700" fill="{t["muted"]}">GPU (NVIDIA GeForce RTX 4070)</text>')
-    lbody.append(f'<rect x="{lx + 14}" y="{py + 222}" width="{pw - 28}" height="120" rx="10" fill="{t["panel_card"]}" stroke="{t["panel_edge"]}"/>')
-    gpu_rows = [("Show GPU usage", True), ("Show GPU temperature", True), ("Show GPU power (watts)", True), ("Show GPU memory", True)]
-    for i, (lbl, on) in enumerate(gpu_rows):
-        ry = py + 222 + i * 30
-        if i:
-            lbody.append(f'<line x1="{lx + 26}" y1="{ry}" x2="{lx + pw - 26}" y2="{ry}" stroke="{t["divider"]}"/>')
-        lbody.append(f'<text x="{lx + 28}" y="{ry + 19}" font-size="13" fill="{t["fg"]}">{lbl}</text>')
-        lbody.append(toggle_switch(t, lx + pw - 66, ry + 15, on))
-
-    # Strip position segmented control
-    lbody.append(f'<rect x="{lx + 14}" y="{py + 354}" width="{pw - 28}" height="52" rx="10" fill="{t["panel_card"]}" stroke="{t["panel_edge"]}"/>')
-    lbody.append(f'<text x="{lx + 28}" y="{py + 373}" font-size="11.5" font-weight="600" fill="{t["muted"]}">CPU / RAM / GPU STRIP POSITION</text>')
-    seg_x, seg_w = lx + 28, pw - 56
-    lbody.append(f'<rect x="{seg_x}" y="{py + 379}" width="{seg_w}" height="22" rx="6" fill="{t["panel_pill"]}"/>')
-    lbody.append(f'<rect x="{seg_x + 2}" y="{py + 381}" width="{seg_w / 2 - 3:.1f}" height="18" rx="5" fill="{t["accent"]}"/>')
-    lbody.append(f'<text x="{seg_x + seg_w * 0.25:.1f}" y="{py + 394}" text-anchor="middle" font-size="11.5" font-weight="700" fill="{t["accent_fg"]}">Left end</text>')
-    lbody.append(f'<text x="{seg_x + seg_w * 0.75:.1f}" y="{py + 394}" text-anchor="middle" font-size="11.5" font-weight="500" fill="{t["fg"]}">Next to the clock</text>')
-
-    out.append(panel_window(t, lx, py, pw, ph, "System", lbody, ("Refresh now", "Request support...", "Exit")))
-
-    # Right panel: Batteries tab
-    rx = 660
-    rbody = []
-    rbody.append(f'<text x="{rx + 16}" y="{py + 64}" font-size="12.5" font-weight="700" fill="{t["muted"]}">CONNECTED DEVICES &amp; ORDER</text>')
-    rbody.append(f'<rect x="{rx + 14}" y="{py + 72}" width="{pw - 28}" height="220" rx="10" fill="{t["panel_card"]}" stroke="{t["panel_edge"]}"/>')
-    dev_rows = [
-        ("mouse", "Razer Viper V3 Pro", "93% · 2.4 GHz receiver", t["fg"]),
-        ("headset", "SteelSeries Arctis Nova Pro", "84% · Base station", t["fg"]),
-        ("keyboard", "Keychron K5 Max", "12% · Low battery alert", t["low"]),
-        ("controller", "Xbox Wireless Controller", "64% · Charging", t["charge"]),
-    ]
-    for i, (kind, name, sub, col) in enumerate(dev_rows):
-        ry = py + 72 + i * 55
-        if i:
-            rbody.append(f'<line x1="{rx + 26}" y1="{ry}" x2="{rx + pw - 26}" y2="{ry}" stroke="{t["divider"]}"/>')
-        cy = ry + 27.5
-        rbody.append(icon(kind, rx + 26, cy - 11, 22, t["fg"], sw=1.6))
-        rbody.append(f'<text x="{rx + 58}" y="{ry + 23}" font-size="13.5" font-weight="600" fill="{t["fg"]}">{name}</text>')
-        rbody.append(f'<text x="{rx + 58}" y="{ry + 41}" font-size="12" fill="{col}">{sub}</text>')
-        rbody.append(small_btn(t, rx + pw - 154, cy, "▲"))
-        rbody.append(small_btn(t, rx + pw - 126, cy, "▼"))
-        rbody.append(small_btn(t, rx + pw - 98, cy, "⋯"))
-        rbody.append(toggle_switch(t, rx + pw - 66, cy, True))
-
-    # System item order preview card + Battery strip position
-    rbody.append(f'<text x="{rx + 16}" y="{py + 314}" font-size="12.5" font-weight="700" fill="{t["muted"]}">BATTERY STRIP POSITION &amp; ORDERING</text>')
-    rbody.append(f'<rect x="{rx + 14}" y="{py + 322}" width="{pw - 28}" height="84" rx="10" fill="{t["panel_card"]}" stroke="{t["panel_edge"]}"/>')
-    seg2_x, seg2_w = rx + 28, pw - 56
-    rbody.append(f'<rect x="{seg2_x}" y="{py + 334}" width="{seg2_w}" height="26" rx="7" fill="{t["panel_pill"]}"/>')
-    rbody.append(f'<rect x="{seg2_x + seg2_w / 2 + 2:.1f}" y="{py + 336}" width="{seg2_w / 2 - 4:.1f}" height="22" rx="6" fill="{t["accent"]}"/>')
-    rbody.append(f'<text x="{seg2_x + seg2_w * 0.25:.1f}" y="{py + 351}" text-anchor="middle" font-size="12" font-weight="500" fill="{t["fg"]}">Left end</text>')
-    rbody.append(f'<text x="{seg2_x + seg2_w * 0.75:.1f}" y="{py + 351}" text-anchor="middle" font-size="12" font-weight="700" fill="{t["accent_fg"]}">Next to the clock</text>')
-    rbody.append(f'<text x="{rx + 28}" y="{py + 388}" font-size="12" fill="{t["muted"]}">Click ⋯ on any device to rename, set 5%–40% alerts, or view 30-day charts.</text>')
-
-    out.append(panel_window(t, rx, py, pw, ph, "Batteries", rbody, ("Refresh now", "Battery history...", "Exit")))
-
-    return svg(
-        W,
-        H,
-        "\n".join(out),
-        "Taskbar Vitals settings panel showing the System telemetry toggles on the left and connected peripheral batteries on the right",
-    )
-
-
 if __name__ == "__main__":
     for name, t in THEMES.items():
-        items = (
-            ("banner", banner(t, name)),
-            ("states", states(t)),
-            ("vitals", vitals(t)),
-            ("panel", panel_preview(t)),
-        )
-        for fn, content in items:
+        for fn, content in (("banner", banner(t, name)), ("states", states(t))):
             path = os.path.join(HERE, f"{fn}-{name}.svg")
             with open(path, "w", encoding="utf-8", newline="\n") as f:
                 f.write(content)

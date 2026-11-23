@@ -60,34 +60,34 @@ Most peripheral apps eat hundreds of megabytes of RAM just to tell you your mous
 
 ## Live System Telemetry (CPU · RAM · GPU · Watts · Temps)
 
-Enable hardware vitals without running heavyweight overlays or kernel-heavy suites. **Taskbar Vitals** samples metrics every 2 seconds on demand and keeps your taskbar clean:
+Enable hardware vitals without running heavyweight overlays or background suites. **Taskbar Vitals** samples metrics every 2 seconds on demand and keeps your taskbar clean:
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/readme/vitals-dark.svg">
-    <img src="docs/readme/vitals-light.svg" alt="Taskbar Vitals system telemetry: thermal color alerts at 80°C and 90°C, hover tooltip breakdown, and zero-bloat DLL architecture" width="960">
-  </picture>
-</p>
+| Dual-Strip Taskbar Captures | Live Hover Tooltip |
+|---|---|
+| <p align="center"><strong>Left end (System Vitals):</strong><br><img src="docs/screenshots/strip-vitals.png" alt="Taskbar Vitals system telemetry strip showing CPU 11% 66° 20W, GPU 1% 58° 13W, and RAM 57%"></p><p align="center"><strong>Next to the clock (Wireless Batteries):</strong><br><img src="docs/screenshots/strip-batteries.png" alt="Taskbar Vitals wireless peripheral battery strip beside the Windows clock"></p> | <p align="center"><img src="docs/screenshots/tooltip-vitals.png" alt="Taskbar Vitals live hover tooltip showing CPU, NVIDIA GeForce RTX 4050 Laptop GPU, and RAM usage" width="460"></p> |
 
 | Component | What Is Measured | How It Works Under the Hood |
 |---|---|---|
-| **Processor (CPU)** | Overall core load (`%`), package wattage (`W`), and optional package temperature (`°C`) | Load via `GetSystemTimes`; RAPL wattage via Windows **Energy Meter** PDH counters; optional CPU package temp via the isolated `TaskbarVitalsTemp.exe` helper (`PawnIO` `IntelMSR`, read-only). |
-| **Memory (RAM)** | Physical memory percentage + `Used / Total GB` in hover tooltip | Native `GlobalMemoryStatusEx` call with virtually zero CPU cost. |
-| **Graphics (GPU & VRAM)** | Engine usage (`%`), temperature (`°C`), board wattage (`W`), and VRAM (`%` & `GB`) | Automatically targets the adapter with the largest dedicated VRAM (discrete GPU on dual-GPU laptops) via DXGI, PDH (`GPU Engine` / `GPU Adapter Memory`), WDDM `D3DKMTQueryAdapterInfo`, and `nvml.dll`. |
-| **Thermal Warnings & Cleanup** | Automatic color shifts at **≥80 °C (orange)** and **≥90 °C (red)** | Performance counters and optional DLLs (`pdh.dll`, `dxgi.dll`, `nvml.dll`) are delay-loaded on first use and freed immediately if you turn system readings off. |
+| **Processor (CPU)** | Core load (`%`), package temperature (`°C`), and package wattage (`W`) | Load via `GetSystemTimes`; RAPL wattage via Windows **Energy Meter** PDH counters; optional CPU package temperature via the isolated `TaskbarVitalsTemp.exe` helper (`PawnIO` `IntelMSR`, read-only). |
+| **Graphics (GPU & VRAM)** | Engine usage (`%`), temperature (`°C`), board wattage (`W`), and dedicated VRAM (`%` & `GB`) | Automatically selects the adapter with the largest dedicated memory (discrete GPU on dual-GPU laptops) via DXGI, PDH (`GPU Engine` / `GPU Adapter Memory`), WDDM `D3DKMTQueryAdapterInfo`, and `nvml.dll`. |
+| **Memory (RAM)** | Physical memory percentage + `Used / Total GB` in the tooltip and System card | Native `GlobalMemoryStatusEx` call with virtually zero CPU cost. |
+| **Thermal Warnings & Cleanup** | Automatic color shifts at **≥80 °C (orange)** and **≥90 °C (red)** | Performance counters and optional DLLs (`pdh.dll`, `dxgi.dll`, `nvml.dll`) are delay-loaded on first use and freed immediately when disabled. |
 
 ---
 
 ## Redesigned Settings Panel & Dual-Strip Layout
 
-Click anywhere on the taskbar strip to open the modern, DPI-aware **Settings Panel** (or **Shift + Click** to open the classic fast context menu). Both taskbar strips follow Windows 10/11 dark and light themes automatically.
+Click anywhere on the taskbar strip to open the modern, DPI-aware **Settings Panel** (or **Shift + Click** for the classic context menu). Both strips and the panel follow Windows 10/11 dark and light themes automatically.
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/readme/panel-dark.svg">
-    <img src="docs/readme/panel-light.svg" alt="Taskbar Vitals redesigned Settings Panel showing System toggles on the left and connected peripheral batteries on the right" width="960">
-  </picture>
-</p>
+| System Telemetry & Connected Devices | Appearance & General Preferences |
+|---|---|
+| <p align="center"><img src="docs/screenshots/panel-system.png" alt="Taskbar Vitals Settings Panel - System tab" width="380"><br><em><strong>System:</strong> Live card summary badges, ↑/↓ indicator ordering, and per-metric toggles</em></p> | <p align="center"><img src="docs/screenshots/panel-appearance.png" alt="Taskbar Vitals Settings Panel - Appearance tab" width="380"><br><em><strong>Appearance:</strong> Dual-strip placement, display selection, and visual style</em></p> |
+| <p align="center"><img src="docs/screenshots/panel-batteries.png" alt="Taskbar Vitals Settings Panel - Batteries tab" width="380"><br><em><strong>Batteries:</strong> Device cards, ↑/↓ ordering, ⋯ per-device menu, and visibility toggles</em></p> | <p align="center"><img src="docs/screenshots/panel-general.png" alt="Taskbar Vitals Settings Panel - General tab" width="380"><br><em><strong>General:</strong> Language, startup, updates, device support, and project link</em></p> |
+
+<details>
+  <summary><strong>View Batteries tab visibility, history &amp; charge-limit alert settings</strong></summary>
+  <p align="center"><img src="docs/screenshots/panel-batteries-options.png" alt="Taskbar Vitals Batteries tab lower section showing Visibility and Battery alerts" width="380"></p>
+</details>
 
 <p align="center">
   <picture>
@@ -96,19 +96,14 @@ Click anywhere on the taskbar strip to open the modern, DPI-aware **Settings Pan
   </picture>
 </p>
 
-<details>
-  <summary><strong>View live Windows taskbar screenshot</strong></summary>
-  <p align="center"><img src="docs/screenshot.png" alt="Taskbar Vitals running on the Windows taskbar" width="720"></p>
-</details>
-
 ### Strip Indicators & Settings Tabs
 
 | Tab / Area | Controls & Behavior |
 |---|---|
-| **Batteries** | Reorder or hide peripherals, set custom names (up to 64 chars), pick **Battery strip position** (**Left end** vs **Next to the clock**), open **Battery history** charts, and set per-device alerts (5%–40%). |
-| **System** | Independently toggle CPU %, CPU °C, CPU watts, RAM %, GPU %, GPU °C, GPU watts, and VRAM, adjust **System item order**, and choose **CPU / RAM / GPU strip position**. *(Strips merge smoothly if the left end gets crowded.)* |
-| **Appearance** | Switch between Taskbar strip and Tray icons, target All / Main / Selected monitor, stack icons above percentages, toggle 15 brand color bars, or add a backdrop plate for transparent taskbars. |
-| **General** | Set battery refresh interval (default 60s), pick from 20 built-in languages, manage local history and signed update checks, or launch **Request support for a device**. |
+| **Batteries** | Reorder (`↑`/`↓`), toggle, or customize devices via `⋯` (rename up to 64 chars, per-device 5%–40% alerts, 30-day **Battery history**), plus **Visibility** (`Dim sleeping devices`, `Hide last known / asleep devices`, `Show disconnected devices`, `Move to tray when no devices`) and **Battery alerts** (`Record battery history`, `Notify when charged to`, `Check battery every`). |
+| **System** | Live summary pills and `↑`/`↓` ordering across **CPU** (`Show CPU usage`, `Show CPU temperature`, CPU temp helper setup/removal, `Show CPU power (watts)`), **GPU** (`Show GPU usage`, `Show GPU temperature`, `Show GPU power (watts)`), **RAM usage**, and **GPU memory**. |
+| **Appearance** | **Display mode** (`Show on the taskbar` / `Show as tray icons`), **Position on the taskbar** (`Battery strip position`, `CPU / RAM / GPU strip position`, `Strip order`, `Position on the taskbar`, `Make room for other taskbar widgets`, `Show the widget on`), and **Style** (`Icons above percentages`, backdrop plate, 15 `Brand colors`). |
+| **General** | `Language` (20 built-in languages), `Start with Windows`, `Automatically check for updates`, `Check for updates...`, `Request support for a device...`, and `Support the project...`. |
 | **Indicator States** | Red `%` marks ≤15%; blue `⚡` indicates active charging; green `✓` marks 100% on power; dimmed items retain the last reading while asleep; `×` marks explicit offline links; small badges distinguish identical devices. |
 
 ---
