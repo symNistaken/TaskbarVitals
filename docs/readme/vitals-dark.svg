@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="390" viewBox="0 0 1280 390" role="img" aria-label="Taskbar Vitals system telemetry overview: thermal warning colors at 80C and 90C, live hover tooltip details, and zero-bloat DLL architecture" font-family="'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif">
+<title>Taskbar Vitals system telemetry overview: thermal warning colors at 80C and 90C, live hover tooltip details, and zero-bloat DLL architecture</title>
+<rect x="0.5" y="0.5" width="1279" height="389" rx="20" fill="#0f1115" stroke="#252a34"/>
+<text x="48" y="42" font-size="15" font-weight="700" letter-spacing="0.8" fill="#4cc2ff">LIVE SYSTEM TELEMETRY (CPU · RAM · GPU · WATTS · TEMPS)</text>
+<rect x="48" y="64" width="380" height="290" rx="16" fill="#161b22" stroke="#28303d"/>
+<text x="70" y="98" font-size="18" font-weight="700" fill="#f3f5f8">Thermal Color Alerts</text>
+<rect x="450" y="64" width="380" height="290" rx="16" fill="#161b22" stroke="#28303d"/>
+<text x="472" y="98" font-size="18" font-weight="700" fill="#f3f5f8">Hover Tooltip Breakdown</text>
+<rect x="852" y="64" width="380" height="290" rx="16" fill="#161b22" stroke="#28303d"/>
+<text x="874" y="98" font-size="18" font-weight="700" fill="#f3f5f8">Zero-Bloat Architecture</text>
+<text x="68" y="131" font-size="13" font-weight="600" fill="#9aa3b2">Normal load (&lt;80 °C)</text>
+<rect x="68" y="138" width="340" height="44" rx="10" fill="#1a1d23" stroke="#2d333f"/>
+<g transform="translate(82.0 149.1) scale(0.9104)" fill="none" stroke="#f3f5f8" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="6.5" width="11" height="11" rx="1.8"/><rect x="9.8" y="9.8" width="4.4" height="4.4" rx=".6"/><path d="M9.5 3v3.5M14.5 3v3.5M9.5 17.5V21M14.5 17.5V21M3 9.5h3.5M3 14.5h3.5M17.5 9.5H21M17.5 14.5H21"/></g><text x="110.2" y="165.2" font-size="14.4" font-weight="500" fill="#f3f5f8">24% 38W</text><g transform="translate(189.8 149.1) scale(0.9104)" fill="none" stroke="#f3f5f8" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="19" height="12.5" rx="1.8"/><path d="M9 20.5h6M12 17v3.5"/></g><text x="218.0" y="165.2" font-size="14.4" font-weight="500" fill="#f3f5f8">54% 62°</text>
+<text x="68" y="207" font-size="13" font-weight="600" fill="#f0b429">Elevated (≥80 °C)</text>
+<rect x="68" y="214" width="340" height="44" rx="10" fill="#1a1d23" stroke="#2d333f"/>
+<g transform="translate(82.0 225.1) scale(0.9104)" fill="none" stroke="#f0b429" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="19" height="12.5" rx="1.8"/><path d="M9 20.5h6M12 17v3.5"/></g><text x="110.2" y="241.2" font-size="14.4" font-weight="500" fill="#f0b429">88% 83° 195W</text>
+<text x="68" y="283" font-size="13" font-weight="600" fill="#ff7b72">High temp (≥90 °C)</text>
+<rect x="68" y="290" width="340" height="44" rx="10" fill="#1a1d23" stroke="#2d333f"/>
+<g transform="translate(82.0 301.1) scale(0.9104)" fill="none" stroke="#ff7b72" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="6.5" width="11" height="11" rx="1.8"/><rect x="9.8" y="9.8" width="4.4" height="4.4" rx=".6"/><path d="M9.5 3v3.5M14.5 3v3.5M9.5 17.5V21M14.5 17.5V21M3 9.5h3.5M3 14.5h3.5M17.5 9.5H21M17.5 14.5H21"/></g><text x="110.2" y="317.2" font-size="14.4" font-weight="500" fill="#ff7b72">96% 92° 85W</text>
+<rect x="470" y="116" width="340" height="220" rx="12" fill="#1c1c1c" stroke="#383838"/>
+<text x="486" y="144" font-size="14" font-weight="700" fill="#f3f5f8">Taskbar Vitals</text>
+<line x1="484" y1="155" x2="796" y2="155" stroke="#2c323e"/>
+<text x="486" y="178" font-size="13.5" font-weight="600" fill="#9aa3b2">CPU</text>
+<text x="542" y="178" font-size="13.5" font-weight="500" fill="#f3f5f8">24% · 61 °C · 38 W</text>
+<text x="486" y="204" font-size="13.5" font-weight="600" fill="#9aa3b2">RAM</text>
+<text x="542" y="204" font-size="13.5" font-weight="500" fill="#f3f5f8">47% (15.1 / 32.0 GB)</text>
+<text x="486" y="230" font-size="13.5" font-weight="600" fill="#9aa3b2">GPU</text>
+<text x="542" y="230" font-size="13.5" font-weight="500" fill="#4cc2ff">NVIDIA RTX 4070</text>
+<text x="486" y="256" font-size="13.5" font-weight="600" fill="#9aa3b2">Load</text>
+<text x="542" y="256" font-size="13.5" font-weight="500" fill="#f3f5f8">62% · 61 °C · 145 W</text>
+<text x="486" y="282" font-size="13.5" font-weight="600" fill="#9aa3b2">VRAM</text>
+<text x="542" y="282" font-size="13.5" font-weight="500" fill="#f3f5f8">38% (4.6 / 12.0 GB)</text>
+<line x1="484" y1="304" x2="796" y2="304" stroke="#2c323e"/>
+<text x="486" y="324" font-size="12" fill="#9aa3b2">Click: Settings · Shift+Click: Full menu</text>
+<rect x="872" y="118" width="340" height="46" rx="10" fill="#1c1c1c" stroke="#383838"/>
+<rect x="882" y="128" width="54" height="26" rx="7" fill="rgba(76,194,255,0.12)" stroke="rgba(76,194,255,0.32)"/>
+<text x="909" y="145" text-anchor="middle" font-size="12.5" font-weight="700" fill="#4cc2ff">2s</text>
+<text x="948" y="145" font-size="13" font-weight="500" fill="#f3f5f8">Fast non-blocking 2-second sampling</text>
+<rect x="872" y="174" width="340" height="46" rx="10" fill="#1c1c1c" stroke="#383838"/>
+<rect x="882" y="184" width="54" height="26" rx="7" fill="rgba(76,194,255,0.12)" stroke="rgba(76,194,255,0.32)"/>
+<text x="909" y="201" text-anchor="middle" font-size="12.5" font-weight="700" fill="#4cc2ff">0 MB</text>
+<text x="948" y="201" font-size="13" font-weight="500" fill="#f3f5f8">PDH / DXGI / NVML unloaded when off</text>
+<rect x="872" y="230" width="340" height="46" rx="10" fill="#1c1c1c" stroke="#383838"/>
+<rect x="882" y="240" width="54" height="26" rx="7" fill="rgba(76,194,255,0.12)" stroke="rgba(76,194,255,0.32)"/>
+<text x="909" y="257" text-anchor="middle" font-size="12.5" font-weight="700" fill="#4cc2ff">dGPU</text>
+<text x="948" y="257" font-size="13" font-weight="500" fill="#f3f5f8">Auto-selects discrete GPU on laptops</text>
+<rect x="872" y="286" width="340" height="46" rx="10" fill="#1c1c1c" stroke="#383838"/>
+<rect x="882" y="296" width="54" height="26" rx="7" fill="rgba(76,194,255,0.12)" stroke="rgba(76,194,255,0.32)"/>
+<text x="909" y="313" text-anchor="middle" font-size="12.5" font-weight="700" fill="#4cc2ff">MSR</text>
+<text x="948" y="313" font-size="13" font-weight="500" fill="#f3f5f8">Isolated PawnIO helper for CPU temps</text>
+</svg>
