@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Taskbar Vitals: Live Windows System Telemetry &amp; Wireless Peripheral Batteries</title>
+  <meta name="description" content="Native C++17 utility for Windows 10 and 11 that displays live CPU, GPU, RAM, wattage, and temperature metrics alongside wireless mouse, keyboard, headset, and controller battery levels directly on your taskbar.">
+  <meta property="og:title" content="Taskbar Vitals">
+  <meta property="og:description" content="Live CPU, GPU, RAM &amp; wattage telemetry plus direct wireless peripheral battery levels on the Windows taskbar.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://symnistaken.github.io/TaskbarVitals/">
+  <link rel="icon" type="image/svg+xml" href="docs/readme/logo-dark.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="#top" aria-label="Taskbar Vitals home">
+        <svg class="brand-mark" width="28" height="28" viewBox="0 0 512 512" aria-hidden="true">
+          <path d="M84,120 H396 C424.7,120 448,143.3 448,172 V340 C448,368.7 424.7,392 396,392 H84 C55.3,392 32,368.7 32,340 V172 C32,143.3 55.3,120 84,120 Z M84,164 H396 C400.4,164 404,167.6 404,172 V340 C404,344.4 400.4,348 396,348 H84 C79.6,348 76,344.4 76,340 V172 C76,167.6 79.6,164 84,164 Z" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd"/>
+          <path d="M448,216 H470 C481,216 490,225 490,236 V276 C490,287 481,296 470,296 H448 Z" fill="currentColor"/>
+          <path d="M100,272 L174.5,272 L201.5,232.2 L239.5,312.8 L268.6,312.6 L300.7,241.3 L316.1,272 L380,272 L380,240 L335.9,240 L314.3,196.8 L285.4,197.4 L253.7,267.8 L218.5,193.2 L190.8,191 L157.5,240 L100,240 Z" fill="var(--accent)"/>
+        </svg>
+        <span class="brand-name">Taskbar Vitals</span>
+      </a>
+
+      <nav class="main-nav" aria-label="Primary navigation">
+        <a href="#telemetry">Telemetry</a>
+        <a href="#settings">Settings Panel</a>
+        <a href="#hardware">Hardware</a>
+        <a href="#security">Security &amp; CLI</a>
+      </nav>
+
+      <div class="header-actions">
+        <button id="theme-toggle" class="icon-btn" type="button" aria-label="Toggle light or dark site theme" title="Switch theme">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="4"/>
+            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+          </svg>
+        </button>
+        <a class="nav-link-btn" href="https://github.com/symNistaken/TaskbarVitals" target="_blank" rel="noopener">GitHub</a>
+        <a class="coffee-btn" href="https://buymeacoffee.com/symnistaken" target="_blank" rel="noopener">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M17 8h1a4 4 0 1 1 0 8h-1"/>
+            <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/>
+            <line x1="6" x2="6" y1="2" y2="4"/>
+            <line x1="10" x2="10" y1="2" y2="4"/>
+            <line x1="14" x2="14" y1="2" y2="4"/>
+          </svg>
+          <span>Buy Me a Coffee</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <section id="top" class="hero">
+      <div class="container">
+        <div class="hero-copy">
+          <h1>Live system vitals and wireless batteries, right inside the Windows taskbar.</h1>
+          <p class="hero-lead">
+            Track real-time CPU, GPU, RAM, wattage, and temperatures alongside mice, keyboards, headsets, earbuds, and controllers across 75+ brand protocols, all in one native C++17 binary with zero vendor bloatware.
+          </p>
+
+          <div class="hero-cta-row">
+            <a id="download-setup-btn" class="btn btn-primary" href="https://github.com/symNistaken/TaskbarVitals/releases/download/v2.0.1/TaskbarVitals-Setup-2.0.1.exe">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" x2="12" y1="15" y2="3"/>
+              </svg>
+              <span id="download-setup-label">Download Setup v2.0.1</span>
+            </a>
+            <a id="download-zip-btn" class="btn btn-secondary" href="https://github.com/symNistaken/TaskbarVitals/releases/download/v2.0.1/TaskbarVitals-2.0.1-portable.zip">
+              <span id="download-zip-label">Portable ZIP (1.66 MB)</span>
+            </a>
+            <a class="vt-pill" href="https://www.virustotal.com/gui/file/61670399e3f125e274d904cc1d2a103986161d6975e5c0ac3d7eeba90c66ba6a" target="_blank" rel="noopener">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                <polyline points="9 12 11 14 15 10"/>
+              </svg>
+              <span>VirusTotal 0/64 clean (Portable)</span>
+            </a>
+          </div>
+
+          <p class="hero-facts mono">
+            Windows 10 / 11 x64 · Per-user install (no admin needed) · GPL-3.0-or-later · Signed auto-updates · Release <span id="live-version">v2.0.1</span>
+          </p>
+        </div>
+
+        <div class="sim-shell" aria-label="Interactive Windows taskbar simulator">
+          <div class="sim-controls">
+            <div class="control-group" role="group" aria-label="Load temperature preset">
+              <span class="control-label">Thermal state</span>
+              <button class="seg-btn is-active" type="button" data-preset="normal">Idle 61°</button>
+              <button class="seg-btn" type="button" data-preset="elevated">Gaming 83°</button>
+              <button class="seg-btn" type="button" data-preset="high">Peak 92°</button>
+            </div>
+
+            <div class="control-group" role="group" aria-label="Strip placement">
+              <span class="control-label">Layout</span>
+              <button class="seg-btn is-active" type="button" data-layout="dual">Dual strip</button>
+              <button class="seg-btn" type="button" data-layout="combined">Combined by clock</button>
+            </div>
+
+            <div class="control-group" role="group" aria-label="Taskbar theme">
+              <span class="control-label">Taskbar</span>
+              <button class="seg-btn is-active" type="button" data-bar-theme="dark">Dark</button>
+              <button class="seg-btn" type="button" data-bar-theme="light">Light</button>
+            </div>
+
+            <div class="control-group" role="group" aria-label="Toggle telemetry indicators">
+              <label class="check-chip"><input type="checkbox" data-toggle="watts" checked><span>Watts</span></label>
+              <label class="check-chip"><input type="checkbox" data-toggle="temps" checked><span>Temps</span></label>
+              <label class="check-chip"><input type="checkbox" data-toggle="brands" checked><span>Brand colors</span></label>
+            </div>
+          </div>
+
+          <div id="desktop-stage" class="desktop-stage" data-bar-theme="dark">
+            <div id="sim-tooltip" class="sim-tooltip" role="status" aria-live="polite">
+              <div>CPU: <span id="tt-cpu">11%, 61 °C, 20 W</span></div>
+              <div>GPU (NVIDIA GeForce RTX 4050 Laptop GPU): <span id="tt-gpu">27%, 59 °C, 15 W</span></div>
+              <div>RAM usage: <span id="tt-ram">57% (13.6 / 23.8 GB)</span></div>
+            </div>
+
+            <div id="taskbar-preview" class="taskbar-preview" data-layout="dual">
+              <div id="strip-system" class="strip strip-left" tabindex="0" aria-label="Hover or focus to inspect live system tooltip">
+                <span class="strip-item" id="item-cpu">
+                  <svg class="tv-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="1.8"/><rect x="9.8" y="9.8" width="4.4" height="4.4" rx=".6"/><path d="M9.5 3v3.5M14.5 3v3.5M9.5 17.5V21M14.5 17.5V21M3 9.5h3.5M3 14.5h3.5M17.5 9.5H21M17.5 14.5H21"/></svg>
+                  <span class="mono" id="val-cpu">11% 61° 20W</span>
+                </span>
+                <span class="strip-item" id="item-gpu">
+                  <svg class="tv-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="12.5" rx="1.8"/><path d="M9 20.5h6M12 17v3.5"/></svg>
+                  <span class="mono" id="val-gpu">27% 59° 15W</span>
+                </span>
+                <span class="strip-item" id="item-ram">
+                  <svg class="tv-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="7" width="19" height="9" rx="1.6"/><path d="M6.5 10.5v2.5M10 10.5v2.5M14 10.5v2.5M17.5 10.5v2.5M5 16v2.5M9 16v2.5M13 16v2.5M17 16v2.5"/></svg>
+                  <span class="mono" id="val-ram">57%</span>
+                </span>
+              </div>
+
+              <div class="taskbar-center-icons" aria-hidden="true">
+                <span class="win-start"></span>
+                <span class="win-app"></span>
+                <span class="win-app"></span>
+                <span class="win-app"></span>
+              </div>
+
+              <div class="taskbar-right">
+                <div id="strip-batteries" class="strip strip-right">
+                  <span class="strip-item bat-item" data-brand="#00a8e8">
+                    <svg class="tv-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="13.5" width="4.5" height="7" rx="1.6"/><rect x="16.5" y="13.5" width="4.5" height="7" rx="1.6"/></svg>
+                    <span class="mono">46%</span>
+                    <span class="brand-bar" style="background:#00a8e8"></span>
+                  </span>
+                  <span class="strip-item bat-item" data-brand="#44d62c">
+                    <svg class="tv-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="3" width="11" height="18" rx="5.5"/><path d="M12 3.5v5.5"/></svg>
+                    <span class="mono">40%</span>
+                    <span class="brand-bar" style="background:#44d62c"></span>
+                  </span>
+                  <span class="strip-item bat-item is-low" data-brand="#f59e0b">
+                    <svg class="tv-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.6h.01M9.3 9.6h.01M12.6 9.6h.01M15.9 9.6h.01M18 9.6h.01M7.5 12.2h.01M10.8 12.2h.01M14.1 12.2h.01M16.6 12.2h.01M8 15h8"/></svg>
+                    <span class="mono">12%</span>
+                    <span class="brand-bar" style="background:#f59e0b"></span>
+                  </span>
+                  <span class="strip-item bat-item" data-brand="#107c10">
+                    <svg class="tv-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 7.5h9.6a4 4 0 0 1 3.9 3.2l1.1 5.1a2.4 2.4 0 0 1-4.1 2.1L15.8 16H8.2l-1.9 1.9a2.4 2.4 0 0 1-4.1-2.1l1.1-5.1a4 4 0 0 1 3.9-3.2z"/><path d="M7.5 10.6v3.2M5.9 12.2h3.2M15.6 11.4h.01M17.8 13.2h.01"/></svg>
+                    <svg class="bolt-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M13.5 2 5 13.5h6L9.8 22 19 9.8h-6.2z"/></svg>
+                    <span class="mono">64%</span>
+                    <span class="brand-bar" style="background:#107c10"></span>
+                  </span>
+                </div>
+                <div class="win-clock mono" aria-hidden="true">
+                  <span>19:35</span>
+                  <span>23.11.2026</span>
+                </div>
+              </div>
+            </div>
+            <p class="stage-hint">Hover over the CPU / GPU / RAM readings on the left strip to view the Windows hover tooltip.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="telemetry" class="band">
+      <div class="container">
+        <div class="section-head">
+          <h2>Real Windows captures, not mockups</h2>
+          <p>Captured directly on Windows 11. System counters are sampled every 2 seconds on demand, and optional libraries (<code>pdh.dll</code>, <code>dxgi.dll</code>, <code>nvml.dll</code>) stay unloaded while disabled.</p>
+        </div>
+
+        <div class="captures-layout">
+          <div class="capture-stack">
+            <figure class="capture-frame">
+              <img src="docs/screenshots/strip-vitals.png" alt="Windows 11 taskbar left end showing CPU 11% 66° 20W, GPU 1% 58° 13W, and RAM 57%">
+              <figcaption>
+                <strong>Left end (System Vitals strip):</strong> CPU usage (<code>GetSystemTimes</code>), package wattage (Energy Meter RAPL), optional CPU temp (isolated PawnIO <code>IntelMSR</code> helper), discrete GPU load/temp/NVML watts, and RAM usage.
+              </figcaption>
+            </figure>
+
+            <figure class="capture-frame">
+              <img src="docs/screenshots/strip-batteries.png" alt="Windows 11 taskbar beside the clock showing wireless headset 46%, mouse 40%, keyboard 100%">
+              <figcaption>
+                <strong>Next to the clock (Wireless Batteries strip):</strong> Read-only HID and Bluetooth battery polling across mice, keyboards, headsets, earbuds, and controllers, with optional brand color bars and sleeping dim states.
+              </figcaption>
+            </figure>
+          </div>
+
+          <figure class="capture-frame capture-tooltip">
+            <img src="docs/screenshots/tooltip-vitals.png" alt="Windows hover tooltip showing CPU 8% 61°C 18W, GPU NVIDIA GeForce RTX 4050 Laptop GPU 27% 59°C 15W, and RAM usage 57% 13.6/23.8 GB">
+            <figcaption>
+              <strong>Instant hover breakdown:</strong> Inspect exact adapter name and <code>Used / Total GB</code> memory without keeping an overlay window open over your games. Readings shift to <span class="tone-amber">orange at ≥80 °C</span> and <span class="tone-red">red at ≥90 °C</span>.
+            </figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section id="settings" class="band band-tinted">
+      <div class="container">
+        <div class="section-head">
+          <h2>Inside the redesigned Settings Panel</h2>
+          <p>Left-click any strip item to open the DPI-aware Windows panel, or <strong>Shift + Click</strong> for the classic quick context menu.</p>
+        </div>
+
+        <div class="panel-showcase">
+          <div class="panel-tabs-col">
+            <div class="panel-tab-list" role="tablist" aria-label="Settings Panel tabs">
+              <button class="panel-tab-btn is-active" role="tab" aria-selected="true" data-tab="system" type="button">
+                <strong>System</strong>
+                <span>Reorder CPU, GPU, RAM, and GPU memory cards with ↑/↓ arrows and toggle usage, °C, and watts independently.</span>
+              </button>
+              <button class="panel-tab-btn" role="tab" aria-selected="false" data-tab="batteries" type="button">
+                <strong>Batteries</strong>
+                <span>Reorder or hide devices, open 30-day history charts and 5%–40% alerts via <code>⋯</code>, or rename up to 64 characters.</span>
+              </button>
+              <button class="panel-tab-btn" role="tab" aria-selected="false" data-tab="batteries-options" type="button">
+                <strong>Visibility &amp; Alerts</strong>
+                <span>Configure sleeping device dimming, tray fallback when idle, battery history recording, and charge-limit notifications.</span>
+              </button>
+              <button class="panel-tab-btn" role="tab" aria-selected="false" data-tab="appearance" type="button">
+                <strong>Appearance</strong>
+                <span>Place Battery and System strips independently (Left end vs Next to the clock), pick displays, and toggle 15 brand colors.</span>
+              </button>
+              <button class="panel-tab-btn" role="tab" aria-selected="false" data-tab="general" type="button">
+                <strong>General</strong>
+                <span>Switch between 20 built-in languages, toggle startup, check signed updates, prefill device requests, or support the project.</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="panel-stage-col">
+            <figure class="panel-shot-wrap">
+              <img id="panel-shot-img" src="docs/screenshots/panel-system.png" alt="Taskbar Vitals Settings Panel System tab screenshot">
+              <figcaption id="panel-shot-cap">
+                <strong>System tab:</strong> Live summary pills (<code>18% · 67 °C · 22 W</code>) appear directly on card headers alongside independent toggles and helper management.
+              </figcaption>
+            </figure>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="hardware" class="band">
+      <div class="container">
+        <div class="section-head">
+          <h2>Supported peripherals &amp; protocols</h2>
+          <p>Search across 79 dedicated vendor drivers, protocol families, USB receivers, and universal Bluetooth / Fast Pair / HID fallbacks.</p>
+        </div>
+
+        <div class="hw-toolbar">
+          <label class="hw-search-wrap" for="hw-search">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="8"/>
+              <line x1="21" x2="16.65" y1="21" y2="16.65"/>
+            </svg>
+            <input id="hw-search" type="search" placeholder="Search brand, model, or VID:PID (e.g. Razer, ATK, MCHOSE, Keychron, 046D)..." autocomplete="off">
+          </label>
+
+          <div class="hw-filters" role="group" aria-label="Filter hardware by category">
+            <button class="filter-btn is-active" type="button" data-cat="all">All</button>
+            <button class="filter-btn" type="button" data-cat="mice">Mice</button>
+            <button class="filter-btn" type="button" data-cat="keyboards">Keyboards</button>
+            <button class="filter-btn" type="button" data-cat="audio">Headsets &amp; Earbuds</button>
+            <button class="filter-btn" type="button" data-cat="controllers">Controllers &amp; Phones</button>
+          </div>
+        </div>
+
+        <p id="hw-count" class="hw-count mono"></p>
+
+        <div class="hw-table-wrap">
+          <table class="hw-table">
+            <thead>
+              <tr>
+                <th>Brand / Family</th>
+                <th>Category</th>
+                <th>Supported Models, Receivers &amp; Protocol Notes</th>
+              </tr>
+            </thead>
+            <tbody id="hw-tbody"></tbody>
+          </table>
+        </div>
+
+        <div class="hw-footer-bar">
+          <button id="hw-expand-btn" class="btn btn-secondary" type="button">Show all matching brands</button>
+          <a class="text-link" href="https://github.com/symNistaken/TaskbarVitals/issues/new?template=device-request.yml" target="_blank" rel="noopener">
+            Don't see your device? Request support or submit <code>--dump</code> output
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <section id="security" class="band band-tinted">
+      <div class="container">
+        <div class="ledger-grid">
+          <div class="ledger-block">
+            <h2>Built read-only and verified offline</h2>
+            <ul class="fact-list">
+              <li>
+                <strong>Read-only peripheral queries</strong>
+                <span>Drivers in <code>src/drivers/</code> match strictly by <code>VID:PID</code> or unique vendor HID collections and never alter DPI, lighting, macros, or firmware.</span>
+              </li>
+              <li>
+                <strong>Isolated CPU temperature helper</strong>
+                <span>The main app runs unprivileged. Only when CPU temperature is enabled, <code>TaskbarVitalsTemp.exe</code> reads MSRs <code>0x1A2</code> &amp; <code>0x1B1</code> via PawnIO and publishes numbers over read-only shared memory.</span>
+              </li>
+              <li>
+                <strong>ECDSA P-256 signed updates</strong>
+                <span>Official Windows updates verify <code>SHA256SUMS.txt.sig</code> offline using Windows BCrypt against the maintainer's public key before offering installation.</span>
+              </li>
+              <li>
+                <strong>Zero telemetry &amp; local history</strong>
+                <span>Battery history (24h / 7d / 30d), device aliases, and thresholds stay strictly on your PC under <code>%LOCALAPPDATA%\WirelessBattery</code>.</span>
+              </li>
+            </ul>
+            <div class="doc-links">
+              <a href="https://github.com/symNistaken/TaskbarVitals/blob/main/SECURITY.md" target="_blank" rel="noopener">Security Policy</a>
+              <a href="https://github.com/symNistaken/TaskbarVitals/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">Contributing Guide</a>
+              <a href="https://www.virustotal.com/gui/file/61670399e3f125e274d904cc1d2a103986161d6975e5c0ac3d7eeba90c66ba6a" target="_blank" rel="noopener">VirusTotal 0/64 (v2.0.1 ZIP)</a>
+            </div>
+          </div>
+
+          <div class="ledger-block">
+            <h2>CLI &amp; JSON automation</h2>
+            <p class="ledger-sub">Run from Command Prompt or PowerShell; diagnostics stay in English so you can paste them directly into device issues.</p>
+            <dl class="cli-list">
+              <div><dt class="mono">TaskbarVitals.exe --list</dt><dd>Print detected devices and current battery levels, then exit.</dd></div>
+              <div><dt class="mono">TaskbarVitals.exe --json</dt><dd>Output structured JSON readings for scripts and Rainmeter/widgets.</dd></div>
+              <div><dt class="mono">TaskbarVitals.exe --dump</dt><dd>Print HID collections, USB, and Bluetooth IDs; saves report to <code>%TEMP%</code>.</dd></div>
+              <div><dt class="mono">TaskbarVitals.exe --report</dt><dd>Launch the prefilled GitHub device support assistant.</dd></div>
+              <div><dt class="mono">TaskbarVitals.exe --demo</dt><dd>Display synthetic sample devices without recording battery history.</dd></div>
+            </dl>
+            <pre class="code-box mono"><code>[{"key":"kysona:373B:1085","name":"CX Wireless mouse","via":"2.4 GHz receiver","kind":"mouse","percent":85,"charging":false,"asleep":false,"connected":true,"millivolts":4029,"graceSec":1800}]</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div class="footer-left">
+        <strong>Taskbar Vitals</strong>
+        <span>GPL-3.0-or-later · Built natively with C++17 &amp; Win32 (plus experimental Linux hidraw/GTK4 support)</span>
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/symNistaken/TaskbarVitals/releases" target="_blank" rel="noopener">Releases</a>
+        <a href="https://github.com/symNistaken/TaskbarVitals/discussions" target="_blank" rel="noopener">Discussions</a>
+        <a href="https://github.com/symNistaken/TaskbarVitals/issues/new/choose" target="_blank" rel="noopener">Report Device</a>
+        <a href="https://buymeacoffee.com/symnistaken" target="_blank" rel="noopener">Buy Me a Coffee</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
