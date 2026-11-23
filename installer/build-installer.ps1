@@ -22,6 +22,7 @@ if ((Get-FileHash $hscExe -Algorithm SHA256).Hash -ne $hscSha256) {
 }
 
 if (-not (Test-Path (Join-Path $root "TaskbarVitals.exe"))) { throw "Build TaskbarVitals.exe first (make or build.bat)." }
+if (-not (Test-Path (Join-Path $root "TaskbarVitalsTemp.exe"))) { throw "Build TaskbarVitalsTemp.exe first (make or build.bat)." }
 
 $iscc = foreach ($v in 7, 6) {
     foreach ($base in ${env:ProgramFiles(x86)}, $env:ProgramFiles, "$env:LOCALAPPDATA\Programs") { "$base\Inno Setup $v\ISCC.exe" }
@@ -36,7 +37,7 @@ if ($LASTEXITCODE -ne 0) { throw "ISCC failed." }
 $stage = Join-Path $root "build\portable"
 Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $stage | Out-Null
-Copy-Item TaskbarVitals.exe, $hscExe, installer\THIRD_PARTY_NOTICES.txt $stage
+Copy-Item TaskbarVitals.exe, TaskbarVitalsTemp.exe, $hscExe, installer\THIRD_PARTY_NOTICES.txt $stage
 Copy-Item LICENSE (Join-Path $stage "LICENSE.txt")
 Compress-Archive -Path "$stage\*" -DestinationPath "dist\TaskbarVitals-$Version-portable.zip" -Force
 # Checksums of what the app can install or users download. The maintainer signs this file on their own

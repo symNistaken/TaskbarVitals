@@ -34,6 +34,7 @@
 #include "report.h"
 #include "rename_dialog.h"
 #include "offset_dialog.h"
+#include "cputemp_client.h"
 #include "gpumon.h"
 #include "sysmon.h"
 #include "vitals_strip.h"
@@ -56,20 +57,28 @@ constexpr GUID kConsoleDisplayStateGuid = {
 // "Check battery every" choices in seconds; 60 is the default. A poll resets an awake device's sleep timer,
 // so a device only sleeps if its timer is shorter than the interval.
 constexpr DWORD POLL_SECONDS[] = { 30, 60, 120, 300, 600, 900, 1800, 3600 };
+constexpr DWORD SYS_POLL_SECONDS[] = { 1, 2, 5, 10 };
+constexpr int TEMP_ALERT_CELSIUS[] = { 80, 85, 90, 95 };
 constexpr int LOW_BATTERY = 15;
 constexpr UINT PLACEHOLDER_ID = 1;
 constexpr UINT ALERT_ICON_ID = 2;
+constexpr UINT SYS_TRAY_UID_BASE = 10;
 
 enum MenuId : UINT {
     ID_REFRESH = 100, ID_AUTOSTART, ID_HIDE_LAST_KNOWN, ID_WIDGET_BACKGROUND, ID_EXIT, ID_MODE_WIDGET, ID_MODE_TRAY, ID_SUPPORT, ID_REPORT,
-    ID_BRAND_COLORS, ID_STACKED, ID_SHOW_DISCONNECTED, ID_RECORD_HISTORY, ID_DIM_SLEEPING,
-    ID_TRAY_WHEN_EMPTY, ID_MAKE_ROOM, ID_BAT_LEFT, ID_BAT_CLOCK, ID_VIT_LEFT, ID_VIT_CLOCK, ID_SHOW_CPU, ID_SHOW_RAM,
-    ID_SHOW_GPU, ID_SHOW_GPU_TEMP, ID_SHOW_VRAM, ID_SHOW_CPU_W, ID_SHOW_GPU_W,
+    ID_BRAND_COLORS, ID_SYSTEM_COLORS, ID_STACKED, ID_SHOW_DISCONNECTED, ID_RECORD_HISTORY, ID_DIM_SLEEPING,
+    ID_TRAY_WHEN_EMPTY, ID_MAKE_ROOM, ID_BAT_LEFT, ID_BAT_CLOCK, ID_VIT_LEFT, ID_VIT_CLOCK, ID_BATTERIES_FIRST, ID_VITALS_FIRST,
+    ID_SHOW_CPU, ID_SHOW_RAM, ID_SHOW_GPU, ID_SHOW_GPU_TEMP, ID_SHOW_VRAM, ID_SHOW_CPU_W, ID_SHOW_GPU_W, ID_SHOW_CPU_TEMP, ID_REMOVE_TEMP,
     ID_PLACE_AUTO, ID_PLACE_TOP, ID_PLACE_TRAY, ID_PLACE_BOTTOM,  // "Position on a vertical taskbar"
     ID_SYS_MOVE_FIRST = 750,  // System strip item order: CPU, RAM, GPU, GPU memory
     ID_POSITION_FIRST = 700,  // "Position on the taskbar": ID_POSITION_FIRST + 0..5, then the custom value
-    ID_POLL_FIRST = 500,  // "Check battery every": ID_POLL_FIRST + 0..7
+    ID_POLL_FIRST = 500,      // "Check battery every": ID_POLL_FIRST + 0..7
+    ID_SYS_POLL_FIRST = 550,  // "Check system every": ID_SYS_POLL_FIRST + 0..3
     ID_LIMIT_OFF = 600, ID_LIMIT_FIRST,  // "Notify when charged to": off, then alerts::kChargeLimits
+    ID_TEMP_ALERT_OFF = 650, ID_TEMP_ALERT_FIRST,  // "High temperature alert": off, then TEMP_ALERT_CELSIUS
+    ID_POPUP_CHARGE_LIMIT = 800, ID_POPUP_POLL_BATTERY, ID_POPUP_TEMP_ALERT, ID_POPUP_POLL_SYSTEM,
+    ID_POPUP_BAT_POS, ID_POPUP_VIT_POS, ID_POPUP_STRIP_ORDER, ID_POPUP_TASKBAR_POS,
+    ID_POPUP_VERTICAL_POS, ID_POPUP_MONITORS, ID_POPUP_LANG,
     ID_UPDATE = 200, ID_AUTO_UPDATE,
     ID_LANG_AUTO = 400, ID_LANG_ADD, ID_LANG_FIRST,  // "Language": ID_LANG_FIRST + 0..63
     ID_MONITOR_ALL = 300, ID_MONITOR_MAIN, ID_MONITOR_FIRST,  // "Show the widget on": ID_MONITOR_FIRST + 0..31
@@ -77,7 +86,9 @@ enum MenuId : UINT {
 };
 enum DeviceCmd : UINT {
     DEV_TOGGLE, DEV_LEFT, DEV_RIGHT, DEV_RENAME, DEV_RESET_NAME, DEV_HISTORY,
-    DEV_ALERT_FIRST = 6, DEV_ALERT_DEFAULT = DEV_ALERT_FIRST + 8, DEV_ALERT_OFF, DEV_STRIDE = 16
+    DEV_ALERT_FIRST = 6, DEV_ALERT_DEFAULT = DEV_ALERT_FIRST + 8, DEV_ALERT_OFF,
+    DEV_MORE_POPUP = 16,
+    DEV_STRIDE = 32
 };
 
 const wchar_t* kAppName = L"Taskbar Vitals";
@@ -110,19 +121,33 @@ const int POSITION_OFFSETS[] = { 0, 40, 80, 120, 160, 200 };
 widget::VerticalPlace g_verticalPlace = widget::VerticalPlace::Auto;  // column position on a left / right taskbar
 bool g_farLeft = false;      // widget at the left end of the taskbar instead of next to the clock (menu option)
 bool g_vitalsFarLeft = false;  // CPU / RAM / GPU readings at the left end of the taskbar (menu option)
+bool g_vitalsFirst = false;    // system readings before batteries when both sit on the same side
 bool g_leftEndPlaced = false;  // with two strips: the left-end one found room there at the last update
 bool g_showCpu = false, g_showRam = false;  // system readings on the strip (menu options)
 bool g_showGpu = false, g_showGpuTemp = false, g_showVram = false;
 bool g_showCpuW = false, g_showGpuW = false;  // power draw in watts
+bool g_showCpuTemp = false;  // CPU temperature, from the elevated helper (src/cputemp.h)
+cputemp::Reading g_cpuTemp;
 std::vector<int> g_systemOrder{ 0, 1, 2, 3 };  // CPU, RAM, GPU, GPU memory
-sysmon::Reading g_sys;       // last CPU / RAM sample, taken every 2 s while one of them is shown
+sysmon::Reading g_sys;       // last CPU / RAM sample, taken every g_sysPollSeconds while one of them is shown
 gpumon::Reading g_gpu;       // last GPU sample, likewise
 int g_sysTicks = 0;
+DWORD g_sysPollSeconds = 2;
+int g_tempAlertC = 0;
+bool g_cpuTempWarned = false, g_gpuTempWarned = false;
 bool AnyGpuReading() { return g_showGpu || g_showGpuTemp || g_showVram || g_showGpuW; }
-bool AnyCpuReading() { return g_showCpu || g_showRam || g_showCpuW; }
+bool AnyCpuReading() { return g_showCpu || g_showRam || g_showCpuW || g_showCpuTemp; }
 bool AnyReading() { return AnyCpuReading() || AnyGpuReading(); }
-bool g_brandColors = false;  // off by default; known brands get their color (Razer green, Logitech blue, ...)
+bool g_brandColors = false;   // off by default; known brands get their color (Razer green, Logitech blue, ...)
+bool g_systemColors = false;  // off by default; CPU blue, RAM purple, GPU green, GPU memory orange
 std::atomic<DWORD> g_pollIntervalMs{ 60 * 1000 };  // set from the menu, read by the worker thread
+
+struct SysTraySlot {
+    bool added = false;
+    std::wstring sig;
+    HICON icon = nullptr;
+};
+SysTraySlot g_sysTray[4];
 
 struct TrayEntry {
     UINT uid = 0;
@@ -476,6 +501,27 @@ DWORD LoadPollSeconds() {
 void SavePollSeconds(DWORD seconds) {
     RegSetKeyValueW(HKEY_CURRENT_USER, kSettingsKey, L"PollIntervalSeconds", REG_DWORD, &seconds, sizeof(seconds));
 }
+DWORD LoadSystemPollSeconds() {
+    DWORD v = 2, sz = sizeof(v);
+    RegGetValueW(HKEY_CURRENT_USER, kSettingsKey, L"SystemPollSeconds", RRF_RT_REG_DWORD, nullptr, &v, &sz);
+    for (DWORD s : SYS_POLL_SECONDS)
+        if (v == s) return s;
+    return 2;
+}
+void SaveSystemPollSeconds(DWORD seconds) {
+    RegSetKeyValueW(HKEY_CURRENT_USER, kSettingsKey, L"SystemPollSeconds", REG_DWORD, &seconds, sizeof(seconds));
+}
+int LoadTempAlertCelsius() {
+    DWORD v = 0, sz = sizeof(v);
+    RegGetValueW(HKEY_CURRENT_USER, kSettingsKey, L"TempAlertCelsius", RRF_RT_REG_DWORD, nullptr, &v, &sz);
+    for (int t : TEMP_ALERT_CELSIUS)
+        if ((int)v == t) return t;
+    return 0;
+}
+void SaveTempAlertCelsius(int celsius) {
+    DWORD v = (DWORD)celsius;
+    RegSetKeyValueW(HKEY_CURRENT_USER, kSettingsKey, L"TempAlertCelsius", REG_DWORD, &v, sizeof(v));
+}
 
 bool AutostartEnabled() {
     wchar_t buf[MAX_PATH * 2];
@@ -598,6 +644,22 @@ Rgb Foreground() { return g_lightTaskbar ? Rgb{ 0, 0, 0 } : Rgb{ 255, 255, 255 }
 
 Accent AccentFor(const DeviceStatus& s) { return g_brandColors ? BrandOf(s) : Accent::None; }
 
+Accent SystemAccentFor(int item) {
+    if (!g_systemColors) return Accent::None;
+    switch (item) {
+        case 0: return Accent::Logitech;     // CPU: blue
+        case 1: return Accent::CoolerMaster; // RAM: purple
+        case 2: return Accent::Razer;        // GPU: green
+        case 3: return Accent::SteelSeries;  // GPU memory: orange
+        default: return Accent::None;
+    }
+}
+
+COLORREF AccentColorRef(Accent a, bool light) {
+    BrandColor bc = AccentColor(a, light);
+    return RGB(bc.r, bc.g, bc.b);
+}
+
 HICON IconFor(int pct, bool charging, bool dim, Accent accent) {
     Rgb fg = Foreground();
     BrandColor bc = AccentColor(accent, g_lightTaskbar);
@@ -679,17 +741,21 @@ void TrayDelete(UINT uid) {
     Shell_NotifyIconW(NIM_DELETE, &nid);
 }
 
+void ShowTextNotification(const std::wstring& title, const std::wstring& message) {
+    // Windows notification balloons need a tray icon. Keep a temporary one long enough for the shell
+    // to display the notification, then remove it.
+    if (!g_placeholderIcon) g_placeholderIcon = RenderIcon(L"-", -1, Foreground(), Foreground(), true);
+    g_alertIconAdded =
+        TrayShow(g_alertIconAdded, ALERT_ICON_ID, g_placeholderIcon, L"Taskbar Vitals", title.c_str(), message);
+    if (g_alertIconAdded) SetTimer(g_hwnd, TIMER_ALERT_ICON, 60 * 1000, nullptr);
+}
+
 void ShowNotification(TrayEntry& e, const std::wstring& title, const std::wstring& message) {
     if (!g_useWidget && e.added) {
         TrayCall(NIM_MODIFY, e.uid, e.icon, DisplayName(e) + L"\n" + StatusText(e), title.c_str(), message);
         return;
     }
-    // Windows notification balloons need a tray icon. Keep a temporary one in widget mode
-    // long enough for the shell to display the notification, then remove it.
-    if (!g_placeholderIcon) g_placeholderIcon = RenderIcon(L"-", -1, Foreground(), Foreground(), true);
-    g_alertIconAdded =
-        TrayShow(g_alertIconAdded, ALERT_ICON_ID, g_placeholderIcon, L"Taskbar Vitals", title.c_str(), message);
-    if (g_alertIconAdded) SetTimer(g_hwnd, TIMER_ALERT_ICON, 60 * 1000, nullptr);
+    ShowTextNotification(title, message);
 }
 
 void ShowBatteryAlert(TrayEntry& e) {
@@ -710,6 +776,7 @@ void UpdatePlaceholder() {
     }
     bool any = false;
     for (auto& [k, e] : g_entries) any |= e.added;
+    for (const auto& s : g_sysTray) any |= s.added;
     if (!any && !g_placeholder) {
         if (!g_placeholderIcon) g_placeholderIcon = RenderIcon(L"-", -1, Foreground(), Foreground(), true);
         g_placeholder = TrayShow(false, PLACEHOLDER_ID, g_placeholderIcon,
@@ -780,6 +847,120 @@ std::vector<TrayEntry*> OrderedEntries(bool shownOnly) {
     return list;
 }
 
+// Why there is no CPU temperature on the strip (for the tooltip while it is on).
+std::wstring CpuTempStatusText() {
+    if (!g_cpuTemp.running) return T(L"starting the helper...");
+    switch (g_cpuTemp.status) {
+        case cputemp::Status::NoPawnIo: return T(L"the PawnIO driver (pawnio.eu) was not found");
+        case cputemp::Status::Unsupported: return T(L"this CPU gives no reading (Intel only for now)");
+        case cputemp::Status::ModuleFailed:
+        case cputemp::Status::ReadFailed: return T(L"the driver could not read it");
+        default: return T(L"waiting for the first reading...");
+    }
+}
+
+std::wstring JoinParts(const std::vector<std::wstring>& parts, const wchar_t* sep) {
+    std::wstring out;
+    for (const auto& p : parts) {
+        if (!out.empty()) out += sep;
+        out += p;
+    }
+    return out;
+}
+
+std::wstring FormatGbPair(int pct, double usedGb, double totalGb) {
+    wchar_t buf[64];
+    swprintf(buf, 64, L"%d%% (%.1f / %.1f GB)", pct, usedGb, totalGb);
+    return buf;
+}
+
+void UpdateSystemTrayIcons() {
+    if (g_useWidget) {
+        for (int item = 0; item < 4; ++item) {
+            if (g_sysTray[item].added) {
+                TrayDelete(SYS_TRAY_UID_BASE + item);
+                g_sysTray[item].added = false;
+            }
+        }
+        return;
+    }
+    for (int item = 0; item < 4; ++item) {
+        bool active = false;
+        std::wstring text, tip;
+        int barPct = -1, heat = 0;
+        if (item == 0 && (g_showCpu || g_showCpuW || g_showCpuTemp)) {
+            active = true;
+            int cpuUse = g_showCpu ? g_sys.cpu : -1;
+            int cpuW = g_showCpuW ? g_sys.cpuWatts : -1;
+            int cpuTemp = g_showCpuTemp ? g_cpuTemp.tempC : -1;
+            if (cpuUse >= 0) { text = std::to_wstring(cpuUse); barPct = cpuUse; }
+            else if (cpuTemp >= 0) { text = std::to_wstring(cpuTemp) + L"°"; barPct = std::clamp(cpuTemp, 0, 100); }
+            else if (cpuW >= 0) { text = std::to_wstring(cpuW) + L"W"; }
+            else { text = L"?"; }
+            heat = sysmon::HeatLevel(cpuTemp);
+            std::vector<std::wstring> parts;
+            if (cpuUse >= 0) parts.push_back(std::to_wstring(cpuUse) + L"%");
+            if (cpuTemp >= 0) parts.push_back(std::to_wstring(cpuTemp) + L" °C");
+            if (cpuW >= 0) parts.push_back(std::to_wstring(cpuW) + L" W");
+            tip = parts.empty() && g_showCpuTemp ? std::wstring(T(L"CPU temperature")) + L": " + CpuTempStatusText()
+                                                 : std::wstring(T(L"CPU")) + L": " + (parts.empty() ? L"..." : JoinParts(parts, L", "));
+        } else if (item == 1 && g_showRam) {
+            active = true;
+            if (g_sys.ram >= 0) {
+                text = std::to_wstring(g_sys.ram);
+                barPct = g_sys.ram;
+                tip = std::wstring(T(L"RAM usage")) + L": " + FormatGbPair(g_sys.ram, g_sys.ramUsedGb, g_sys.ramTotalGb);
+            } else {
+                text = L"?";
+                tip = std::wstring(T(L"RAM usage")) + L": ...";
+            }
+        } else if (item == 2 && (g_showGpu || g_showGpuTemp || g_showGpuW) && g_gpu.available) {
+            active = true;
+            int gpuUse = g_showGpu ? g_gpu.use : -1;
+            int gpuTemp = g_showGpuTemp ? g_gpu.tempC : -1;
+            int gpuW = g_showGpuW ? g_gpu.watts : -1;
+            if (gpuUse >= 0) { text = std::to_wstring(gpuUse); barPct = gpuUse; }
+            else if (gpuTemp >= 0) { text = std::to_wstring(gpuTemp) + L"°"; barPct = std::clamp(gpuTemp, 0, 100); }
+            else if (gpuW >= 0) { text = std::to_wstring(gpuW) + L"W"; }
+            else { text = L"?"; }
+            heat = sysmon::HeatLevel(gpuTemp);
+            std::vector<std::wstring> parts;
+            if (gpuUse >= 0) parts.push_back(std::to_wstring(gpuUse) + L"%");
+            if (gpuTemp >= 0) parts.push_back(std::to_wstring(gpuTemp) + L" °C");
+            if (gpuW >= 0) parts.push_back(std::to_wstring(gpuW) + L" W");
+            tip = L"GPU (" + g_gpu.name + L"): " + (parts.empty() ? L"..." : JoinParts(parts, L", "));
+        } else if (item == 3 && g_showVram && g_gpu.available && g_gpu.vram >= 0) {
+            active = true;
+            text = std::to_wstring(g_gpu.vram);
+            barPct = g_gpu.vram;
+            tip = std::wstring(T(L"GPU memory")) + L": " + FormatGbPair(g_gpu.vram, g_gpu.vramUsedGb, g_gpu.vramTotalGb);
+        }
+        auto& slot = g_sysTray[item];
+        if (!active) {
+            if (slot.added) {
+                TrayDelete(SYS_TRAY_UID_BASE + item);
+                slot.added = false;
+            }
+            continue;
+        }
+        Accent ac = SystemAccentFor(item);
+        std::wstring sig = text + L"|" + std::to_wstring(barPct) + L"|" + std::to_wstring(heat) + L"|" +
+                           std::to_wstring((int)ac) + (g_lightTaskbar ? L"|l" : L"|k");
+        if (sig != slot.sig || !slot.icon) {
+            if (slot.icon) DestroyIcon(slot.icon);
+            Rgb tc = heat >= 2 ? Rgb{ 240, 50, 60 } : heat == 1 ? Rgb{ 255, 160, 40 } : Foreground();
+            BrandColor bc = AccentColor(ac, g_lightTaskbar);
+            Rgb bar = heat >= 2 ? Rgb{ 232, 32, 48 }
+                    : heat == 1 ? Rgb{ 255, 150, 0 }
+                    : ac != Accent::None ? Rgb{ bc.r, bc.g, bc.b }
+                                         : Rgb{ 30, 190, 90 };
+            slot.icon = RenderIcon(text, barPct, tc, bar, false);
+            slot.sig = sig;
+        }
+        slot.added = TrayShow(slot.added, SYS_TRAY_UID_BASE + item, slot.icon, tip);
+    }
+}
+
 void UpdateWidget() {
     if (!g_useWidget || !widget::Alive()) return;  // not alive while the strip is swapped for the tray
     std::vector<TrayEntry*> list = OrderedEntries(true);
@@ -808,7 +989,7 @@ void UpdateWidget() {
         tip += DisplayName(*e) + L": " + StatusText(*e);
     }
     if (tip.empty()) tip = std::wstring(L"Taskbar Vitals: ") + T(L"No devices with battery info found");
-    // CPU / RAM / GPU readings: their own strip when it sits apart from the batteries, else after them.
+    // CPU / RAM / GPU readings: their own strip when it sits apart from the batteries, else after/before them.
     std::vector<WidgetItem> readings;
     std::vector<int> readingKeys;
     std::vector<std::wstring> readingTips;
@@ -816,6 +997,8 @@ void UpdateWidget() {
                        const std::wstring& caption = L"") {
         WidgetItem it;
         it.glyph = glyph;
+        it.percent = pct;
+        it.accent = SystemAccentFor(key);
         it.text = (pct >= 0 ? std::to_wstring(pct) + L"%" : std::wstring()) + (pct >= 0 && !extra.empty() ? L" " : L"") + extra;
         it.label = caption;
         readings.push_back(it);
@@ -825,16 +1008,23 @@ void UpdateWidget() {
     // CPU: use and power share one item ("14% 18W"), like the GPU's use and temperature.
     int cpuUse = g_showCpu ? g_sys.cpu : -1;
     int cpuW = g_showCpuW ? g_sys.cpuWatts : -1;
-    if (cpuUse >= 0 || cpuW >= 0) {
+    int cpuTemp = g_showCpuTemp ? g_cpuTemp.tempC : -1;
+    if (cpuUse >= 0 || cpuW >= 0 || cpuTemp >= 0) {
+        std::wstring extra = (cpuTemp >= 0 ? std::to_wstring(cpuTemp) + L"°" : L"") +
+                             (cpuW >= 0 ? (cpuTemp >= 0 ? L" " : L"") + std::to_wstring(cpuW) + L"W" : L"");
         std::wstring line = std::wstring(T(L"CPU")) + L": ";
         if (cpuUse >= 0) line += std::to_wstring(cpuUse) + L"%";
-        if (cpuW >= 0) line += (cpuUse >= 0 ? L", " : L"") + std::to_wstring(cpuW) + L" W";
-        reading(0, 0xE950, cpuUse, line, cpuW >= 0 ? std::to_wstring(cpuW) + L"W" : L"");
+        if (cpuTemp >= 0) line += (cpuUse >= 0 ? L", " : L"") + std::to_wstring(cpuTemp) + L" °C";
+        if (cpuW >= 0) line += (cpuUse >= 0 || cpuTemp >= 0 ? L", " : L"") + std::to_wstring(cpuW) + L" W";
+        reading(0, 0xE950, cpuUse, line, extra);
+        readings.back().heat = sysmon::HeatLevel(cpuTemp);
+    } else if (g_showCpuTemp) {
+        // Nothing to show yet: say why in the tooltip (the helper may be starting, or this PC cannot give a reading).
+        reading(0, 0xE950, -1, std::wstring(T(L"CPU temperature")) + L": " + CpuTempStatusText(), L"?");
     }
     if (g_showRam && g_sys.ram >= 0) {
-        wchar_t gb[64];
-        swprintf(gb, 64, L" (%.1f / %.1f GB)", g_sys.ramUsedGb, g_sys.ramTotalGb);
-        reading(1, 0xE964, g_sys.ram, std::wstring(T(L"RAM usage")) + L": " + std::to_wstring(g_sys.ram) + L"%" + gb);
+        reading(1, 0xE964, g_sys.ram,
+                std::wstring(T(L"RAM usage")) + L": " + FormatGbPair(g_sys.ram, g_sys.ramUsedGb, g_sys.ramTotalGb));
     }
     // GPU: use and temperature share one item ("12% 58°"); VRAM is the memory icon with a "GPU" caption.
     int gpuUse = g_showGpu ? g_gpu.use : -1;
@@ -851,9 +1041,9 @@ void UpdateWidget() {
         readings.back().heat = sysmon::HeatLevel(gpuTemp);
     }
     if (g_showVram && g_gpu.available && g_gpu.vram >= 0) {
-        wchar_t gb[64];
-        swprintf(gb, 64, L" (%.1f / %.1f GB)", g_gpu.vramUsedGb, g_gpu.vramTotalGb);
-        reading(3, 0xE964, g_gpu.vram, std::wstring(T(L"GPU memory")) + L": " + std::to_wstring(g_gpu.vram) + L"%" + gb, L"", L"GPU");
+        reading(3, 0xE964, g_gpu.vram,
+                std::wstring(T(L"GPU memory")) + L": " + FormatGbPair(g_gpu.vram, g_gpu.vramUsedGb, g_gpu.vramTotalGb),
+                L"", L"GPU");
     }
     std::vector<size_t> readingSort(readings.size());
     for (size_t i = 0; i < readingSort.size(); ++i) readingSort[i] = i;
@@ -872,9 +1062,17 @@ void UpdateWidget() {
         readingsTip += readingTips[i];
     }
     readings = std::move(sortedReadings);
-    std::vector<WidgetItem> all = items;
-    all.insert(all.end(), readings.begin(), readings.end());
-    std::wstring allTip = readingsTip.empty() ? tip : tip + L"\n" + readingsTip;
+    std::vector<WidgetItem> all;
+    std::wstring allTip;
+    if (g_vitalsFirst) {
+        all = readings;
+        all.insert(all.end(), items.begin(), items.end());
+        allTip = readingsTip.empty() ? tip : (items.empty() ? readingsTip : readingsTip + L"\n" + tip);
+    } else {
+        all = items;
+        all.insert(all.end(), readings.begin(), readings.end());
+        allTip = readingsTip.empty() ? tip : tip + L"\n" + readingsTip;
+    }
     if (!vitals_strip::Alive()) {
         widget::SetItems(all, allTip);
         return;
@@ -998,6 +1196,7 @@ void Reconcile() {
     // Refresh after a change, or when the strip was just re-created.
     if (changed || (alive && !wasAlive)) {
         for (auto& [k, e] : g_entries) ApplyEntry(e);
+        UpdateSystemTrayIcons();
         UpdatePlaceholder();
         UpdateWidget();
     } else if (g_useWidget) {
@@ -1009,6 +1208,8 @@ void Reconcile() {
             if (!e.added && IsShown(e)) ApplyEntry(e);
             anyAdded |= e.added;
         }
+        UpdateSystemTrayIcons();
+        for (const auto& s : g_sysTray) anyAdded |= s.added;
         if (anyAdded == g_placeholder) UpdatePlaceholder();
     }
     SyncVitalsStrip();
@@ -1059,6 +1260,8 @@ void SetDimSleeping(bool on) {
 void ReAddAll() {
     g_placeholder = false;
     for (auto& [k, e] : g_entries) { e.added = false; ApplyEntry(e); }
+    for (auto& s : g_sysTray) s.added = false;
+    UpdateSystemTrayIcons();
     UpdatePlaceholder();
 }
 
@@ -1077,6 +1280,8 @@ void RedrawAll() {
         if (g_placeholder) { TrayDelete(PLACEHOLDER_ID); g_placeholder = false; }
     }
     for (auto& [k, e] : g_entries) { e.iconSig.clear(); ApplyEntry(e); }
+    for (auto& s : g_sysTray) s.sig.clear();
+    UpdateSystemTrayIcons();
     UpdatePlaceholder();
 }
 
@@ -1112,23 +1317,114 @@ void SetWidgetPlace(widget::VerticalPlace p) {
     widget::SetVerticalPlace(p);
 }
 
-// Takes a CPU / RAM / GPU sample every 2 s while a reading is shown; redraws the strip only when a shown value changed.
+// Takes a CPU / RAM / GPU sample every g_sysPollSeconds s while a reading is shown; redraws only when a shown value changed.
 void TickSystemReadings(bool now = false) {
     if (!AnyReading()) return;
-    if (!now && ++g_sysTicks % 2) return;
+    if (!now && (++g_sysTicks % std::max<DWORD>(1, g_sysPollSeconds))) return;
     bool changed = false;
+    if (g_showCpuTemp) {
+        cputemp::Reading t = cputemp::ReadShared();
+        changed |= t.tempC != g_cpuTemp.tempC || t.status != g_cpuTemp.status || t.running != g_cpuTemp.running;
+        g_cpuTemp = t;
+    }
     if (AnyCpuReading()) {
         sysmon::Reading r = sysmon::Sample(g_showCpuW);
-        changed |= (g_showCpu && r.cpu != g_sys.cpu) || (g_showRam && r.ram != g_sys.ram) || (g_showCpuW && r.cpuWatts != g_sys.cpuWatts);
+        changed |= (g_showCpu && r.cpu != g_sys.cpu) || (g_showRam && r.ram != g_sys.ram) ||
+                   (g_showCpuW && r.cpuWatts != g_sys.cpuWatts);
         g_sys = r;
     }
     if (AnyGpuReading()) {
         gpumon::Reading g = gpumon::Sample(g_showGpuTemp, g_showGpuW);
         changed |= g.available != g_gpu.available || (g_showGpu && g.use != g_gpu.use) ||
-                   (g_showGpuTemp && g.tempC != g_gpu.tempC) || (g_showVram && g.vram != g_gpu.vram) || (g_showGpuW && g.watts != g_gpu.watts);
+                   (g_showGpuTemp && g.tempC != g_gpu.tempC) || (g_showVram && g.vram != g_gpu.vram) ||
+                   (g_showGpuW && g.watts != g_gpu.watts);
         g_gpu = g;
     }
-    if (changed) UpdateWidget();
+    if (g_tempAlertC > 0) {
+        if (g_showCpuTemp && g_cpuTemp.tempC >= 0) {
+            if (g_cpuTemp.tempC >= g_tempAlertC && !g_cpuTempWarned) {
+                g_cpuTempWarned = true;
+                ShowTextNotification(T(L"High temperature"),
+                                     TF(L"{name} reached {temp} °C",
+                                        { { L"name", T(L"CPU") }, { L"temp", std::to_wstring(g_cpuTemp.tempC) } }));
+            } else if (g_cpuTemp.tempC <= g_tempAlertC - 5) {
+                g_cpuTempWarned = false;
+            }
+        }
+        if (g_showGpuTemp && g_gpu.available && g_gpu.tempC >= 0) {
+            if (g_gpu.tempC >= g_tempAlertC && !g_gpuTempWarned) {
+                g_gpuTempWarned = true;
+                ShowTextNotification(T(L"High temperature"),
+                                     TF(L"{name} reached {temp} °C",
+                                        { { L"name", L"GPU" }, { L"temp", std::to_wstring(g_gpu.tempC) } }));
+            } else if (g_gpu.tempC <= g_tempAlertC - 5) {
+                g_gpuTempWarned = false;
+            }
+        }
+    }
+    if (changed) {
+        UpdateWidget();
+        UpdateSystemTrayIcons();
+        UpdatePlaceholder();
+        panel::Refresh();
+    }
+}
+
+// CPU temperature on or off. Turning it on needs the PawnIO driver, and a one-time setup of the helper that reads it
+// (it runs with administrator rights; see src/cputemp.h), each explained first.
+void SetShowCpuTemp(bool on) {
+    if (on) {
+        if (!cputemp::PawnIoInstalled()) {
+            if (MessageBoxW(g_hwnd, T(L"The CPU temperature needs the free PawnIO driver, which is not installed. Open pawnio.eu to get it?"),
+                            kAppName, MB_YESNO | MB_ICONINFORMATION | MB_SETFOREGROUND) == IDYES)
+                ShellExecuteW(nullptr, L"open", L"https://pawnio.eu", nullptr, nullptr, SW_SHOWNORMAL);
+            return;
+        }
+        if (!cputemp::HelperInstalled()) {
+            if (MessageBoxW(g_hwnd,
+                            T(L"The CPU temperature is read by a small helper that needs administrator rights. Setup copies it to "
+                              L"Program Files and adds a task that starts it when you sign in, so you will not be asked again. "
+                              L"Windows asks for your permission once, now. Continue?"),
+                            kAppName, MB_YESNO | MB_ICONQUESTION | MB_SETFOREGROUND) != IDYES)
+                return;
+            cputemp::InstallResult r = cputemp::InstallHelper(g_hwnd);
+            if (r == cputemp::InstallResult::Failed)
+                MessageBoxW(g_hwnd, T(L"The helper could not be set up."), kAppName, MB_OK | MB_ICONWARNING | MB_SETFOREGROUND);
+            if (r != cputemp::InstallResult::Ok) return;
+        }
+        g_showCpuTemp = true;
+        SaveBoolSetting(L"ShowCpuTemp", true);  // before the helper starts: it quits when this is off
+        cputemp::StartHelper();
+    } else {
+        g_showCpuTemp = false;
+        SaveBoolSetting(L"ShowCpuTemp", false);
+        cputemp::StopHelper();
+        g_cpuTemp = cputemp::Reading();
+        g_cpuTempWarned = false;
+    }
+    TickSystemReadings(true);
+    SyncVitalsStrip();
+    UpdateWidget();
+    UpdateSystemTrayIcons();
+    UpdatePlaceholder();
+}
+
+// Takes the helper off this PC again (its task and its copy in Program Files).
+void RemoveCpuTempHelper() {
+    if (MessageBoxW(g_hwnd, T(L"Remove the CPU temperature helper? Windows asks for your permission. The CPU temperature turns off."),
+                    kAppName, MB_YESNO | MB_ICONQUESTION | MB_SETFOREGROUND) != IDYES)
+        return;
+    g_showCpuTemp = false;
+    SaveBoolSetting(L"ShowCpuTemp", false);
+    cputemp::StopHelper();
+    g_cpuTemp = cputemp::Reading();
+    g_cpuTempWarned = false;
+    cputemp::RemoveHelper(g_hwnd);
+    TickSystemReadings(true);
+    SyncVitalsStrip();
+    UpdateWidget();
+    UpdateSystemTrayIcons();
+    UpdatePlaceholder();
 }
 
 void SetShowReading(bool& flag, const wchar_t* name, bool on) {
@@ -1138,10 +1434,13 @@ void SetShowReading(bool& flag, const wchar_t* name, bool on) {
     if (!AnyGpuReading()) {  // free the GPU counters and adapter handle once no GPU reading is shown
         gpumon::Stop();
         g_gpu = gpumon::Reading();
+        g_gpuTempWarned = false;
     }
     TickSystemReadings(true);
     SyncVitalsStrip();  // the first or last reading may add or remove the readings strip
     UpdateWidget();
+    UpdateSystemTrayIcons();
+    UpdatePlaceholder();
 }
 
 // Battery strip at the left end (true) or next to the clock.
@@ -1164,11 +1463,38 @@ void SetVitalsFarLeft(bool on) {
     UpdateWidget();
 }
 
+void SetVitalsFirst(bool on) {
+    g_vitalsFirst = on;
+    SaveBoolSetting(L"VitalsFirst", on);
+    UpdateWidget();
+}
+
 void SetBrandColors(bool on) {
     g_brandColors = on;
     SaveBrandColors(on);
     RedrawAll();
     UpdateWidget();
+}
+
+void SetSystemColors(bool on) {
+    g_systemColors = on;
+    SaveBoolSetting(L"SystemColors", on);
+    UpdateSystemTrayIcons();
+    UpdateWidget();
+}
+
+void SetSystemPollSeconds(DWORD seconds) {
+    g_sysPollSeconds = seconds;
+    SaveSystemPollSeconds(seconds);
+    g_sysTicks = 0;
+    TickSystemReadings(true);
+}
+
+void SetTempAlert(int celsius) {
+    g_tempAlertC = celsius;
+    SaveTempAlertCelsius(celsius);
+    g_cpuTempWarned = false;
+    g_gpuTempWarned = false;
 }
 
 void SetChargeLimit(int limit) {
@@ -1273,7 +1599,204 @@ struct MenuModel {
     std::vector<widget::MonitorOption> monitors;
 };
 
-// Builds the full menu with the current state (checked, greyed, labels). The settings panel reads it as its model.
+HMENU BuildDeviceSubmenu(const TrayEntry& e, UINT base, bool canLeft, bool canRight, MenuIcons* icons,
+                         bool includePlacement) {
+    const std::wstring& k = e.st.key;
+    HMENU sub = CreatePopupMenu();
+    if (includePlacement) {
+        AppendMenuW(sub, MF_STRING | (IsHidden(k) ? 0 : MF_CHECKED), base + DEV_TOGGLE,
+                    g_wantWidget ? T(L"Show on the taskbar") : T(L"Show in the tray"));
+        AppendMenuW(sub, MF_SEPARATOR, 0, nullptr);
+        AppendMenuW(sub, MF_STRING | (canLeft ? 0 : MF_GRAYED), base + DEV_LEFT,
+                    g_wantWidget ? T(L"Move left") : T(L"Move up"));
+        AppendMenuW(sub, MF_STRING | (canRight ? 0 : MF_GRAYED), base + DEV_RIGHT,
+                    g_wantWidget ? T(L"Move right") : T(L"Move down"));
+        AppendMenuW(sub, MF_SEPARATOR, 0, nullptr);
+    }
+    AppendMenuW(sub, MF_STRING, base + DEV_RENAME, T(L"Rename device..."));
+    if (icons) icons->SetLast(sub, 0xE8AC);  // Rename
+    AppendMenuW(sub, MF_STRING | (g_aliases.count(k) ? 0 : MF_GRAYED),
+                base + DEV_RESET_NAME, T(L"Reset to original name"));
+    HMENU alertMenu = CreatePopupMenu();
+    int selectedThreshold = alerts::OverrideFor(g_alertOverrides, k);
+    AppendMenuW(alertMenu, MF_STRING | (selectedThreshold == alerts::kUseDefault ? MF_CHECKED : 0),
+                base + DEV_ALERT_DEFAULT, T(L"Use default (15%)"));
+    AppendMenuW(alertMenu, MF_STRING | (selectedThreshold == alerts::kDisabled ? MF_CHECKED : 0),
+                base + DEV_ALERT_OFF, T(L"Disable notifications"));
+    AppendMenuW(alertMenu, MF_SEPARATOR, 0, nullptr);
+    for (int i = 0; i < alerts::kThresholdCount; ++i) {
+        int level = alerts::kThresholds[i];
+        std::wstring label = std::to_wstring(level) + L"%";
+        AppendMenuW(alertMenu, MF_STRING | (selectedThreshold == level ? MF_CHECKED : 0),
+                    base + DEV_ALERT_FIRST + i, label.c_str());
+    }
+    AppendMenuW(sub, MF_POPUP, (UINT_PTR)alertMenu, T(L"Battery alerts"));
+    if (icons) icons->SetLast(sub, 0xEA8F);  // Ringer
+    AppendMenuW(sub, MF_STRING, base + DEV_HISTORY, T(L"Battery history..."));
+    if (icons) icons->SetLast(sub, 0xE81C);  // History
+    return sub;
+}
+
+HMENU BuildChargeLimitMenu() {
+    HMENU sub = CreatePopupMenu();
+    AppendMenuW(sub, MF_STRING, ID_LIMIT_OFF, T(L"Off"));
+    AppendMenuW(sub, MF_SEPARATOR, 0, nullptr);
+    UINT checked = ID_LIMIT_OFF;
+    for (UINT i = 0; i < (UINT)alerts::kChargeLimitCount; i++) {
+        AppendMenuW(sub, MF_STRING, ID_LIMIT_FIRST + i, (std::to_wstring(alerts::kChargeLimits[i]) + L"%").c_str());
+        if (g_chargeLimit == alerts::kChargeLimits[i]) checked = ID_LIMIT_FIRST + i;
+    }
+    CheckMenuRadioItem(sub, ID_LIMIT_OFF, ID_LIMIT_FIRST + alerts::kChargeLimitCount - 1, checked, MF_BYCOMMAND);
+    return sub;
+}
+
+std::wstring FormatDurationLabel(DWORD seconds) {
+    return seconds < 60 ? TF(L"{seconds} s", { { L"seconds", std::to_wstring(seconds) } })
+                        : TF(L"{minutes} min", { { L"minutes", std::to_wstring(seconds / 60) } });
+}
+
+HMENU BuildPollBatteryMenu() {
+    HMENU sub = CreatePopupMenu();
+    const UINT count = ARRAYSIZE(POLL_SECONDS);
+    UINT checked = 0;
+    for (UINT i = 0; i < count; i++) {
+        DWORD s = POLL_SECONDS[i];
+        AppendMenuW(sub, MF_STRING, ID_POLL_FIRST + i, FormatDurationLabel(s).c_str());
+        if (s * 1000 == g_pollIntervalMs) checked = ID_POLL_FIRST + i;
+    }
+    if (checked) CheckMenuRadioItem(sub, ID_POLL_FIRST, ID_POLL_FIRST + count - 1, checked, MF_BYCOMMAND);
+    return sub;
+}
+
+HMENU BuildTempAlertMenu() {
+    HMENU sub = CreatePopupMenu();
+    AppendMenuW(sub, MF_STRING, ID_TEMP_ALERT_OFF, T(L"Off"));
+    AppendMenuW(sub, MF_SEPARATOR, 0, nullptr);
+    UINT checked = ID_TEMP_ALERT_OFF;
+    const UINT count = ARRAYSIZE(TEMP_ALERT_CELSIUS);
+    for (UINT i = 0; i < count; i++) {
+        AppendMenuW(sub, MF_STRING, ID_TEMP_ALERT_FIRST + i, (std::to_wstring(TEMP_ALERT_CELSIUS[i]) + L" °C").c_str());
+        if (g_tempAlertC == TEMP_ALERT_CELSIUS[i]) checked = ID_TEMP_ALERT_FIRST + i;
+    }
+    CheckMenuRadioItem(sub, ID_TEMP_ALERT_OFF, ID_TEMP_ALERT_FIRST + count - 1, checked, MF_BYCOMMAND);
+    return sub;
+}
+
+HMENU BuildPollSystemMenu() {
+    HMENU sub = CreatePopupMenu();
+    const UINT count = ARRAYSIZE(SYS_POLL_SECONDS);
+    UINT checked = 0;
+    for (UINT i = 0; i < count; i++) {
+        DWORD s = SYS_POLL_SECONDS[i];
+        AppendMenuW(sub, MF_STRING, ID_SYS_POLL_FIRST + i, FormatDurationLabel(s).c_str());
+        if (s == g_sysPollSeconds) checked = ID_SYS_POLL_FIRST + i;
+    }
+    if (checked) CheckMenuRadioItem(sub, ID_SYS_POLL_FIRST, ID_SYS_POLL_FIRST + count - 1, checked, MF_BYCOMMAND);
+    return sub;
+}
+
+HMENU BuildStripPlaceMenu(UINT leftId, UINT clockId, bool left, bool enabled) {
+    HMENU sub = CreatePopupMenu();
+    UINT f = MF_STRING | (enabled ? 0 : MF_GRAYED);
+    AppendMenuW(sub, f, leftId, T(L"Left end of the taskbar"));
+    AppendMenuW(sub, f, clockId, T(L"Next to the clock"));
+    CheckMenuRadioItem(sub, leftId, clockId, left ? leftId : clockId, MF_BYCOMMAND);
+    return sub;
+}
+
+HMENU BuildStripOrderMenu() {
+    HMENU sub = CreatePopupMenu();
+    UINT f = MF_STRING | (g_wantWidget && g_farLeft == g_vitalsFarLeft ? 0 : MF_GRAYED);
+    AppendMenuW(sub, f, ID_BATTERIES_FIRST, T(L"Batteries first"));
+    AppendMenuW(sub, f, ID_VITALS_FIRST, T(L"System first"));
+    CheckMenuRadioItem(sub, ID_BATTERIES_FIRST, ID_VITALS_FIRST, g_vitalsFirst ? ID_VITALS_FIRST : ID_BATTERIES_FIRST, MF_BYCOMMAND);
+    return sub;
+}
+
+HMENU BuildTaskbarOffsetMenu(bool includeMakeRoom) {
+    HMENU sub = CreatePopupMenu();
+    UINT f = MF_STRING | (g_wantWidget ? 0 : MF_GRAYED);
+    const UINT count = ARRAYSIZE(POSITION_OFFSETS);
+    const int current = LoadTaskbarOffset();
+    UINT checked = ID_POSITION_FIRST + count;
+    for (UINT i = 0; i < count; i++) {
+        int px = POSITION_OFFSETS[i];
+        std::wstring label = px ? TF(L"{px} px from the notification area", { { L"px", std::to_wstring(px) } })
+                                : T(L"Next to the notification area");
+        AppendMenuW(sub, f, ID_POSITION_FIRST + i, label.c_str());
+        if (px == current) checked = ID_POSITION_FIRST + i;
+    }
+    std::wstring custom = checked == ID_POSITION_FIRST + count
+                              ? TF(L"Custom ({px} px)...", { { L"px", std::to_wstring(current) } })
+                              : std::wstring(T(L"Custom..."));
+    AppendMenuW(sub, f, ID_POSITION_FIRST + count, custom.c_str());
+    CheckMenuRadioItem(sub, ID_POSITION_FIRST, ID_POSITION_FIRST + count, checked, MF_BYCOMMAND);
+    if (includeMakeRoom) {
+        AppendMenuW(sub, MF_SEPARATOR, 0, nullptr);
+        AppendMenuW(sub, f | (g_makeRoom ? MF_CHECKED : 0), ID_MAKE_ROOM, T(L"Make room for other taskbar widgets"));
+    }
+    return sub;
+}
+
+HMENU BuildVerticalPlaceMenu() {
+    HMENU sub = CreatePopupMenu();
+    AppendMenuW(sub, MF_STRING, ID_PLACE_AUTO, T(L"Automatic (keeps clear of app icons)"));
+    AppendMenuW(sub, MF_STRING, ID_PLACE_TOP, T(L"Top of the taskbar"));
+    AppendMenuW(sub, MF_STRING, ID_PLACE_TRAY, T(L"Above the notification area"));
+    AppendMenuW(sub, MF_STRING, ID_PLACE_BOTTOM,
+                T(L"Bottom of the taskbar (moves the taskbar icons up, Windows 11)"));
+    CheckMenuRadioItem(sub, ID_PLACE_AUTO, ID_PLACE_BOTTOM,
+                       g_verticalPlace == widget::VerticalPlace::Top ? ID_PLACE_TOP
+                       : g_verticalPlace == widget::VerticalPlace::AboveTray ? ID_PLACE_TRAY
+                       : g_verticalPlace == widget::VerticalPlace::Bottom ? ID_PLACE_BOTTOM : ID_PLACE_AUTO,
+                       MF_BYCOMMAND);
+    return sub;
+}
+
+HMENU BuildMonitorMenu(std::vector<widget::MonitorOption>& monitors) {
+    monitors = widget::OtherMonitors();
+    if (monitors.size() > 31) monitors.resize(31);
+    HMENU sub = CreatePopupMenu();
+    UINT f = MF_STRING | (g_wantWidget ? 0 : MF_GRAYED);
+    AppendMenuW(sub, f, ID_MONITOR_ALL, T(L"All monitors"));
+    AppendMenuW(sub, f, ID_MONITOR_MAIN, T(L"Main monitor only"));
+    UINT checked = g_widgetMonitor == L"main" ? ID_MONITOR_MAIN : ID_MONITOR_ALL;
+    bool found = g_widgetMonitor == L"all" || g_widgetMonitor == L"main";
+    std::vector<std::wstring> ids;
+    for (const auto& mo : monitors) ids.push_back(mo.id);
+    int chosen = found ? -1 : widget::FindMonitor(ids, g_widgetMonitor);
+    for (UINT i = 0; i < monitors.size(); i++) {
+        AppendMenuW(sub, f, ID_MONITOR_FIRST + i, TF(L"{monitor} only", { { L"monitor", monitors[i].label } }).c_str());
+        if ((int)i == chosen) { checked = ID_MONITOR_FIRST + i; found = true; }
+    }
+    if (!found) {
+        AppendMenuW(sub, MF_STRING | MF_GRAYED, ID_MONITOR_FIRST + 31, T(L"Chosen monitor (not connected, shown on main)"));
+        checked = ID_MONITOR_FIRST + 31;
+    }
+    CheckMenuRadioItem(sub, ID_MONITOR_ALL, ID_MONITOR_FIRST + 31, checked, MF_BYCOMMAND);
+    return sub;
+}
+
+HMENU BuildLanguageMenu(std::vector<i18n::Language>& languages) {
+    i18n::Init();
+    languages = i18n::Available();
+    if (languages.size() > 64) languages.resize(64);
+    HMENU sub = CreatePopupMenu();
+    AppendMenuW(sub, MF_STRING, ID_LANG_AUTO, T(L"Automatic (Windows language)"));
+    AppendMenuW(sub, MF_SEPARATOR, 0, nullptr);
+    UINT checked = ID_LANG_AUTO;
+    for (UINT i = 0; i < languages.size(); i++) {
+        AppendMenuW(sub, MF_STRING, ID_LANG_FIRST + i, languages[i].name.c_str());
+        if (!i18n::Choice().empty() && _wcsicmp(languages[i].code.c_str(), i18n::Choice().c_str()) == 0)
+            checked = ID_LANG_FIRST + i;
+    }
+    CheckMenuRadioItem(sub, ID_LANG_AUTO, ID_LANG_FIRST + 63, checked, MF_BYCOMMAND);
+    AppendMenuW(sub, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(sub, MF_STRING, ID_LANG_ADD, T(L"Add your own language..."));
+    return sub;
+}
+
+// Builds the organized fallback context menu (used by Shift + click and keyboard access).
 MenuModel BuildMenu(MenuIcons& icons) {
     HMENU m = CreatePopupMenu();
     std::vector<std::wstring> keys;
@@ -1286,196 +1809,121 @@ MenuModel BuildMenu(MenuIcons& icons) {
         auto pos = std::find(shown.begin(), shown.end(), e);
         bool canLeft = pos != shown.end() && pos != shown.begin();
         bool canRight = pos != shown.end() && pos + 1 != shown.end();
-        HMENU sub = CreatePopupMenu();
-        AppendMenuW(sub, MF_STRING | (IsHidden(k) ? 0 : MF_CHECKED), base + DEV_TOGGLE,
-                    g_wantWidget ? T(L"Show on the taskbar") : T(L"Show in the tray"));
-        AppendMenuW(sub, MF_SEPARATOR, 0, nullptr);
-        AppendMenuW(sub, MF_STRING | (canLeft ? 0 : MF_GRAYED), base + DEV_LEFT, g_wantWidget ? T(L"Move left") : T(L"Move up"));
-        AppendMenuW(sub, MF_STRING | (canRight ? 0 : MF_GRAYED), base + DEV_RIGHT, g_wantWidget ? T(L"Move right") : T(L"Move down"));
-        AppendMenuW(sub, MF_SEPARATOR, 0, nullptr);
-        AppendMenuW(sub, MF_STRING, base + DEV_RENAME, T(L"Rename device..."));
-        icons.SetLast(sub, 0xE8AC);  // Rename
-        AppendMenuW(sub, MF_STRING | (g_aliases.count(k) ? 0 : MF_GRAYED),
-                    base + DEV_RESET_NAME, T(L"Reset to original name"));
-        HMENU alertMenu = CreatePopupMenu();
-        int selectedThreshold = alerts::OverrideFor(g_alertOverrides, k);
-        AppendMenuW(alertMenu, MF_STRING | (selectedThreshold == alerts::kUseDefault ? MF_CHECKED : 0),
-                    base + DEV_ALERT_DEFAULT, T(L"Use default (15%)"));
-        AppendMenuW(alertMenu, MF_STRING | (selectedThreshold == alerts::kDisabled ? MF_CHECKED : 0),
-                    base + DEV_ALERT_OFF, T(L"Disable notifications"));
-        AppendMenuW(alertMenu, MF_SEPARATOR, 0, nullptr);
-        for (int i = 0; i < alerts::kThresholdCount; ++i) {
-            int level = alerts::kThresholds[i];
-            std::wstring label = std::to_wstring(level) + L"%";
-            AppendMenuW(alertMenu, MF_STRING | (selectedThreshold == level ? MF_CHECKED : 0),
-                        base + DEV_ALERT_FIRST + i, label.c_str());
-        }
-        AppendMenuW(sub, MF_POPUP, (UINT_PTR)alertMenu, T(L"Battery alerts"));
-        icons.SetLast(sub, 0xEA8F);  // Ringer
-        AppendMenuW(sub, MF_STRING, base + DEV_HISTORY, T(L"Battery history..."));
-        icons.SetLast(sub, 0xE81C);  // History
+        HMENU sub = BuildDeviceSubmenu(*e, base, canLeft, canRight, &icons, true);
         std::wstring line = DisplayName(*e) + L":  " + StatusText(*e) + L"   [" + T(e->st.via) + L"]";
         AppendMenuW(m, MF_POPUP | (IsHidden(k) ? 0 : MF_CHECKED), (UINT_PTR)sub, line.c_str());
         icons.SetLast(m, widget::DeviceGlyph(e->st.kind, e->st.via == L"Bluetooth"));
         keys.push_back(k);
     }
-    AppendMenuW(m, MF_STRING | (g_hideLastKnown ? MF_CHECKED : 0), ID_HIDE_LAST_KNOWN, T(L"Hide last known / asleep devices"));
-    UINT emptyFlags = MF_STRING | (g_trayWhenEmpty ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED);
-    AppendMenuW(m, emptyFlags, ID_TRAY_WHEN_EMPTY, T(L"Move to tray when no devices"));
-    AppendMenuW(m, MF_STRING | (g_showDisconnectedDevices ? MF_CHECKED : 0), ID_SHOW_DISCONNECTED, T(L"Show disconnected devices"));
-    AppendMenuW(m, MF_STRING | (g_dimSleeping ? MF_CHECKED : 0), ID_DIM_SLEEPING, T(L"Dim sleeping devices"));
-    AppendMenuW(m, MF_STRING | (g_recordHistory ? MF_CHECKED : 0), ID_RECORD_HISTORY, T(L"Record battery history"));
-    {
-        HMENU sub = CreatePopupMenu();
-        AppendMenuW(sub, MF_STRING, ID_LIMIT_OFF, T(L"Off"));
-        AppendMenuW(sub, MF_SEPARATOR, 0, nullptr);
-        UINT checked = ID_LIMIT_OFF;
-        for (UINT i = 0; i < (UINT)alerts::kChargeLimitCount; i++) {
-            AppendMenuW(sub, MF_STRING, ID_LIMIT_FIRST + i, (std::to_wstring(alerts::kChargeLimits[i]) + L"%").c_str());
-            if (g_chargeLimit == alerts::kChargeLimits[i]) checked = ID_LIMIT_FIRST + i;
-        }
-        CheckMenuRadioItem(sub, ID_LIMIT_OFF, ID_LIMIT_FIRST + alerts::kChargeLimitCount - 1, checked, MF_BYCOMMAND);
-        AppendMenuW(m, MF_POPUP, (UINT_PTR)sub, T(L"Notify when charged to (saves the battery)"));
-    }
     AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(m, MF_STRING | (g_wantWidget ? MF_CHECKED : 0), ID_MODE_WIDGET, T(L"Show on the taskbar (icon + percentage)"));
-    AppendMenuW(m, MF_STRING | (!g_wantWidget ? MF_CHECKED : 0), ID_MODE_TRAY, T(L"Show as tray icons"));
-    CheckMenuRadioItem(m, ID_MODE_WIDGET, ID_MODE_TRAY, g_wantWidget ? ID_MODE_WIDGET : ID_MODE_TRAY, MF_BYCOMMAND);
-    UINT bgFlags = MF_STRING | (g_widgetBackground ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED);
-    AppendMenuW(m, bgFlags, ID_WIDGET_BACKGROUND, T(L"Background behind taskbar text (for transparent taskbars)"));
-    AppendMenuW(m, MF_STRING | (g_stacked ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_STACKED, T(L"Icons above percentages (narrower)"));
+
+    // Batteries submenu
     {
-        HMENU sub = CreatePopupMenu();
-        UINT f = MF_STRING | (g_wantWidget ? 0 : MF_GRAYED);
-        const UINT count = ARRAYSIZE(POSITION_OFFSETS);
-        const int current = LoadTaskbarOffset();
-        UINT checked = ID_POSITION_FIRST + count;
-        for (UINT i = 0; i < count; i++) {
-            int px = POSITION_OFFSETS[i];
-            std::wstring label = px ? TF(L"{px} px from the notification area", { { L"px", std::to_wstring(px) } })
-                                    : T(L"Next to the notification area");
-            AppendMenuW(sub, f, ID_POSITION_FIRST + i, label.c_str());
-            if (px == current) checked = ID_POSITION_FIRST + i;
-        }
-        // Any other value (typed in, or set by hand in the registry) shows as the custom entry.
-        std::wstring custom = checked == ID_POSITION_FIRST + count
-                                  ? TF(L"Custom ({px} px)...", { { L"px", std::to_wstring(current) } })
-                                  : std::wstring(T(L"Custom..."));
-        AppendMenuW(sub, f, ID_POSITION_FIRST + count, custom.c_str());
-        CheckMenuRadioItem(sub, ID_POSITION_FIRST, ID_POSITION_FIRST + count, checked, MF_BYCOMMAND);
-        AppendMenuW(sub, MF_SEPARATOR, 0, nullptr);
-        AppendMenuW(sub, f | (g_makeRoom ? MF_CHECKED : 0), ID_MAKE_ROOM, T(L"Make room for other taskbar widgets"));
-        AppendMenuW(m, MF_POPUP | (g_wantWidget ? 0 : MF_GRAYED), (UINT_PTR)sub, T(L"Position on the taskbar"));
+        HMENU batMenu = CreatePopupMenu();
+        AppendMenuW(batMenu, MF_STRING | (g_dimSleeping ? MF_CHECKED : 0), ID_DIM_SLEEPING, T(L"Dim sleeping devices"));
+        AppendMenuW(batMenu, MF_STRING | (g_hideLastKnown ? MF_CHECKED : 0), ID_HIDE_LAST_KNOWN,
+                    T(L"Hide last known / asleep devices"));
+        AppendMenuW(batMenu, MF_STRING | (g_showDisconnectedDevices ? MF_CHECKED : 0), ID_SHOW_DISCONNECTED,
+                    T(L"Show disconnected devices"));
+        UINT emptyFlags = MF_STRING | (g_trayWhenEmpty ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED);
+        AppendMenuW(batMenu, emptyFlags, ID_TRAY_WHEN_EMPTY, T(L"Move to tray when no devices"));
+        AppendMenuW(batMenu, MF_SEPARATOR, 0, nullptr);
+        AppendMenuW(batMenu, MF_STRING | (g_recordHistory ? MF_CHECKED : 0), ID_RECORD_HISTORY,
+                    T(L"Record battery history"));
+        AppendMenuW(batMenu, MF_POPUP, (UINT_PTR)BuildChargeLimitMenu(),
+                    T(L"Notify when charged to (saves the battery)"));
+        AppendMenuW(batMenu, MF_POPUP, (UINT_PTR)BuildPollBatteryMenu(), T(L"Check battery every"));
+        AppendMenuW(m, MF_POPUP, (UINT_PTR)batMenu, T(L"Batteries"));
+        icons.SetLast(m, 0xE83F);  // Battery
     }
-    // Left / right taskbar: choose where the column sits.
-    if (widget::Vertical()) {
-        HMENU sub = CreatePopupMenu();
-        AppendMenuW(sub, MF_STRING, ID_PLACE_AUTO, T(L"Automatic (keeps clear of app icons)"));
-        AppendMenuW(sub, MF_STRING, ID_PLACE_TOP, T(L"Top of the taskbar"));
-        AppendMenuW(sub, MF_STRING, ID_PLACE_TRAY, T(L"Above the notification area"));
-        AppendMenuW(sub, MF_STRING, ID_PLACE_BOTTOM,
-                    T(L"Bottom of the taskbar (moves the taskbar icons up, Windows 11)"));
-        CheckMenuRadioItem(sub, ID_PLACE_AUTO, ID_PLACE_BOTTOM,
-                           g_verticalPlace == widget::VerticalPlace::Top ? ID_PLACE_TOP
-                           : g_verticalPlace == widget::VerticalPlace::AboveTray ? ID_PLACE_TRAY
-                           : g_verticalPlace == widget::VerticalPlace::Bottom ? ID_PLACE_BOTTOM : ID_PLACE_AUTO,
-                           MF_BYCOMMAND);
-        AppendMenuW(m, MF_POPUP, (UINT_PTR)sub, T(L"Position on a vertical taskbar"));
-    }
-    // Where each strip sits: the left end of the taskbar, or next to the clock (two strips when they differ).
-    auto placeMenu = [&](UINT leftId, UINT clockId, bool left, bool enabled, const wchar_t* title) {
-        HMENU sub = CreatePopupMenu();
-        UINT f = MF_STRING | (enabled ? 0 : MF_GRAYED);
-        AppendMenuW(sub, f, leftId, T(L"Left end of the taskbar"));
-        AppendMenuW(sub, f, clockId, T(L"Next to the clock"));
-        CheckMenuRadioItem(sub, leftId, clockId, left ? leftId : clockId, MF_BYCOMMAND);
-        AppendMenuW(m, MF_POPUP | (enabled ? 0 : MF_GRAYED), (UINT_PTR)sub, T(title));
-    };
-    placeMenu(ID_BAT_LEFT, ID_BAT_CLOCK, g_farLeft, g_wantWidget, L"Battery strip position");
-    AppendMenuW(m, MF_STRING | (g_showCpu ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_CPU, T(L"Show CPU usage"));
-    AppendMenuW(m, MF_STRING | (g_showRam ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_RAM, T(L"Show RAM usage"));
-    AppendMenuW(m, MF_STRING | (g_showGpu ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_GPU, T(L"Show GPU usage"));
-    AppendMenuW(m, MF_STRING | (g_showGpuTemp ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_GPU_TEMP, T(L"Show GPU temperature"));
-    AppendMenuW(m, MF_STRING | (g_showCpuW ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_CPU_W, T(L"Show CPU power (watts)"));
-    AppendMenuW(m, MF_STRING | (g_showGpuW ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_GPU_W, T(L"Show GPU power (watts)"));
-    AppendMenuW(m, MF_STRING | (g_showVram ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_SHOW_VRAM, T(L"Show GPU memory"));
+
+    // System submenu
     {
-        const wchar_t* labels[] = { L"CPU", L"RAM", L"GPU", L"GPU memory" };
-        HMENU orderMenu = CreatePopupMenu();
-        for (int item = 0; item < 4; ++item) {
-            auto pos = std::find(g_systemOrder.begin(), g_systemOrder.end(), item);
-            bool canUp = pos != g_systemOrder.end() && pos != g_systemOrder.begin();
-            bool canDown = pos != g_systemOrder.end() && pos + 1 != g_systemOrder.end();
+        HMENU sysMenu = CreatePopupMenu();
+        const wchar_t* labels[] = { L"CPU", L"RAM usage", L"GPU", L"GPU memory" };
+        for (size_t idx = 0; idx < g_systemOrder.size(); ++idx) {
+            int item = g_systemOrder[idx];
+            bool canUp = idx > 0, canDown = idx + 1 < g_systemOrder.size();
             HMENU itemMenu = CreatePopupMenu();
+            if (item == 0) {
+                AppendMenuW(itemMenu, MF_STRING | (g_showCpu ? MF_CHECKED : 0), ID_SHOW_CPU, T(L"Show CPU usage"));
+                AppendMenuW(itemMenu, MF_STRING | (g_showCpuTemp ? MF_CHECKED : 0), ID_SHOW_CPU_TEMP,
+                            T(L"Show CPU temperature"));
+                AppendMenuW(itemMenu, MF_STRING | (g_showCpuW ? MF_CHECKED : 0), ID_SHOW_CPU_W,
+                            T(L"Show CPU power (watts)"));
+                if (cputemp::HelperInstalled()) {
+                    AppendMenuW(itemMenu, MF_SEPARATOR, 0, nullptr);
+                    AppendMenuW(itemMenu, MF_STRING, ID_REMOVE_TEMP, T(L"Remove the CPU temperature helper..."));
+                }
+            } else if (item == 1) {
+                AppendMenuW(itemMenu, MF_STRING | (g_showRam ? MF_CHECKED : 0), ID_SHOW_RAM, T(L"Show RAM usage"));
+            } else if (item == 2) {
+                AppendMenuW(itemMenu, MF_STRING | (g_showGpu ? MF_CHECKED : 0), ID_SHOW_GPU, T(L"Show GPU usage"));
+                AppendMenuW(itemMenu, MF_STRING | (g_showGpuTemp ? MF_CHECKED : 0), ID_SHOW_GPU_TEMP,
+                            T(L"Show GPU temperature"));
+                AppendMenuW(itemMenu, MF_STRING | (g_showGpuW ? MF_CHECKED : 0), ID_SHOW_GPU_W,
+                            T(L"Show GPU power (watts)"));
+            } else if (item == 3) {
+                AppendMenuW(itemMenu, MF_STRING | (g_showVram ? MF_CHECKED : 0), ID_SHOW_VRAM, T(L"Show GPU memory"));
+            }
+            AppendMenuW(itemMenu, MF_SEPARATOR, 0, nullptr);
             AppendMenuW(itemMenu, MF_STRING | (canUp ? 0 : MF_GRAYED), ID_SYS_MOVE_FIRST + item * 2, T(L"Move earlier"));
             AppendMenuW(itemMenu, MF_STRING | (canDown ? 0 : MF_GRAYED), ID_SYS_MOVE_FIRST + item * 2 + 1, T(L"Move later"));
-            AppendMenuW(orderMenu, MF_POPUP | (g_wantWidget ? 0 : MF_GRAYED), (UINT_PTR)itemMenu, T(labels[item]));
+            AppendMenuW(sysMenu, MF_POPUP, (UINT_PTR)itemMenu, T(labels[item]));
         }
-        AppendMenuW(m, MF_POPUP | (g_wantWidget ? 0 : MF_GRAYED), (UINT_PTR)orderMenu, T(L"System item order"));
+        AppendMenuW(sysMenu, MF_SEPARATOR, 0, nullptr);
+        AppendMenuW(sysMenu, MF_POPUP, (UINT_PTR)BuildTempAlertMenu(), T(L"High temperature alert"));
+        AppendMenuW(sysMenu, MF_POPUP, (UINT_PTR)BuildPollSystemMenu(), T(L"Check system every"));
+        AppendMenuW(m, MF_POPUP, (UINT_PTR)sysMenu, T(L"System"));
+        icons.SetLast(m, 0xE950);  // Diagnostic / Chip
     }
-    placeMenu(ID_VIT_LEFT, ID_VIT_CLOCK, g_vitalsFarLeft, g_wantWidget && AnyReading(), L"CPU / RAM / GPU strip position");
-    // With more than one monitor: choose which taskbars show the widget (all, main only, or one monitor).
-    auto monitors = widget::OtherMonitors();
-    if (monitors.size() > 31) monitors.resize(31);
-    if (!monitors.empty()) {
-        HMENU sub = CreatePopupMenu();
-        UINT f = MF_STRING | (g_wantWidget ? 0 : MF_GRAYED);
-        AppendMenuW(sub, f, ID_MONITOR_ALL, T(L"All monitors"));
-        AppendMenuW(sub, f, ID_MONITOR_MAIN, T(L"Main monitor only"));
-        UINT checked = g_widgetMonitor == L"main" ? ID_MONITOR_MAIN : ID_MONITOR_ALL;
-        bool found = g_widgetMonitor == L"all" || g_widgetMonitor == L"main";
-        std::vector<std::wstring> ids;
-        for (const auto& mo : monitors) ids.push_back(mo.id);
-        int chosen = found ? -1 : widget::FindMonitor(ids, g_widgetMonitor);
-        for (UINT i = 0; i < monitors.size(); i++) {
-            AppendMenuW(sub, f, ID_MONITOR_FIRST + i, TF(L"{monitor} only", { { L"monitor", monitors[i].label } }).c_str());
-            if ((int)i == chosen) { checked = ID_MONITOR_FIRST + i; found = true; }
-        }
-        if (!found) {  // the chosen monitor is unplugged: the main taskbar shows the widget meanwhile
-            AppendMenuW(sub, MF_STRING | MF_GRAYED, ID_MONITOR_FIRST + 31, T(L"Chosen monitor (not connected, shown on main)"));
-            checked = ID_MONITOR_FIRST + 31;
-        }
-        CheckMenuRadioItem(sub, ID_MONITOR_ALL, ID_MONITOR_FIRST + 31, checked, MF_BYCOMMAND);
-        AppendMenuW(m, MF_POPUP | (g_wantWidget ? 0 : MF_GRAYED), (UINT_PTR)sub, T(L"Show the widget on"));
-        icons.SetLast(m, 0xE7F4);  // TVMonitor
+
+    // Appearance submenu
+    std::vector<widget::MonitorOption> monitors;
+    {
+        HMENU appMenu = CreatePopupMenu();
+        AppendMenuW(appMenu, MF_STRING | (g_wantWidget ? MF_CHECKED : 0), ID_MODE_WIDGET,
+                    T(L"Show on the taskbar (icon + percentage)"));
+        AppendMenuW(appMenu, MF_STRING | (!g_wantWidget ? MF_CHECKED : 0), ID_MODE_TRAY, T(L"Show as tray icons"));
+        CheckMenuRadioItem(appMenu, ID_MODE_WIDGET, ID_MODE_TRAY, g_wantWidget ? ID_MODE_WIDGET : ID_MODE_TRAY,
+                           MF_BYCOMMAND);
+        AppendMenuW(appMenu, MF_SEPARATOR, 0, nullptr);
+        AppendMenuW(appMenu, MF_POPUP | (g_wantWidget ? 0 : MF_GRAYED),
+                    (UINT_PTR)BuildStripPlaceMenu(ID_BAT_LEFT, ID_BAT_CLOCK, g_farLeft, g_wantWidget),
+                    T(L"Battery strip position"));
+        AppendMenuW(appMenu, MF_POPUP | (g_wantWidget && AnyReading() ? 0 : MF_GRAYED),
+                    (UINT_PTR)BuildStripPlaceMenu(ID_VIT_LEFT, ID_VIT_CLOCK, g_vitalsFarLeft,
+                                                  g_wantWidget && AnyReading()),
+                    T(L"CPU / RAM / GPU strip position"));
+        AppendMenuW(appMenu, MF_POPUP | (g_wantWidget && g_farLeft == g_vitalsFarLeft ? 0 : MF_GRAYED),
+                    (UINT_PTR)BuildStripOrderMenu(), T(L"Strip order"));
+        AppendMenuW(appMenu, MF_POPUP | (g_wantWidget ? 0 : MF_GRAYED), (UINT_PTR)BuildTaskbarOffsetMenu(true),
+                    T(L"Position on the taskbar"));
+        if (widget::Vertical())
+            AppendMenuW(appMenu, MF_POPUP, (UINT_PTR)BuildVerticalPlaceMenu(), T(L"Position on a vertical taskbar"));
+        HMENU monSub = BuildMonitorMenu(monitors);
+        if (!monitors.empty())
+            AppendMenuW(appMenu, MF_POPUP | (g_wantWidget ? 0 : MF_GRAYED), (UINT_PTR)monSub,
+                        T(L"Show the widget on"));
+        else
+            DestroyMenu(monSub);
+        AppendMenuW(appMenu, MF_SEPARATOR, 0, nullptr);
+        AppendMenuW(appMenu, MF_STRING | (g_stacked ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED), ID_STACKED,
+                    T(L"Icons above percentages (narrower)"));
+        AppendMenuW(appMenu, MF_STRING | (g_widgetBackground ? MF_CHECKED : 0) | (g_wantWidget ? 0 : MF_GRAYED),
+                    ID_WIDGET_BACKGROUND, T(L"Background behind taskbar text (for transparent taskbars)"));
+        AppendMenuW(appMenu, MF_STRING | (g_brandColors ? MF_CHECKED : 0), ID_BRAND_COLORS,
+                    T(L"Brand colors (Razer green, Logitech blue, ...)"));
+        AppendMenuW(appMenu, MF_STRING | (g_systemColors ? MF_CHECKED : 0), ID_SYSTEM_COLORS,
+                    T(L"System colors (CPU blue, RAM purple, GPU green, ...)"));
+        AppendMenuW(m, MF_POPUP, (UINT_PTR)appMenu, T(L"Appearance"));
+        icons.SetLast(m, 0xE790);  // Color
     }
-    AppendMenuW(m, MF_STRING | (g_brandColors ? MF_CHECKED : 0), ID_BRAND_COLORS, T(L"Brand colors (Razer green, Logitech blue, ...)"));
+
     AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
-    // Language: automatic, every built-in or user-added language (in its own name), and a way to add one.
-    i18n::Init();  // picks up language files added since the last time
-    auto languages = i18n::Available();
-    if (languages.size() > 64) languages.resize(64);
-    {
-        HMENU sub = CreatePopupMenu();
-        AppendMenuW(sub, MF_STRING, ID_LANG_AUTO, T(L"Automatic (Windows language)"));
-        AppendMenuW(sub, MF_SEPARATOR, 0, nullptr);
-        UINT checked = ID_LANG_AUTO;
-        for (UINT i = 0; i < languages.size(); i++) {
-            AppendMenuW(sub, MF_STRING, ID_LANG_FIRST + i, languages[i].name.c_str());
-            if (!i18n::Choice().empty() && _wcsicmp(languages[i].code.c_str(), i18n::Choice().c_str()) == 0) checked = ID_LANG_FIRST + i;
-        }
-        CheckMenuRadioItem(sub, ID_LANG_AUTO, ID_LANG_FIRST + 63, checked, MF_BYCOMMAND);
-        AppendMenuW(sub, MF_SEPARATOR, 0, nullptr);
-        AppendMenuW(sub, MF_STRING, ID_LANG_ADD, T(L"Add your own language..."));
-        AppendMenuW(m, MF_POPUP, (UINT_PTR)sub, T(L"Language"));
-        icons.SetLast(m, 0xE774);  // Globe
-    }
-    {
-        HMENU sub = CreatePopupMenu();
-        const UINT count = ARRAYSIZE(POLL_SECONDS);
-        UINT checked = 0;
-        for (UINT i = 0; i < count; i++) {
-            DWORD s = POLL_SECONDS[i];
-            std::wstring label = s < 60 ? TF(L"{seconds} s", { { L"seconds", std::to_wstring(s) } })
-                                        : TF(L"{minutes} min", { { L"minutes", std::to_wstring(s / 60) } });
-            AppendMenuW(sub, MF_STRING, ID_POLL_FIRST + i, label.c_str());
-            if (s * 1000 == g_pollIntervalMs) checked = ID_POLL_FIRST + i;
-        }
-        if (checked) CheckMenuRadioItem(sub, ID_POLL_FIRST, ID_POLL_FIRST + count - 1, checked, MF_BYCOMMAND);
-        AppendMenuW(m, MF_POPUP, (UINT_PTR)sub, T(L"Check battery every"));
-        icons.SetLast(m, 0xE916);  // Stopwatch
-    }
-    AppendMenuW(m, MF_STRING, ID_REFRESH, T(L"Refresh now"));
+    std::vector<i18n::Language> languages;
+    AppendMenuW(m, MF_POPUP, (UINT_PTR)BuildLanguageMenu(languages), T(L"Language"));
+    icons.SetLast(m, 0xE774);  // Globe
     AppendMenuW(m, MF_STRING | (AutostartEnabled() ? MF_CHECKED : 0), ID_AUTOSTART, T(L"Start with Windows"));
     AppendMenuW(m, MF_STRING, ID_REPORT, T(L"Request support for a device..."));
     AppendMenuW(m, MF_STRING, ID_SUPPORT, T(L"Support the project..."));
@@ -1485,6 +1933,7 @@ MenuModel BuildMenu(MenuIcons& icons) {
                        (updates::Supported() ? 0 : MF_GRAYED);
     AppendMenuW(m, updateFlags, ID_AUTO_UPDATE, T(L"Automatically check for updates"));
     AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(m, MF_STRING, ID_REFRESH, T(L"Refresh now"));
     AppendMenuW(m, MF_STRING, ID_EXIT, T(L"Exit"));
     icons.Set(m, ID_REFRESH, false, 0xE72C);         // Refresh
     icons.Set(m, ID_REPORT, false, 0xE897);          // Help
@@ -1499,13 +1948,13 @@ MenuModel BuildMenu(MenuIcons& icons) {
     return model;
 }
 
-// Runs a command chosen from a menu built by BuildMenu (list-position ids are resolved against `model`).
+// Runs a command chosen from a menu or the settings panel (list-position ids are resolved against `model`).
 void RunCommand(UINT cmd, const MenuModel& model) {
     const auto& keys = model.keys;
     const auto& languages = model.languages;
     const auto& monitors = model.monitors;
     switch (cmd) {
-        case ID_REFRESH: SetEvent(g_refreshEvt); break;
+        case ID_REFRESH: SetEvent(g_refreshEvt); TickSystemReadings(true); break;
         case ID_AUTOSTART: SetAutostart(!AutostartEnabled()); break;
         case ID_HIDE_LAST_KNOWN: SetHideLastKnown(!g_hideLastKnown); break;
         case ID_TRAY_WHEN_EMPTY: SetTrayWhenEmpty(!g_trayWhenEmpty); break;
@@ -1513,12 +1962,14 @@ void RunCommand(UINT cmd, const MenuModel& model) {
         case ID_DIM_SLEEPING: SetDimSleeping(!g_dimSleeping); break;
         case ID_RECORD_HISTORY: g_recordHistory = !g_recordHistory; SaveRecordHistory(g_recordHistory); break;
         case ID_LIMIT_OFF: SetChargeLimit(0); break;
+        case ID_TEMP_ALERT_OFF: SetTempAlert(0); break;
         case ID_WIDGET_BACKGROUND: SetWidgetBackground(!g_widgetBackground); break;
         case ID_MONITOR_ALL: SetWidgetMonitor(L"all"); break;
         case ID_LANG_AUTO: SetLanguage(L""); break;
         case ID_LANG_ADD: i18n::OpenUserFolder(); break;
         case ID_MONITOR_MAIN: SetWidgetMonitor(L"main"); break;
         case ID_BRAND_COLORS: SetBrandColors(!g_brandColors); break;
+        case ID_SYSTEM_COLORS: SetSystemColors(!g_systemColors); break;
         case ID_STACKED: SetStacked(!g_stacked); break;
         case ID_MAKE_ROOM: SetMakeRoom(!g_makeRoom); break;
         case ID_PLACE_AUTO: SetWidgetPlace(widget::VerticalPlace::Auto); break;
@@ -1529,16 +1980,20 @@ void RunCommand(UINT cmd, const MenuModel& model) {
         case ID_BAT_CLOCK: SetFarLeft(false); break;
         case ID_VIT_LEFT: SetVitalsFarLeft(true); break;
         case ID_VIT_CLOCK: SetVitalsFarLeft(false); break;
+        case ID_BATTERIES_FIRST: SetVitalsFirst(false); break;
+        case ID_VITALS_FIRST: SetVitalsFirst(true); break;
         case ID_SHOW_CPU: SetShowReading(g_showCpu, L"ShowCpu", !g_showCpu); break;
         case ID_SHOW_RAM: SetShowReading(g_showRam, L"ShowRam", !g_showRam); break;
         case ID_SHOW_GPU: SetShowReading(g_showGpu, L"ShowGpu", !g_showGpu); break;
         case ID_SHOW_GPU_TEMP: SetShowReading(g_showGpuTemp, L"ShowGpuTemp", !g_showGpuTemp); break;
         case ID_SHOW_CPU_W: SetShowReading(g_showCpuW, L"ShowCpuWatts", !g_showCpuW); break;
+        case ID_SHOW_CPU_TEMP: SetShowCpuTemp(!g_showCpuTemp); break;
+        case ID_REMOVE_TEMP: RemoveCpuTempHelper(); break;
         case ID_SHOW_GPU_W: SetShowReading(g_showGpuW, L"ShowGpuWatts", !g_showGpuW); break;
         case ID_SHOW_VRAM: SetShowReading(g_showVram, L"ShowVram", !g_showVram); break;
         case ID_MODE_WIDGET: SetMode(true); break;
         case ID_MODE_TRAY: SetMode(false); break;
-        case ID_SUPPORT: ShellExecuteW(nullptr, L"open", L"https://github.com/symNistaken/TaskbarVitals", nullptr, nullptr, SW_SHOWNORMAL); break;
+        case ID_SUPPORT: ShellExecuteW(nullptr, L"open", L"https://buymeacoffee.com/symnistaken", nullptr, nullptr, SW_SHOWNORMAL); break;
         case ID_REPORT: report::Show(g_inst, g_hwnd); break;
         case ID_UPDATE: updates::Activate(g_hwnd); break;
         case ID_AUTO_UPDATE: updates::ToggleAutomatic(); break;
@@ -1560,8 +2015,12 @@ void RunCommand(UINT cmd, const MenuModel& model) {
             }
             if (cmd >= ID_LIMIT_FIRST && cmd < ID_LIMIT_FIRST + (UINT)alerts::kChargeLimitCount) {
                 SetChargeLimit(alerts::kChargeLimits[cmd - ID_LIMIT_FIRST]);
+            } else if (cmd >= ID_TEMP_ALERT_FIRST && cmd < ID_TEMP_ALERT_FIRST + ARRAYSIZE(TEMP_ALERT_CELSIUS)) {
+                SetTempAlert(TEMP_ALERT_CELSIUS[cmd - ID_TEMP_ALERT_FIRST]);
             } else if (cmd >= ID_POLL_FIRST && cmd < ID_POLL_FIRST + ARRAYSIZE(POLL_SECONDS)) {
                 SetPollSeconds(POLL_SECONDS[cmd - ID_POLL_FIRST]);
+            } else if (cmd >= ID_SYS_POLL_FIRST && cmd < ID_SYS_POLL_FIRST + ARRAYSIZE(SYS_POLL_SECONDS)) {
+                SetSystemPollSeconds(SYS_POLL_SECONDS[cmd - ID_SYS_POLL_FIRST]);
             } else if (cmd >= ID_LANG_FIRST && cmd < ID_LANG_FIRST + languages.size()) {
                 SetLanguage(languages[cmd - ID_LANG_FIRST].code);
             } else if (cmd >= ID_MONITOR_FIRST && cmd < ID_MONITOR_FIRST + monitors.size()) {
@@ -1626,81 +2085,319 @@ void ShowMenu() {
     RunCommand(cmd, model);
 }
 
-// ---- settings panel (panel.cpp): the menu is its model ----
+// ---- settings panel (panel.cpp) ----------------------------------------------------------------
 
 MenuModel g_panelModel;
-std::unique_ptr<MenuIcons> g_panelIcons;
 
-void PanelRelease() {
-    if (g_panelModel.menu) DestroyMenu(g_panelModel.menu);
-    g_panelModel = MenuModel();
-    g_panelIcons.reset();
+std::wstring CurrentLanguageLabel(const std::vector<i18n::Language>& languages) {
+    if (!i18n::Choice().empty()) {
+        for (const auto& l : languages)
+            if (_wcsicmp(l.code.c_str(), i18n::Choice().c_str()) == 0) return l.name;
+    }
+    return T(L"Automatic (Windows language)");
 }
 
-HMENU PanelBuild(std::vector<panel::Device>& devices) {
-    PanelRelease();
-    ApplyMenuTheme(g_lightTaskbar);  // the panel's drop-downs are menus too
-    g_panelIcons = std::make_unique<MenuIcons>(g_lightTaskbar);
-    g_panelModel = BuildMenu(*g_panelIcons);
-    for (const auto& key : g_panelModel.keys) {
-        panel::Device d;
-        d.key = key;
-        d.hidden = IsHidden(key);
+std::wstring CurrentMonitorLabel(const std::vector<widget::MonitorOption>& monitors) {
+    if (g_widgetMonitor == L"main") return T(L"Main monitor only");
+    if (g_widgetMonitor == L"all") return T(L"All monitors");
+    std::vector<std::wstring> ids;
+    for (const auto& mo : monitors) ids.push_back(mo.id);
+    int idx = widget::FindMonitor(ids, g_widgetMonitor);
+    if (idx >= 0) return TF(L"{monitor} only", { { L"monitor", monitors[idx].label } });
+    return T(L"Chosen monitor (not connected, shown on main)");
+}
+
+std::wstring CurrentOffsetLabel() {
+    int current = LoadTaskbarOffset();
+    if (current == 0) return T(L"Next to the notification area");
+    return TF(L"{px} px from the notification area", { { L"px", std::to_wstring(current) } });
+}
+
+std::wstring CurrentVerticalLabel() {
+    switch (g_verticalPlace) {
+        case widget::VerticalPlace::Top: return T(L"Top of the taskbar");
+        case widget::VerticalPlace::AboveTray: return T(L"Above the notification area");
+        case widget::VerticalPlace::Bottom:
+            return T(L"Bottom of the taskbar (moves the taskbar icons up, Windows 11)");
+        default: return T(L"Automatic (keeps clear of app icons)");
+    }
+}
+
+void PanelBuild(panel::Model& out) {
+    g_panelModel = MenuModel{};
+    i18n::Init();
+    g_panelModel.languages = i18n::Available();
+    if (g_panelModel.languages.size() > 64) g_panelModel.languages.resize(64);
+    g_panelModel.monitors = widget::OtherMonitors();
+    if (g_panelModel.monitors.size() > 31) g_panelModel.monitors.resize(31);
+
+    auto addHeader = [](std::vector<panel::Row>& list, const std::wstring& title) {
+        panel::Row r;
+        r.kind = panel::RowKind::SectionHeader;
+        r.label = title;
+        list.push_back(std::move(r));
+    };
+    auto addToggle = [](std::vector<panel::Row>& list, UINT id, const std::wstring& label, bool on,
+                        bool grayed = false, bool indented = false, bool newCard = false) {
+        panel::Row r;
+        r.kind = panel::RowKind::Toggle;
+        r.id = id;
+        r.label = label;
+        r.on = on;
+        r.grayed = grayed;
+        r.indented = indented;
+        r.newCard = newCard;
+        list.push_back(std::move(r));
+    };
+    auto addChoice = [](std::vector<panel::Row>& list, UINT popupId, const std::wstring& label,
+                        const std::wstring& value, bool grayed = false, bool newCard = false) {
+        panel::Row r;
+        r.kind = panel::RowKind::Choice;
+        r.id = popupId;
+        r.label = label;
+        r.value = value;
+        r.grayed = grayed;
+        r.newCard = newCard;
+        list.push_back(std::move(r));
+    };
+    auto addAction = [](std::vector<panel::Row>& list, UINT id, const std::wstring& label,
+                        bool grayed = false, bool indented = false, bool newCard = false) {
+        panel::Row r;
+        r.kind = panel::RowKind::Action;
+        r.id = id;
+        r.label = label;
+        r.grayed = grayed;
+        r.indented = indented;
+        r.newCard = newCard;
+        list.push_back(std::move(r));
+    };
+
+    // ---- Tab 1: Batteries ----
+    auto& bat = out.tabs[(int)panel::Tab::Batteries];
+    addHeader(bat, T(L"Devices"));
+    std::vector<TrayEntry*> all = OrderedEntries(false), shown = OrderedEntries(true);
+    if (all.empty()) {
+        addAction(bat, 0, T(L"No devices with battery info found"), true, false, true);
+    } else {
+        for (TrayEntry* e : all) {
+            const std::wstring& k = e->st.key;
+            UINT base = ID_DEVICE_FIRST + (UINT)g_panelModel.keys.size() * DEV_STRIDE;
+            g_panelModel.keys.push_back(k);
+            auto pos = std::find(shown.begin(), shown.end(), e);
+            panel::Row r;
+            r.kind = panel::RowKind::DeviceCard;
+            r.newCard = true;
+            r.label = DisplayName(*e);
+            r.sublabel = StatusText(*e) + L"  ·  " + T(e->st.via);
+            r.glyph = widget::DeviceGlyph(e->st.kind, e->st.via == L"Bluetooth");
+            Accent ac = AccentFor(e->st);
+            if (ac != Accent::None) {
+                r.hasAccent = true;
+                r.accentColor = AccentColorRef(ac, g_lightTaskbar);
+            }
+            r.on = !IsHidden(k);
+            r.dim = IsHidden(k) || !e->st.connected || (e->st.asleep && g_dimSleeping);
+            r.canUp = pos != shown.end() && pos != shown.begin();
+            r.canDown = pos != shown.end() && pos + 1 != shown.end();
+            r.id = base + DEV_TOGGLE;
+            r.id2 = base + DEV_MORE_POPUP;
+            r.upId = base + DEV_LEFT;
+            r.downId = base + DEV_RIGHT;
+            bat.push_back(std::move(r));
+        }
+    }
+    addHeader(bat, T(L"Visibility"));
+    addToggle(bat, ID_DIM_SLEEPING, T(L"Dim sleeping devices"), g_dimSleeping, false, false, true);
+    addToggle(bat, ID_HIDE_LAST_KNOWN, T(L"Hide last known / asleep devices"), g_hideLastKnown);
+    addToggle(bat, ID_SHOW_DISCONNECTED, T(L"Show disconnected devices"), g_showDisconnectedDevices);
+    addToggle(bat, ID_TRAY_WHEN_EMPTY, T(L"Move to tray when no devices"), g_trayWhenEmpty, !g_wantWidget);
+
+    addHeader(bat, T(L"Battery alerts"));
+    addToggle(bat, ID_RECORD_HISTORY, T(L"Record battery history"), g_recordHistory, false, false, true);
+    addChoice(bat, ID_POPUP_CHARGE_LIMIT, T(L"Notify when charged to (saves the battery)"),
+              g_chargeLimit ? std::to_wstring(g_chargeLimit) + L"%" : std::wstring(T(L"Off")));
+    addChoice(bat, ID_POPUP_POLL_BATTERY, T(L"Check battery every"),
+              FormatDurationLabel((DWORD)(g_pollIntervalMs / 1000)));
+
+    // ---- Tab 2: System ----
+    auto& sys = out.tabs[(int)panel::Tab::System];
+    addHeader(sys, T(L"System"));
+    for (size_t idx = 0; idx < g_systemOrder.size(); ++idx) {
+        int item = g_systemOrder[idx];
+        bool canUp = idx > 0, canDown = idx + 1 < g_systemOrder.size();
+        UINT upId = ID_SYS_MOVE_FIRST + (UINT)item * 2;
+        UINT downId = ID_SYS_MOVE_FIRST + (UINT)item * 2 + 1;
+        Accent ac = SystemAccentFor(item);
+        panel::Row hdr;
+        hdr.kind = panel::RowKind::SystemHeader;
+        hdr.newCard = true;
+        hdr.canUp = canUp;
+        hdr.canDown = canDown;
+        hdr.upId = upId;
+        hdr.downId = downId;
+        if (ac != Accent::None) {
+            hdr.hasAccent = true;
+            hdr.accentColor = AccentColorRef(ac, g_lightTaskbar);
+        }
+
+        if (item == 0) {
+            hdr.glyph = 0xE950;
+            hdr.label = T(L"CPU");
+            hdr.hasSwitch = false;
+            std::vector<std::wstring> parts;
+            if (g_showCpu && g_sys.cpu >= 0) parts.push_back(std::to_wstring(g_sys.cpu) + L"%");
+            if (g_showCpuTemp && g_cpuTemp.tempC >= 0) parts.push_back(std::to_wstring(g_cpuTemp.tempC) + L" °C");
+            if (g_showCpuW && g_sys.cpuWatts >= 0) parts.push_back(std::to_wstring(g_sys.cpuWatts) + L" W");
+            bool anyCpu = g_showCpu || g_showCpuTemp || g_showCpuW;
+            hdr.value = !anyCpu ? T(L"Off") : (parts.empty() ? L"..." : JoinParts(parts, L" · "));
+            hdr.dim = !anyCpu;
+            if (g_showCpuTemp && g_cpuTemp.tempC < 0) hdr.sublabel = CpuTempStatusText();
+            sys.push_back(std::move(hdr));
+            addToggle(sys, ID_SHOW_CPU, T(L"Show CPU usage"), g_showCpu, false, true);
+            addToggle(sys, ID_SHOW_CPU_TEMP, T(L"Show CPU temperature"), g_showCpuTemp, false, true);
+            if (cputemp::HelperInstalled())
+                addAction(sys, ID_REMOVE_TEMP, T(L"Remove the CPU temperature helper..."), false, true);
+            addToggle(sys, ID_SHOW_CPU_W, T(L"Show CPU power (watts)"), g_showCpuW, false, true);
+        } else if (item == 1) {
+            hdr.glyph = 0xE964;
+            hdr.label = T(L"RAM usage");
+            hdr.hasSwitch = true;
+            hdr.on = g_showRam;
+            hdr.id = ID_SHOW_RAM;
+            hdr.value = !g_showRam ? T(L"Off")
+                      : (g_sys.ram >= 0 ? FormatGbPair(g_sys.ram, g_sys.ramUsedGb, g_sys.ramTotalGb) : L"...");
+            hdr.dim = !g_showRam;
+            sys.push_back(std::move(hdr));
+        } else if (item == 2) {
+            hdr.glyph = 0xE7F4;
+            hdr.label = L"GPU";
+            hdr.hasSwitch = false;
+            hdr.sublabel = g_gpu.available ? g_gpu.name : std::wstring();
+            std::vector<std::wstring> parts;
+            if (g_gpu.available) {
+                if (g_showGpu && g_gpu.use >= 0) parts.push_back(std::to_wstring(g_gpu.use) + L"%");
+                if (g_showGpuTemp && g_gpu.tempC >= 0) parts.push_back(std::to_wstring(g_gpu.tempC) + L" °C");
+                if (g_showGpuW && g_gpu.watts >= 0) parts.push_back(std::to_wstring(g_gpu.watts) + L" W");
+            }
+            bool anyGpu = g_showGpu || g_showGpuTemp || g_showGpuW;
+            hdr.value = !anyGpu ? T(L"Off") : (parts.empty() ? L"..." : JoinParts(parts, L" · "));
+            hdr.dim = !anyGpu;
+            sys.push_back(std::move(hdr));
+            addToggle(sys, ID_SHOW_GPU, T(L"Show GPU usage"), g_showGpu, false, true);
+            addToggle(sys, ID_SHOW_GPU_TEMP, T(L"Show GPU temperature"), g_showGpuTemp, false, true);
+            addToggle(sys, ID_SHOW_GPU_W, T(L"Show GPU power (watts)"), g_showGpuW, false, true);
+        } else if (item == 3) {
+            hdr.glyph = 0xE964;
+            hdr.label = T(L"GPU memory");
+            hdr.hasSwitch = true;
+            hdr.on = g_showVram;
+            hdr.id = ID_SHOW_VRAM;
+            hdr.sublabel = g_gpu.available ? g_gpu.name : std::wstring();
+            hdr.value = !g_showVram ? T(L"Off")
+                      : (g_gpu.available && g_gpu.vram >= 0 ? FormatGbPair(g_gpu.vram, g_gpu.vramUsedGb, g_gpu.vramTotalGb)
+                                                            : L"...");
+            hdr.dim = !g_showVram;
+            sys.push_back(std::move(hdr));
+        }
+    }
+    addHeader(sys, T(L"Options"));
+    addChoice(sys, ID_POPUP_TEMP_ALERT, T(L"High temperature alert"),
+              g_tempAlertC ? std::to_wstring(g_tempAlertC) + L" °C" : std::wstring(T(L"Off")), false, true);
+    addChoice(sys, ID_POPUP_POLL_SYSTEM, T(L"Check system every"), FormatDurationLabel(g_sysPollSeconds));
+
+    // ---- Tab 3: Appearance ----
+    auto& app = out.tabs[(int)panel::Tab::Appearance];
+    addHeader(app, T(L"Display mode"));
+    {
+        panel::Row seg;
+        seg.kind = panel::RowKind::Segmented;
+        seg.newCard = true;
+        seg.label = T(L"Show on the taskbar");
+        seg.sublabel = T(L"Show as tray icons");
+        seg.on = g_wantWidget;
+        seg.id = ID_MODE_WIDGET;
+        seg.id2 = ID_MODE_TRAY;
+        app.push_back(std::move(seg));
+    }
+    addHeader(app, T(L"Position on the taskbar"));
+    addChoice(app, ID_POPUP_BAT_POS, T(L"Battery strip position"),
+              g_farLeft ? T(L"Left end of the taskbar") : T(L"Next to the clock"), !g_wantWidget, true);
+    addChoice(app, ID_POPUP_VIT_POS, T(L"CPU / RAM / GPU strip position"),
+              g_vitalsFarLeft ? T(L"Left end of the taskbar") : T(L"Next to the clock"),
+              !g_wantWidget || !AnyReading());
+    addChoice(app, ID_POPUP_STRIP_ORDER, T(L"Strip order"),
+              g_vitalsFirst ? T(L"System first") : T(L"Batteries first"),
+              !g_wantWidget || g_farLeft != g_vitalsFarLeft);
+    addChoice(app, ID_POPUP_TASKBAR_POS, T(L"Position on the taskbar"), CurrentOffsetLabel(), !g_wantWidget);
+    addToggle(app, ID_MAKE_ROOM, T(L"Make room for other taskbar widgets"), g_makeRoom, !g_wantWidget);
+    if (widget::Vertical())
+        addChoice(app, ID_POPUP_VERTICAL_POS, T(L"Position on a vertical taskbar"), CurrentVerticalLabel(),
+                  !g_wantWidget);
+    if (!g_panelModel.monitors.empty())
+        addChoice(app, ID_POPUP_MONITORS, T(L"Show the widget on"), CurrentMonitorLabel(g_panelModel.monitors),
+                  !g_wantWidget);
+
+    addHeader(app, T(L"Style"));
+    addToggle(app, ID_STACKED, T(L"Icons above percentages (narrower)"), g_stacked, !g_wantWidget, false, true);
+    addToggle(app, ID_WIDGET_BACKGROUND, T(L"Background behind taskbar text (for transparent taskbars)"),
+              g_widgetBackground, !g_wantWidget);
+    addToggle(app, ID_BRAND_COLORS, T(L"Brand colors (Razer green, Logitech blue, ...)"), g_brandColors);
+    addToggle(app, ID_SYSTEM_COLORS, T(L"System colors (CPU blue, RAM purple, GPU green, ...)"), g_systemColors);
+
+    // ---- Tab 4: General ----
+    auto& gen = out.tabs[(int)panel::Tab::General];
+    addHeader(gen, T(L"General"));
+    addChoice(gen, ID_POPUP_LANG, T(L"Language"), CurrentLanguageLabel(g_panelModel.languages), false, true);
+    addToggle(gen, ID_AUTOSTART, T(L"Start with Windows"), AutostartEnabled());
+    addToggle(gen, ID_AUTO_UPDATE, T(L"Automatically check for updates"), updates::AutomaticEnabled(),
+              !updates::Supported());
+    addAction(gen, ID_UPDATE, updates::MenuLabel(), updates::Busy(), false, true);
+    addAction(gen, ID_REPORT, T(L"Request support for a device..."));
+    addAction(gen, ID_SUPPORT, T(L"Support the project..."));
+
+    // ---- Footer ----
+    out.footer.push_back({ T(L"Refresh now"), 0xE72C, ID_REFRESH });
+    out.footer.push_back({ T(L"Exit"), 0xE711, ID_EXIT });
+}
+
+UINT PanelPopup(UINT id, HWND owner, POINT screenPt) {
+    ApplyMenuTheme(g_lightTaskbar);
+    MenuIcons icons(g_lightTaskbar);
+    HMENU sub = nullptr;
+    if (id >= ID_DEVICE_FIRST && id < ID_DEVICE_FIRST + g_panelModel.keys.size() * DEV_STRIDE) {
+        size_t idx = (id - ID_DEVICE_FIRST) / DEV_STRIDE;
+        const std::wstring& key = g_panelModel.keys[idx];
         auto it = g_entries.find(key);
         if (it != g_entries.end()) {
-            d.name = DisplayName(it->second);
-            d.status = StatusText(it->second);
-            d.glyph = widget::DeviceGlyph(it->second.st.kind, it->second.st.via == L"Bluetooth");
+            sub = BuildDeviceSubmenu(it->second, ID_DEVICE_FIRST + (UINT)idx * DEV_STRIDE, false, false, &icons, false);
         }
-        devices.push_back(d);
+    } else {
+        switch (id) {
+            case ID_POPUP_CHARGE_LIMIT: sub = BuildChargeLimitMenu(); break;
+            case ID_POPUP_POLL_BATTERY: sub = BuildPollBatteryMenu(); break;
+            case ID_POPUP_TEMP_ALERT:   sub = BuildTempAlertMenu(); break;
+            case ID_POPUP_POLL_SYSTEM:  sub = BuildPollSystemMenu(); break;
+            case ID_POPUP_BAT_POS:      sub = BuildStripPlaceMenu(ID_BAT_LEFT, ID_BAT_CLOCK, g_farLeft, g_wantWidget); break;
+            case ID_POPUP_VIT_POS:      sub = BuildStripPlaceMenu(ID_VIT_LEFT, ID_VIT_CLOCK, g_vitalsFarLeft, g_wantWidget && AnyReading()); break;
+            case ID_POPUP_STRIP_ORDER:  sub = BuildStripOrderMenu(); break;
+            case ID_POPUP_TASKBAR_POS:  sub = BuildTaskbarOffsetMenu(false); break;
+            case ID_POPUP_VERTICAL_POS: sub = BuildVerticalPlaceMenu(); break;
+            case ID_POPUP_MONITORS:     sub = BuildMonitorMenu(g_panelModel.monitors); break;
+            case ID_POPUP_LANG:         sub = BuildLanguageMenu(g_panelModel.languages); break;
+        }
     }
-    return g_panelModel.menu;
+    if (!sub) return 0;
+    UINT cmd = TrackPopupMenuEx(sub, TPM_RETURNCMD | TPM_NONOTIFY | TPM_RIGHTBUTTON | TPM_TOPALIGN |
+                                    (i18n::Rtl() ? TPM_LEFTALIGN | TPM_LAYOUTRTL : TPM_RIGHTALIGN),
+                                screenPt.x, screenPt.y, owner, nullptr);
+    DestroyMenu(sub);
+    memory_trim::Soon();
+    return cmd;
 }
 
 void PanelRun(UINT cmd) { RunCommand(cmd, g_panelModel); }
 
 bool PanelLight() { return g_lightTaskbar; }
-
-// Which tab each menu item goes to. Ids not listed here land in General, so no menu option is ever missing.
-panel::Place PanelPlace(UINT id) {
-    using S = panel::Section;
-    using K = panel::Kind;
-    if (id >= ID_DEVICE_FIRST) return { S::Devices, K::Device };
-    if (id >= ID_SYS_MOVE_FIRST && id < ID_SYS_MOVE_FIRST + 8) return { S::System, K::Action };
-    if (id >= ID_POSITION_FIRST && id <= ID_POSITION_FIRST + ARRAYSIZE(POSITION_OFFSETS)) return { S::Appearance, K::Choice };
-    if (id >= ID_POLL_FIRST && id < ID_POLL_FIRST + ARRAYSIZE(POLL_SECONDS)) return { S::Devices, K::Choice };
-    switch (id) {
-        case ID_HIDE_LAST_KNOWN:
-        case ID_TRAY_WHEN_EMPTY:
-        case ID_SHOW_DISCONNECTED:
-        case ID_DIM_SLEEPING:
-        case ID_RECORD_HISTORY: return { S::Devices, K::Toggle };
-        case ID_LIMIT_OFF: return { S::Devices, K::Choice };
-        case ID_SHOW_CPU:
-        case ID_SHOW_RAM:
-        case ID_SHOW_GPU:
-        case ID_SHOW_GPU_TEMP:
-        case ID_SHOW_CPU_W:
-        case ID_SHOW_GPU_W:
-        case ID_SHOW_VRAM: return { S::System, K::Toggle };
-        case ID_MODE_WIDGET:
-        case ID_MODE_TRAY: return { S::Appearance, K::Radio };
-        case ID_BAT_LEFT: return { S::Devices, K::Choice };   // where the battery strip sits
-        case ID_VIT_LEFT: return { S::System, K::Choice };    // where the CPU / RAM / GPU strip sits
-        case ID_WIDGET_BACKGROUND:
-        case ID_STACKED:
-        case ID_BRAND_COLORS: return { S::Appearance, K::Toggle };
-        case ID_PLACE_AUTO:
-        case ID_MONITOR_ALL: return { S::Appearance, K::Choice };
-        case ID_LANG_AUTO: return { S::General, K::Choice };
-        case ID_AUTOSTART:
-        case ID_AUTO_UPDATE: return { S::General, K::Toggle };
-        case ID_REFRESH:
-        case ID_EXIT: return { S::Footer, K::Action };
-        case 0: return { S::Skip, K::Action };  // the greyed hint line at the top of the menu
-        default: return { S::General, K::Action };
-    }
-}
 
 // Left or right click on the strip or the tray icon: the settings panel; with Shift held, the full menu.
 void OpenSettings() {
@@ -1711,8 +2408,7 @@ void OpenSettings() {
     panel::Host host;
     host.build = PanelBuild;
     host.run = PanelRun;
-    host.release = PanelRelease;
-    host.place = PanelPlace;
+    host.popup = PanelPopup;
     host.light = PanelLight;
     panel::Show(g_inst, host);
 }
@@ -1983,6 +2679,10 @@ LRESULT CALLBACK WndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
                 if (e.added) TrayDelete(e.uid);
                 if (e.icon) DestroyIcon(e.icon);
             }
+            for (int i = 0; i < 4; ++i) {
+                if (g_sysTray[i].added) TrayDelete(SYS_TRAY_UID_BASE + i);
+                if (g_sysTray[i].icon) DestroyIcon(g_sysTray[i].icon);
+            }
             if (g_placeholder) TrayDelete(PLACEHOLDER_ID);
             PostQuitMessage(0);
             return 0;
@@ -2158,13 +2858,19 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR cmdLine, int) {
     widget::SetMakeRoom(g_makeRoom);
     g_farLeft = LoadFarLeft();
     g_vitalsFarLeft = LoadBoolSetting(L"VitalsFarLeft", false);
+    g_vitalsFirst = LoadBoolSetting(L"VitalsFirst", false);
     g_showCpu = LoadShowCpu();
     g_showRam = LoadShowRam();
     g_showGpu = LoadBoolSetting(L"ShowGpu", false);
     g_showGpuTemp = LoadBoolSetting(L"ShowGpuTemp", false);
     g_showCpuW = LoadBoolSetting(L"ShowCpuWatts", false);
     g_showGpuW = LoadBoolSetting(L"ShowGpuWatts", false);
+    g_showCpuTemp = LoadBoolSetting(L"ShowCpuTemp", false) && cputemp::HelperInstalled();
+    if (g_showCpuTemp) cputemp::StartHelper();  // the sign-in task normally has it running already; this is a no-op then
     g_showVram = LoadBoolSetting(L"ShowVram", false);
+    g_systemColors = LoadBoolSetting(L"SystemColors", false);
+    g_sysPollSeconds = LoadSystemPollSeconds();
+    g_tempAlertC = LoadTempAlertCelsius();
     g_pollIntervalMs = LoadPollSeconds() * 1000;
     widget::SetStacked(g_stacked);
     g_verticalPlace = LoadVerticalPlace();
@@ -2181,6 +2887,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR cmdLine, int) {
     LoadAlertThresholds();
     battery_history::Initialize(g_demo);
     Reconcile();
+    if (AnyReading()) TickSystemReadings(true);
     UpdatePlaceholder();  // something to click on until the first poll finishes
     SetTimer(g_hwnd, TIMER_WIDGET, 1000, nullptr);
     g_worker = CreateThread(nullptr, 0, Worker, nullptr, 0, nullptr);

@@ -10,136 +10,169 @@
 namespace panel {
 namespace {
 
-// ---- model ----------------------------------------------------------------------------------------
-
-struct Row {
-    Kind type = Kind::Action;
-    std::wstring label, value;  // value: the device status, or the current choice
-    wchar_t glyph = 0;
-    bool on = false, grayed = false, dim = false;
-    UINT id = 0;                // command id, or the first command id of a submenu
-    std::wstring key;           // device rows
-    RECT rc{};                  // where it was drawn (client coordinates)
-};
-
-constexpr int kTabs = 4;  // Devices, System, Appearance, General; the footer is kept apart
+constexpr int kTabs = (int)Tab::Count;
 const wchar_t* const kTabNames[kTabs] = { L"Batteries", L"System", L"Appearance", L"General" };
 
+constexpr int kWidth = 440;
+constexpr int kTabH = 46;
+constexpr int kFooterH = 54;
+constexpr int kPad = 14;
+constexpr int kCardPad = 14;
+
+enum class HitPart { None, Tab, Footer, Row, Up, Down, More, Switch, SegLeft, SegRight };
+struct Hit {
+    HitPart part = HitPart::None;
+    int index = -1;
+    bool operator==(const Hit& o) const { return part == o.part && index == o.index; }
+    bool operator!=(const Hit& o) const { return !(*this == o); }
+};
+
+struct RowLayout {
+    RECT rc{};
+    RECT rcUp{};
+    RECT rcDown{};
+    RECT rcMore{};
+    RECT rcSwitch{};
+    RECT rcSegLeft{};
+    RECT rcSegRight{};
+};
+
 Host g_host;
-HWND g_wnd;
-std::vector<Row> g_rows[kTabs + 1];  // [kTabs] = footer buttons
-int g_tab = 0;
-int g_hover = -1;                    // row index in the current tab, or 100 + tab index, or 200 + footer index
+HWND g_wnd = nullptr;
+Model g_model;
+std::vector<RowLayout> g_layout[kTabs];
+std::vector<RECT> g_footerRc;
 RECT g_tabRc[kTabs]{};
-bool g_busy, g_dirty;                // a click is running a command: refreshes wait until it is done
+int g_tab = 0;
+int g_scrollY[kTabs]{};
+int g_contentH[kTabs]{};
+Hit g_hover{};
+bool g_busy = false, g_dirty = false;
 UINT g_dpi = 96;
-HFONT g_font, g_bold, g_icons;
+HFONT g_font = nullptr, g_bold = nullptr, g_small = nullptr, g_smallBold = nullptr;
+HFONT g_icons = nullptr, g_smallIcons = nullptr;
 
 int S(int v) { return MulDiv(v, (int)g_dpi, 96); }
 
-std::wstring ItemText(HMENU m, int pos) {
-    wchar_t buf[256] = {};
-    MENUITEMINFOW mi{ sizeof(mi) };
-    mi.fMask = MIIM_STRING;
-    mi.dwTypeData = buf;
-    mi.cch = ARRAYSIZE(buf) - 1;
-    GetMenuItemInfoW(m, pos, TRUE, &mi);
-    return buf;
+int RowHeight(const Row& r) {
+    switch (r.kind) {
+        case RowKind::SectionHeader: return 28;
+        case RowKind::DeviceCard:    return 56;
+        case RowKind::SystemHeader:  return r.sublabel.empty() ? 48 : 54;
+        case RowKind::Toggle:        return r.indented ? 38 : 42;
+        case RowKind::Choice:        return 42;
+        case RowKind::Action:        return 40;
+        case RowKind::Segmented:     return 50;
+    }
+    return 40;
 }
 
-// The first command id in a submenu (searching nested submenus too).
-UINT FirstId(HMENU m) {
-    int n = GetMenuItemCount(m);
-    for (int i = 0; i < n; i++) {
-        MENUITEMINFOW mi{ sizeof(mi) };
-        mi.fMask = MIIM_FTYPE | MIIM_ID | MIIM_SUBMENU;
-        if (!GetMenuItemInfoW(m, i, TRUE, &mi) || (mi.fType & MFT_SEPARATOR)) continue;
-        if (mi.hSubMenu) {
-            if (UINT id = FirstId(mi.hSubMenu)) return id;
-        } else if (mi.wID) {
-            return mi.wID;
+int MeasureTabHeight(int t) {
+    const auto& rows = g_model.tabs[t];
+    if (rows.empty()) return S(64);
+    int y = S(8);
+    bool inCard = false;
+    for (size_t i = 0; i < rows.size(); ++i) {
+        const Row& r = rows[i];
+        if (r.kind == RowKind::SectionHeader) {
+            if (inCard) y += S(8);
+            inCard = false;
+            y += S(RowHeight(r));
+            continue;
         }
+        bool startCard = !inCard || r.newCard;
+        if (startCard && inCard) y += S(8);
+        inCard = true;
+        y += S(RowHeight(r));
     }
-    return 0;
+    if (inCard) y += S(12);
+    return y;
 }
 
-// The text of the chosen entry of a choice submenu: its checked radio item (else any checked item).
-std::wstring CheckedText(HMENU m) {
-    int n = GetMenuItemCount(m);
-    std::wstring any;
-    for (int i = 0; i < n; i++) {
-        MENUITEMINFOW mi{ sizeof(mi) };
-        mi.fMask = MIIM_FTYPE | MIIM_STATE;
-        if (!GetMenuItemInfoW(m, i, TRUE, &mi) || !(mi.fState & MFS_CHECKED)) continue;
-        if (mi.fType & MFT_RADIOCHECK) return ItemText(m, i);
-        if (any.empty()) any = ItemText(m, i);
+// Computes layout rectangles for `t` at `clientW` with `scrollY` applied to body rows.
+void LayoutTab(int t, int clientW, int bodyTop, int scrollY) {
+    const auto& rows = g_model.tabs[t];
+    auto& lay = g_layout[t];
+    lay.assign(rows.size(), RowLayout{});
+    const int cardLeft = S(kPad), cardRight = clientW - S(kPad);
+    int y = bodyTop + S(8) - scrollY;
+    bool inCard = false;
+    for (size_t i = 0; i < rows.size(); ++i) {
+        const Row& r = rows[i];
+        int h = S(RowHeight(r));
+        if (r.kind == RowKind::SectionHeader) {
+            if (inCard) y += S(8);
+            inCard = false;
+            lay[i].rc = { cardLeft, y, cardRight, y + h };
+            y += h;
+            continue;
+        }
+        if (inCard && r.newCard) y += S(8);
+        inCard = true;
+        RECT rc{ cardLeft, y, cardRight, y + h };
+        RowLayout& L = lay[i];
+        L.rc = rc;
+        int cy = y + h / 2;
+        int innerRight = cardRight - S(kCardPad);
+        int innerLeft = cardLeft + S(kCardPad);
+        int btnSize = S(26);
+        int btnTop = cy - btnSize / 2;
+
+        if (r.kind == RowKind::DeviceCard) {
+            L.rcSwitch = { innerRight - S(40), cy - S(10), innerRight, cy + S(10) };
+            int x = L.rcSwitch.left - S(10);
+            L.rcMore = { x - btnSize, btnTop, x, btnTop + btnSize };
+            x = L.rcMore.left - S(4);
+            L.rcDown = { x - btnSize, btnTop, x, btnTop + btnSize };
+            x = L.rcDown.left - S(4);
+            L.rcUp = { x - btnSize, btnTop, x, btnTop + btnSize };
+        } else if (r.kind == RowKind::SystemHeader) {
+            int x = innerRight;
+            if (r.hasSwitch) {
+                L.rcSwitch = { x - S(40), cy - S(10), x, cy + S(10) };
+                x = L.rcSwitch.left - S(10);
+            }
+            L.rcDown = { x - btnSize, btnTop, x, btnTop + btnSize };
+            x = L.rcDown.left - S(4);
+            L.rcUp = { x - btnSize, btnTop, x, btnTop + btnSize };
+        } else if (r.kind == RowKind::Toggle) {
+            L.rcSwitch = { innerRight - S(40), cy - S(10), innerRight, cy + S(10) };
+        } else if (r.kind == RowKind::Segmented) {
+            RECT track{ innerLeft, y + S(7), innerRight, y + h - S(7) };
+            int mid = (track.left + track.right) / 2;
+            L.rcSegLeft = { track.left + S(3), track.top + S(3), mid - S(1), track.bottom - S(3) };
+            L.rcSegRight = { mid + S(1), track.top + S(3), track.right - S(3), track.bottom - S(3) };
+        }
+        y += h;
     }
-    return any;
 }
 
-struct Item {
-    int pos;
-    UINT id;
-    HMENU sub;
-    UINT state;
-    UINT type;
-};
-
-std::vector<Item> TopItems(HMENU m) {
-    std::vector<Item> out;
-    int n = GetMenuItemCount(m);
-    for (int i = 0; i < n; i++) {
-        MENUITEMINFOW mi{ sizeof(mi) };
-        mi.fMask = MIIM_FTYPE | MIIM_STATE | MIIM_ID | MIIM_SUBMENU;
-        if (!GetMenuItemInfoW(m, i, TRUE, &mi) || (mi.fType & MFT_SEPARATOR)) continue;
-        UINT id = mi.hSubMenu ? FirstId(mi.hSubMenu) : mi.wID;
-        if (id) out.push_back({ i, id, mi.hSubMenu, mi.fState, mi.fType });
-    }
-    return out;
+void ClampScroll(int t, int bodyH) {
+    g_contentH[t] = MeasureTabHeight(t);
+    int maxScroll = std::max(0, g_contentH[t] - bodyH);
+    g_scrollY[t] = std::clamp(g_scrollY[t], 0, maxScroll);
 }
 
 void Load() {
-    for (auto& v : g_rows) v.clear();
-    std::vector<Device> devices;
-    HMENU m = g_host.build(devices);
-    size_t device = 0;
-    for (const Item& it : TopItems(m)) {
-        Place p = g_host.place(it.id);
-        if (p.section == Section::Skip) continue;
-        Row r;
-        r.id = it.id;
-        r.label = ItemText(m, it.pos);
-        r.on = it.state & MFS_CHECKED;
-        r.grayed = it.state & MFS_GRAYED;
-        if (p.kind == Kind::Device) {
-            if (device >= devices.size()) continue;
-            const Device& d = devices[device++];
-            r.type = Kind::Device;
-            r.key = d.key;
-            r.label = d.name;
-            r.value = d.status;
-            r.glyph = d.glyph;
-            r.dim = d.hidden;
-        } else if (it.sub) {
-            r.type = Kind::Choice;
-            r.value = CheckedText(it.sub);
-        } else {
-            r.type = p.kind == Kind::Device || p.kind == Kind::Choice ? Kind::Action : p.kind;
+    g_model = Model{};
+    if (g_host.build) g_host.build(g_model);
+    if (g_wnd) {
+        RECT rc{};
+        GetClientRect(g_wnd, &rc);
+        int bodyH = std::max(1, (int)(rc.bottom - S(kFooterH) - S(kTabH)));
+        for (int t = 0; t < kTabs; ++t) {
+            ClampScroll(t, bodyH);
+            LayoutTab(t, rc.right, S(kTabH), g_scrollY[t]);
         }
-        int section = p.section == Section::Footer ? kTabs : (int)p.section - (int)Section::Devices;
-        g_rows[std::clamp(section, 0, kTabs)].push_back(r);
     }
-    g_host.release();
 }
 
 // ---- drawing --------------------------------------------------------------------------------------
 
 struct Colors {
-    COLORREF bg, text, secondary, line, hover, accent, knob, track;
+    COLORREF bg, card, cardBorder, divider, hover, pillBg, text, secondary, accent, knob, track;
 };
 
-// The Windows accent color as the Settings app uses it on switches: a lighter shade on dark backgrounds and
-// a darker one on light backgrounds (AccentPalette holds 8 RGBA shades, lightest first).
 COLORREF Accent(bool light) {
     BYTE palette[32] = {};
     DWORD size = sizeof(palette);
@@ -154,8 +187,34 @@ COLORREF Accent(bool light) {
 Colors Palette() {
     bool light = g_host.light && g_host.light();
     COLORREF accent = Accent(light);
-    if (light) return { RGB(249, 249, 249), RGB(26, 26, 26), RGB(96, 96, 96), RGB(229, 229, 229), RGB(237, 237, 237), accent, RGB(255, 255, 255), RGB(140, 140, 140) };
-    return { RGB(32, 32, 32), RGB(255, 255, 255), RGB(170, 170, 170), RGB(56, 56, 56), RGB(45, 45, 45), accent, RGB(0, 0, 0), RGB(150, 150, 150) };
+    if (light) {
+        return {
+            RGB(243, 243, 243),  // bg
+            RGB(255, 255, 255),  // card
+            RGB(224, 224, 224),  // cardBorder
+            RGB(234, 234, 234),  // divider
+            RGB(240, 240, 240),  // hover
+            RGB(238, 238, 238),  // pillBg
+            RGB(26, 26, 26),     // text
+            RGB(96, 96, 96),     // secondary
+            accent,
+            RGB(255, 255, 255),  // knob
+            RGB(140, 140, 140),  // track
+        };
+    }
+    return {
+        RGB(28, 28, 28),     // bg
+        RGB(39, 39, 39),     // card
+        RGB(56, 56, 56),     // cardBorder
+        RGB(50, 50, 50),     // divider
+        RGB(52, 52, 52),     // hover
+        RGB(49, 49, 49),     // pillBg
+        RGB(255, 255, 255),  // text
+        RGB(172, 172, 172),  // secondary
+        accent,
+        RGB(0, 0, 0),        // knob
+        RGB(150, 150, 150),  // track
+    };
 }
 
 HFONT Font(int px, int weight, const wchar_t* face, const wchar_t* fallback) {
@@ -174,26 +233,19 @@ HFONT Font(int px, int weight, const wchar_t* face, const wchar_t* fallback) {
     return nullptr;
 }
 
-void MakeFonts() {
-    for (HFONT* f : { &g_font, &g_bold, &g_icons })
+void DeleteFonts() {
+    for (HFONT* f : { &g_font, &g_bold, &g_small, &g_smallBold, &g_icons, &g_smallIcons })
         if (*f) DeleteObject(*f), *f = nullptr;
-    g_font = Font(S(14), FW_NORMAL, L"Segoe UI Variable Text", L"Segoe UI");
-    g_bold = Font(S(14), FW_SEMIBOLD, L"Segoe UI Variable Text", L"Segoe UI");
-    g_icons = Font(S(16), FW_NORMAL, L"Segoe Fluent Icons", L"Segoe MDL2 Assets");
 }
 
-constexpr int kWidth = 400, kTabH = 44, kRowH = 40, kDeviceH = 48, kFooterH = 56, kPad = 16;
-
-int RowHeight(const Row& r) { return r.type == Kind::Device ? kDeviceH : kRowH; }
-
-int ContentHeight() {
-    int most = 0;
-    for (int t = 0; t < kTabs; t++) {
-        int h = 0;
-        for (const Row& r : g_rows[t]) h += RowHeight(r);
-        most = std::max(most, h);
-    }
-    return std::max(most, kRowH * 3);
+void MakeFonts() {
+    DeleteFonts();
+    g_font = Font(S(14), FW_NORMAL, L"Segoe UI Variable Text", L"Segoe UI");
+    g_bold = Font(S(14), FW_SEMIBOLD, L"Segoe UI Variable Text", L"Segoe UI");
+    g_small = Font(S(12), FW_NORMAL, L"Segoe UI Variable Text", L"Segoe UI");
+    g_smallBold = Font(S(11), FW_SEMIBOLD, L"Segoe UI Variable Text", L"Segoe UI");
+    g_icons = Font(S(16), FW_NORMAL, L"Segoe Fluent Icons", L"Segoe MDL2 Assets");
+    g_smallIcons = Font(S(12), FW_NORMAL, L"Segoe Fluent Icons", L"Segoe MDL2 Assets");
 }
 
 void Text(HDC dc, const std::wstring& s, RECT rc, COLORREF c, HFONT f, UINT flags) {
@@ -210,34 +262,41 @@ void Fill(HDC dc, const RECT& rc, COLORREF c) {
 
 void RoundBox(HDC dc, const RECT& rc, int radius, COLORREF fill, COLORREF border) {
     HBRUSH b = CreateSolidBrush(fill);
-    HPEN p = CreatePen(PS_SOLID, std::max(1, S(1)), border);
+    HPEN p = border == CLR_INVALID ? (HPEN)GetStockObject(NULL_PEN) : CreatePen(PS_SOLID, std::max(1, S(1)), border);
     HGDIOBJ ob = SelectObject(dc, b), op = SelectObject(dc, p);
     RoundRect(dc, rc.left, rc.top, rc.right, rc.bottom, radius, radius);
     SelectObject(dc, ob);
     SelectObject(dc, op);
     DeleteObject(b);
-    DeleteObject(p);
+    if (border != CLR_INVALID) DeleteObject(p);
 }
 
 void Ellipse(HDC dc, int cx, int cy, int r, COLORREF fill, COLORREF border) {
     HBRUSH b = CreateSolidBrush(fill);
-    HPEN p = CreatePen(PS_SOLID, std::max(1, S(1)), border);
+    HPEN p = border == CLR_INVALID ? (HPEN)GetStockObject(NULL_PEN) : CreatePen(PS_SOLID, std::max(1, S(1)), border);
     HGDIOBJ ob = SelectObject(dc, b), op = SelectObject(dc, p);
     ::Ellipse(dc, cx - r, cy - r, cx + r + 1, cy + r + 1);
     SelectObject(dc, ob);
     SelectObject(dc, op);
     DeleteObject(b);
-    DeleteObject(p);
+    if (border != CLR_INVALID) DeleteObject(p);
 }
 
-void DrawSwitch(HDC dc, int right, int cy, bool on, bool grayed, const Colors& c) {
-    RECT track{ right - S(40), cy - S(10), right, cy + S(10) };
-    COLORREF fill = on ? c.accent : c.bg;
+void DrawSwitch(HDC dc, const RECT& track, bool on, bool grayed, const Colors& c) {
+    int cy = (track.top + track.bottom) / 2;
+    COLORREF fill = on ? c.accent : c.card;
     COLORREF border = on ? c.accent : c.track;
-    if (grayed) fill = on ? c.line : c.bg, border = c.line;
+    if (grayed) fill = on ? c.cardBorder : c.card, border = c.cardBorder;
     RoundBox(dc, track, S(20), fill, border);
     int knob = on ? track.right - S(10) : track.left + S(10);
-    Ellipse(dc, knob, cy, S(6), on ? c.knob : (grayed ? c.line : c.track), on ? c.knob : (grayed ? c.line : c.track));
+    COLORREF kc = on ? c.knob : (grayed ? c.cardBorder : c.track);
+    Ellipse(dc, knob, cy, S(6), kc, kc);
+}
+
+void DrawMiniButton(HDC dc, const RECT& rc, wchar_t glyph, bool enabled, bool hovered, const Colors& c) {
+    COLORREF bg = hovered && enabled ? c.hover : c.pillBg;
+    RoundBox(dc, rc, S(6), bg, c.cardBorder);
+    Text(dc, std::wstring(1, glyph), rc, enabled ? c.text : c.cardBorder, g_smallIcons, DT_CENTER);
 }
 
 void Paint(HDC dc, const RECT& client) {
@@ -246,104 +305,284 @@ void Paint(HDC dc, const RECT& client) {
     SetBkMode(dc, TRANSPARENT);
     const UINT align = i18n::Rtl() ? DT_RIGHT | DT_RTLREADING : DT_LEFT;
 
-    // Tabs.
+    const int bodyTop = S(kTabH);
+    const int bodyBottom = client.bottom - S(kFooterH);
+    const int bodyH = std::max(1, bodyBottom - bodyTop);
+    ClampScroll(g_tab, bodyH);
+    LayoutTab(g_tab, client.right, bodyTop, g_scrollY[g_tab]);
+
+    // ---- Scrollable body ----
+    int saved = SaveDC(dc);
+    IntersectClipRect(dc, 0, bodyTop, client.right, bodyBottom);
+
+    const auto& rows = g_model.tabs[g_tab];
+    const auto& lay = g_layout[g_tab];
+
+    // 1. Draw rounded card backgrounds for contiguous non-header groups.
+    struct CardSpan { size_t first, last; int top, bottom; };
+    std::vector<CardSpan> cards;
+    for (size_t i = 0; i < rows.size(); ++i) {
+        if (rows[i].kind == RowKind::SectionHeader) continue;
+        if (cards.empty() || rows[i].newCard || rows[i - 1].kind == RowKind::SectionHeader) {
+            cards.push_back({ i, i, lay[i].rc.top, lay[i].rc.bottom });
+        } else {
+            cards.back().last = i;
+            cards.back().bottom = lay[i].rc.bottom;
+        }
+    }
+    const int cardLeft = S(kPad), cardRight = client.right - S(kPad);
+    for (const auto& cs : cards) {
+        RoundBox(dc, { cardLeft, cs.top, cardRight, cs.bottom }, S(10), c.card, c.cardBorder);
+        for (size_t i = cs.first; i < cs.last; ++i) {
+            int dy = lay[i].rc.bottom;
+            Fill(dc, { cardLeft + S(kCardPad), dy - 1, cardRight - S(kCardPad), dy }, c.divider);
+        }
+    }
+
+    // 2. Draw row contents.
+    for (size_t i = 0; i < rows.size(); ++i) {
+        const Row& r = rows[i];
+        const RowLayout& L = lay[i];
+        const RECT& rc = L.rc;
+        if (rc.bottom < bodyTop || rc.top > bodyBottom) continue;
+
+        if (r.kind == RowKind::SectionHeader) {
+            Text(dc, r.label, { rc.left + S(4), rc.top + S(4), rc.right - S(4), rc.bottom },
+                 c.secondary, g_smallBold, align | DT_END_ELLIPSIS);
+            continue;
+        }
+
+        bool rowHovered = g_hover.index == (int)i &&
+                          (g_hover.part == HitPart::Row || g_hover.part == HitPart::Up ||
+                           g_hover.part == HitPart::Down || g_hover.part == HitPart::More ||
+                           g_hover.part == HitPart::Switch);
+        if (rowHovered && !r.grayed && r.kind != RowKind::Segmented) {
+            RoundBox(dc, { rc.left + S(4), rc.top + S(2), rc.right - S(4), rc.bottom - S(2) },
+                     S(6), c.hover, CLR_INVALID);
+        }
+
+        COLORREF mainText = (r.grayed || r.dim) ? c.secondary : c.text;
+        int innerLeft = rc.left + S(kCardPad) + (r.indented ? S(28) : 0);
+        int innerRight = rc.right - S(kCardPad);
+
+        if (r.kind == RowKind::DeviceCard) {
+            // Left icon badge
+            int iconBox = S(34);
+            int iconTop = rc.top + (rc.bottom - rc.top - iconBox) / 2;
+            RECT iconRc{ innerLeft, iconTop, innerLeft + iconBox, iconTop + iconBox };
+            RoundBox(dc, iconRc, S(8), c.pillBg, CLR_INVALID);
+            COLORREF glyphCol = (r.hasAccent && !r.dim && !r.grayed) ? r.accentColor : mainText;
+            if (r.glyph) Text(dc, std::wstring(1, r.glyph), iconRc, glyphCol, g_icons, DT_CENTER);
+
+            // Right controls: [↑] [↓] [⋯] [Switch]
+            bool hovUp = g_hover.index == (int)i && g_hover.part == HitPart::Up;
+            bool hovDn = g_hover.index == (int)i && g_hover.part == HitPart::Down;
+            bool hovMr = g_hover.index == (int)i && g_hover.part == HitPart::More;
+            DrawMiniButton(dc, L.rcUp, 0xE74A, r.canUp && !r.grayed, hovUp, c);
+            DrawMiniButton(dc, L.rcDown, 0xE74B, r.canDown && !r.grayed, hovDn, c);
+            DrawMiniButton(dc, L.rcMore, 0xE712, !r.grayed && r.id2 != 0, hovMr, c);
+            DrawSwitch(dc, L.rcSwitch, r.on, r.grayed, c);
+
+            int textLeft = iconRc.right + S(12);
+            int textRight = L.rcUp.left - S(10);
+            int midY = (rc.top + rc.bottom) / 2;
+            Text(dc, r.label, { textLeft, rc.top + S(7), textRight, midY + S(1) },
+                 mainText, g_bold, align | DT_END_ELLIPSIS);
+            Text(dc, r.sublabel, { textLeft, midY + S(1), textRight, rc.bottom - S(7) },
+                 c.secondary, g_small, align | DT_END_ELLIPSIS);
+        } else if (r.kind == RowKind::SystemHeader) {
+            int iconBox = S(30);
+            int iconTop = rc.top + (rc.bottom - rc.top - iconBox) / 2;
+            RECT iconRc{ innerLeft, iconTop, innerLeft + iconBox, iconTop + iconBox };
+            RoundBox(dc, iconRc, S(8), c.pillBg, CLR_INVALID);
+            COLORREF glyphCol = (r.hasAccent && !r.grayed) ? r.accentColor : mainText;
+            if (r.glyph) Text(dc, std::wstring(1, r.glyph), iconRc, glyphCol, g_icons, DT_CENTER);
+
+            bool hovUp = g_hover.index == (int)i && g_hover.part == HitPart::Up;
+            bool hovDn = g_hover.index == (int)i && g_hover.part == HitPart::Down;
+            DrawMiniButton(dc, L.rcUp, 0xE74A, r.canUp && !r.grayed, hovUp, c);
+            DrawMiniButton(dc, L.rcDown, 0xE74B, r.canDown && !r.grayed, hovDn, c);
+            if (r.hasSwitch) DrawSwitch(dc, L.rcSwitch, r.on, r.grayed, c);
+
+            int badgeRight = L.rcUp.left - S(8);
+            int textLeft = iconRc.right + S(10);
+            int textRight = badgeRight;
+            if (!r.value.empty()) {
+                SelectObject(dc, g_small);
+                SIZE sz{};
+                GetTextExtentPoint32W(dc, r.value.c_str(), (int)r.value.size(), &sz);
+                int maxBadgeW = std::max(S(48), (badgeRight - textLeft) / 2);
+                int badgeW = std::min<int>(sz.cx + S(16), maxBadgeW);
+                int badgeH = S(24);
+                int cy = (rc.top + rc.bottom) / 2;
+                RECT brc{ badgeRight - badgeW, cy - badgeH / 2, badgeRight, cy + badgeH / 2 };
+                RoundBox(dc, brc, S(6), c.pillBg, c.cardBorder);
+                Text(dc, r.value, { brc.left + S(6), brc.top, brc.right - S(6), brc.bottom },
+                     r.dim ? c.secondary : c.text, g_small, DT_CENTER | DT_END_ELLIPSIS);
+                textRight = brc.left - S(8);
+            }
+            if (r.sublabel.empty()) {
+                Text(dc, r.label, { textLeft, rc.top, textRight, rc.bottom },
+                     mainText, g_bold, align | DT_END_ELLIPSIS);
+            } else {
+                int midY = (rc.top + rc.bottom) / 2;
+                Text(dc, r.label, { textLeft, rc.top + S(6), textRight, midY + S(1) },
+                     mainText, g_bold, align | DT_END_ELLIPSIS);
+                Text(dc, r.sublabel, { textLeft, midY + S(1), textRight, rc.bottom - S(6) },
+                     c.secondary, g_small, align | DT_END_ELLIPSIS);
+            }
+        } else if (r.kind == RowKind::Toggle) {
+            int textRight = L.rcSwitch.left - S(12);
+            Text(dc, r.label, { innerLeft, rc.top, textRight, rc.bottom },
+                 mainText, r.indented ? g_small : g_font, align | DT_END_ELLIPSIS);
+            DrawSwitch(dc, L.rcSwitch, r.on, r.grayed, c);
+        } else if (r.kind == RowKind::Choice) {
+            int textRight = innerRight - S(12);
+            if (!r.value.empty()) {
+                SelectObject(dc, g_small);
+                SIZE sz{};
+                GetTextExtentPoint32W(dc, r.value.c_str(), (int)r.value.size(), &sz);
+                int maxPillW = std::max(S(70), (innerRight - innerLeft) / 2);
+                int pillW = std::min<int>(sz.cx + S(32), maxPillW);
+                int pillH = S(28);
+                int cy = (rc.top + rc.bottom) / 2;
+                RECT prc{ innerRight - pillW, cy - pillH / 2, innerRight, cy + pillH / 2 };
+                RoundBox(dc, prc, S(6), c.pillBg, c.cardBorder);
+                Text(dc, r.value, { prc.left + S(10), prc.top, prc.right - S(22), prc.bottom },
+                     mainText, g_small, DT_LEFT | DT_END_ELLIPSIS);
+                Text(dc, std::wstring(1, 0xE70D), { prc.right - S(20), prc.top, prc.right - S(6), prc.bottom },
+                     c.secondary, g_smallIcons, DT_CENTER);
+                textRight = prc.left - S(12);
+            } else {
+                Text(dc, std::wstring(1, 0xE70D), { innerRight - S(18), rc.top, innerRight, rc.bottom },
+                     c.secondary, g_smallIcons, DT_CENTER);
+                textRight = innerRight - S(24);
+            }
+            Text(dc, r.label, { innerLeft, rc.top, textRight, rc.bottom },
+                 mainText, g_font, align | DT_END_ELLIPSIS);
+        } else if (r.kind == RowKind::Action) {
+            if (r.id != 0)
+                Text(dc, std::wstring(1, i18n::Rtl() ? 0xE76B : 0xE76C),
+                     { innerRight - S(16), rc.top, innerRight, rc.bottom }, c.secondary, g_smallIcons, DT_CENTER);
+            Text(dc, r.label, { innerLeft, rc.top, innerRight - (r.id ? S(22) : 0), rc.bottom },
+                 mainText, r.indented ? g_small : g_font, align | DT_END_ELLIPSIS);
+        } else if (r.kind == RowKind::Segmented) {
+            RECT track{ innerLeft, rc.top + S(7), innerRight, rc.bottom - S(7) };
+            RoundBox(dc, track, S(8), c.pillBg, c.cardBorder);
+            auto drawSeg = [&](const RECT& segRc, const std::wstring& txt, bool active, bool hov) {
+                if (active) RoundBox(dc, segRc, S(6), c.accent, c.accent);
+                else if (hov) RoundBox(dc, segRc, S(6), c.hover, CLR_INVALID);
+                Text(dc, txt, segRc, active ? c.knob : c.text, active ? g_bold : g_font, DT_CENTER | DT_END_ELLIPSIS);
+            };
+            bool hovL = g_hover.index == (int)i && g_hover.part == HitPart::SegLeft;
+            bool hovR = g_hover.index == (int)i && g_hover.part == HitPart::SegRight;
+            drawSeg(L.rcSegLeft, r.label, r.on, hovL);
+            drawSeg(L.rcSegRight, r.sublabel, !r.on, hovR);
+        }
+    }
+
+    // Subtle scrollbar thumb when content exceeds viewport.
+    int maxScroll = std::max(0, g_contentH[g_tab] - bodyH);
+    if (maxScroll > 0 && g_contentH[g_tab] > 0) {
+        int trackH = bodyH - S(8);
+        int thumbH = std::max(S(24), MulDiv(trackH, bodyH, g_contentH[g_tab]));
+        int thumbY = bodyTop + S(4) + MulDiv(trackH - thumbH, g_scrollY[g_tab], maxScroll);
+        RoundBox(dc, { client.right - S(5), thumbY, client.right - S(2), thumbY + thumbH },
+                 S(2), c.track, CLR_INVALID);
+    }
+
+    RestoreDC(dc, saved);
+
+    // ---- Sticky header tabs ----
+    Fill(dc, { 0, 0, client.right, bodyTop }, c.card);
     int x = S(kPad);
-    for (int t = 0; t < kTabs; t++) {
+    for (int t = 0; t < kTabs; ++t) {
         std::wstring name = T(kTabNames[t]);
         SelectObject(dc, g_bold);
         SIZE sz{};
         GetTextExtentPoint32W(dc, name.c_str(), (int)name.size(), &sz);
-        g_tabRc[t] = { x - S(6), 0, x + sz.cx + S(6), S(kTabH) };
+        g_tabRc[t] = { x - S(8), S(6), x + sz.cx + S(8), bodyTop - S(6) };
         bool active = t == g_tab;
-        if (g_hover == 100 + t && !active) Fill(dc, { g_tabRc[t].left, S(8), g_tabRc[t].right, S(kTabH) - S(8) }, c.hover);
-        Text(dc, name, g_tabRc[t], active ? c.text : c.secondary, active ? g_bold : g_font, DT_CENTER);
-        if (active) Fill(dc, { x, S(kTabH) - S(3), x + sz.cx, S(kTabH) - S(1) }, c.accent);
+        if (g_hover.part == HitPart::Tab && g_hover.index == t && !active)
+            RoundBox(dc, g_tabRc[t], S(6), c.hover, CLR_INVALID);
+        Text(dc, name, { g_tabRc[t].left, 0, g_tabRc[t].right, bodyTop },
+             active ? c.text : c.secondary, active ? g_bold : g_font, DT_CENTER);
+        if (active) RoundBox(dc, { x, bodyTop - S(3), x + sz.cx, bodyTop }, S(2), c.accent, CLR_INVALID);
         x += sz.cx + S(20);
     }
-    Fill(dc, { 0, S(kTabH) - S(1), client.right, S(kTabH) }, c.line);
+    Fill(dc, { 0, bodyTop - 1, client.right, bodyTop }, c.cardBorder);
 
-    // Rows of the current tab.
-    int y = S(kTabH) + S(4);
-    const int left = S(kPad), right = client.right - S(kPad);
-    auto& rows = g_rows[g_tab];
-    if (rows.empty())
-        Text(dc, T(L"No devices with battery info found"), { left, y, right, y + S(kRowH) }, c.secondary, g_font, align);
-    for (size_t i = 0; i < rows.size(); i++) {
-        Row& r = rows[i];
-        int h = S(RowHeight(r));
-        r.rc = { 0, y, client.right, y + h };
-        if ((int)i == g_hover && !r.grayed) Fill(dc, { S(6), y + S(2), client.right - S(6), y + h - S(2) }, c.hover);
-        COLORREF text = r.grayed || r.dim ? c.secondary : c.text;
-        int cy = y + h / 2;
-        int textRight = right;
-        switch (r.type) {
-            case Kind::Toggle:
-                DrawSwitch(dc, right, cy, r.on, r.grayed, c);
-                textRight = right - S(52);
-                break;
-            case Kind::Radio:
-                Ellipse(dc, right - S(10), cy, S(9), c.bg, r.on ? c.accent : c.track);
-                if (r.on) Ellipse(dc, right - S(10), cy, S(4), c.accent, c.accent);
-                textRight = right - S(30);
-                break;
-            case Kind::Choice:
-            case Kind::Device:
-            case Kind::Action: {
-                wchar_t chevron = r.type == Kind::Choice ? 0xE70D : (i18n::Rtl() ? 0xE76B : 0xE76C);  // ChevronDown / ChevronLeft / Right
-                Text(dc, std::wstring(1, chevron), { right - S(16), y, right, y + h }, c.secondary, g_icons, DT_CENTER);
-                textRight = right - S(24);
-                if (!r.value.empty()) {
-                    SelectObject(dc, g_font);
-                    SIZE sz{};
-                    GetTextExtentPoint32W(dc, r.value.c_str(), (int)r.value.size(), &sz);
-                    int w = std::min<int>(sz.cx, (textRight - left) / 2);
-                    Text(dc, r.value, { textRight - w, y, textRight, y + h }, c.secondary, g_font, DT_RIGHT | DT_END_ELLIPSIS);
-                    textRight -= w + S(12);
-                }
-                break;
-            }
-        }
-        int textLeft = left;
-        if (r.type == Kind::Device && r.glyph) {
-            Text(dc, std::wstring(1, r.glyph), { left, y, left + S(24), y + h }, text, g_icons, DT_LEFT);
-            textLeft += S(32);
-        }
-        Text(dc, r.label, { textLeft, y, textRight, y + h }, text, g_font, align | DT_END_ELLIPSIS);
-        y += h;
-    }
-
-    // Footer: plain buttons (Refresh now, Exit).
-    int fy = client.bottom - S(kFooterH);
-    Fill(dc, { 0, fy, client.right, fy + S(1) }, c.line);
-    int bx = left;
-    auto& foot = g_rows[kTabs];
-    for (size_t i = 0; i < foot.size(); i++) {
-        Row& r = foot[i];
+    // ---- Sticky footer ----
+    Fill(dc, { 0, bodyBottom, client.right, client.bottom }, c.card);
+    Fill(dc, { 0, bodyBottom, client.right, bodyBottom + 1 }, c.cardBorder);
+    int bx = S(kPad);
+    const int right = client.right - S(kPad);
+    g_footerRc.resize(g_model.footer.size());
+    for (size_t i = 0; i < g_model.footer.size(); ++i) {
+        const FooterButton& fb = g_model.footer[i];
         SelectObject(dc, g_font);
         SIZE sz{};
-        GetTextExtentPoint32W(dc, r.label.c_str(), (int)r.label.size(), &sz);
-        int w = sz.cx + S(28);
-        bool last = i + 1 == foot.size() && foot.size() > 1;
-        RECT b = last ? RECT{ right - w, fy + S(12), right, client.bottom - S(12) } : RECT{ bx, fy + S(12), bx + w, client.bottom - S(12) };
-        r.rc = b;
-        RoundBox(dc, b, S(8), g_hover == 200 + (int)i ? c.hover : c.bg, c.line);
-        Text(dc, r.label, b, c.text, g_font, DT_CENTER);
+        GetTextExtentPoint32W(dc, fb.label.c_str(), (int)fb.label.size(), &sz);
+        int iconW = fb.glyph ? S(20) : 0;
+        int w = sz.cx + iconW + S(26);
+        bool last = i + 1 == g_model.footer.size() && g_model.footer.size() > 1;
+        RECT b = last ? RECT{ right - w, bodyBottom + S(10), right, client.bottom - S(10) }
+                      : RECT{ bx, bodyBottom + S(10), bx + w, client.bottom - S(10) };
+        g_footerRc[i] = b;
+        bool hov = g_hover.part == HitPart::Footer && g_hover.index == (int)i;
+        RoundBox(dc, b, S(8), hov ? c.hover : c.pillBg, c.cardBorder);
+        if (fb.glyph) {
+            Text(dc, std::wstring(1, fb.glyph), { b.left + S(10), b.top, b.left + S(26), b.bottom },
+                 c.text, g_smallIcons, DT_CENTER);
+            Text(dc, fb.label, { b.left + S(28), b.top, b.right - S(8), b.bottom }, c.text, g_font, DT_LEFT);
+        } else {
+            Text(dc, fb.label, b, c.text, g_font, DT_CENTER);
+        }
         bx = b.right + S(8);
     }
 }
 
 // ---- interaction ----------------------------------------------------------------------------------
 
-int HitTest(POINT pt) {
-    for (int t = 0; t < kTabs; t++)
-        if (PtInRect(&g_tabRc[t], pt)) return 100 + t;
-    auto& rows = g_rows[g_tab];
-    for (size_t i = 0; i < rows.size(); i++)
-        if (PtInRect(&rows[i].rc, pt)) return (int)i;
-    auto& foot = g_rows[kTabs];
-    for (size_t i = 0; i < foot.size(); i++)
-        if (PtInRect(&foot[i].rc, pt)) return 200 + (int)i;
-    return -1;
+Hit HitTest(POINT pt) {
+    for (int t = 0; t < kTabs; ++t)
+        if (PtInRect(&g_tabRc[t], pt)) return { HitPart::Tab, t };
+    for (size_t i = 0; i < g_footerRc.size(); ++i)
+        if (PtInRect(&g_footerRc[i], pt)) return { HitPart::Footer, (int)i };
+
+    RECT client{};
+    if (!g_wnd || !GetClientRect(g_wnd, &client)) return {};
+    int bodyTop = S(kTabH), bodyBottom = client.bottom - S(kFooterH);
+    if (pt.y < bodyTop || pt.y >= bodyBottom) return {};
+
+    const auto& rows = g_model.tabs[g_tab];
+    const auto& lay = g_layout[g_tab];
+    for (size_t i = 0; i < rows.size() && i < lay.size(); ++i) {
+        if (rows[i].kind == RowKind::SectionHeader) continue;
+        if (!PtInRect(&lay[i].rc, pt)) continue;
+        const Row& r = rows[i];
+        const RowLayout& L = lay[i];
+        if (r.kind == RowKind::DeviceCard) {
+            if (PtInRect(&L.rcUp, pt)) return { HitPart::Up, (int)i };
+            if (PtInRect(&L.rcDown, pt)) return { HitPart::Down, (int)i };
+            if (PtInRect(&L.rcMore, pt)) return { HitPart::More, (int)i };
+            if (PtInRect(&L.rcSwitch, pt)) return { HitPart::Switch, (int)i };
+            return { HitPart::Row, (int)i };
+        }
+        if (r.kind == RowKind::SystemHeader) {
+            if (PtInRect(&L.rcUp, pt)) return { HitPart::Up, (int)i };
+            if (PtInRect(&L.rcDown, pt)) return { HitPart::Down, (int)i };
+            if (r.hasSwitch && PtInRect(&L.rcSwitch, pt)) return { HitPart::Switch, (int)i };
+            return { HitPart::Row, (int)i };
+        }
+        if (r.kind == RowKind::Segmented) {
+            if (PtInRect(&L.rcSegLeft, pt)) return { HitPart::SegLeft, (int)i };
+            if (PtInRect(&L.rcSegRight, pt)) return { HitPart::SegRight, (int)i };
+            return {};
+        }
+        return { HitPart::Row, (int)i };
+    }
+    return {};
 }
 
 void Reload() {
@@ -352,43 +591,10 @@ void Reload() {
     InvalidateRect(g_wnd, nullptr, FALSE);
 }
 
-// Runs a row: builds the menu now, finds the row's item in it, runs its command or opens its submenu.
-void Act(const Row& row) {
-    if (row.grayed) return;
+void RunCommand(UINT cmd) {
+    if (!cmd) return;
     g_busy = true;
-    std::vector<Device> devices;
-    HMENU m = g_host.build(devices);
-    HMENU sub = nullptr;
-    UINT cmd = 0;
-    size_t device = 0;
-    for (const Item& it : TopItems(m)) {
-        Place p = g_host.place(it.id);
-        if (p.kind == Kind::Device && p.section != Section::Skip) {
-            bool match = device < devices.size() && devices[device].key == row.key;
-            device++;
-            if (row.type == Kind::Device && match) {
-                sub = it.sub;
-                break;
-            }
-            continue;
-        }
-        if (row.type != Kind::Device && it.id == row.id) {
-            if (it.sub) sub = it.sub;
-            else cmd = it.id;
-            break;
-        }
-    }
-    if (sub) {
-        // The submenu opens under the row, right-aligned (left-aligned for right-to-left languages).
-        POINT pt{ i18n::Rtl() ? row.rc.left + S(kPad) : row.rc.right - S(kPad), row.rc.bottom };
-        ClientToScreen(g_wnd, &pt);
-        SetForegroundWindow(g_wnd);
-        cmd = TrackPopupMenuEx(sub, TPM_RETURNCMD | TPM_NONOTIFY | TPM_RIGHTBUTTON | TPM_TOPALIGN |
-                                        (i18n::Rtl() ? TPM_LEFTALIGN | TPM_LAYOUTRTL : TPM_RIGHTALIGN),
-                               pt.x, pt.y, g_wnd, nullptr);
-    }
-    if (cmd) g_host.run(cmd);  // may close the panel (Exit)
-    g_host.release();
+    if (g_host.run) g_host.run(cmd);
     g_busy = false;
     if (g_wnd) {
         g_dirty = false;
@@ -396,13 +602,83 @@ void Act(const Row& row) {
     }
 }
 
+void OpenPopup(UINT popupId, POINT clientPt) {
+    if (!popupId || !g_host.popup) return;
+    g_busy = true;
+    ClientToScreen(g_wnd, &clientPt);
+    SetForegroundWindow(g_wnd);
+    UINT cmd = g_host.popup(popupId, g_wnd, clientPt);
+    if (cmd && g_host.run) g_host.run(cmd);
+    g_busy = false;
+    if (g_wnd) {
+        g_dirty = false;
+        Reload();
+    }
+}
+
+void HandleHit(const Hit& hit) {
+    if (hit.part == HitPart::Tab) {
+        g_tab = hit.index;
+        g_hover = {};
+        InvalidateRect(g_wnd, nullptr, FALSE);
+        return;
+    }
+    if (hit.part == HitPart::Footer && hit.index >= 0 && hit.index < (int)g_model.footer.size()) {
+        RunCommand(g_model.footer[hit.index].id);
+        return;
+    }
+    const auto& rows = g_model.tabs[g_tab];
+    const auto& lay = g_layout[g_tab];
+    if (hit.index < 0 || hit.index >= (int)rows.size() || hit.index >= (int)lay.size()) return;
+    const Row& r = rows[hit.index];
+    const RowLayout& L = lay[hit.index];
+    if (r.grayed) return;
+
+    switch (hit.part) {
+        case HitPart::Up:
+            if (r.canUp) RunCommand(r.upId);
+            break;
+        case HitPart::Down:
+            if (r.canDown) RunCommand(r.downId);
+            break;
+        case HitPart::More:
+            if (r.id2) OpenPopup(r.id2, { L.rcMore.right, L.rcMore.bottom });
+            break;
+        case HitPart::Switch:
+        case HitPart::SegLeft:
+            RunCommand(r.id);
+            break;
+        case HitPart::SegRight:
+            RunCommand(r.id2);
+            break;
+        case HitPart::Row:
+            if (r.kind == RowKind::Choice) {
+                OpenPopup(r.id, { i18n::Rtl() ? L.rc.left + S(kCardPad) : L.rc.right - S(kCardPad), L.rc.bottom });
+            } else if (r.kind == RowKind::DeviceCard) {
+                if (r.id2) OpenPopup(r.id2, { i18n::Rtl() ? L.rc.left + S(kCardPad) : L.rc.right - S(kCardPad), L.rc.bottom });
+            } else if (r.kind == RowKind::SystemHeader) {
+                if (r.hasSwitch) RunCommand(r.id);
+            } else if (r.kind == RowKind::Toggle || r.kind == RowKind::Action) {
+                RunCommand(r.id);
+            }
+            break;
+        case HitPart::None:
+        case HitPart::Tab:
+        case HitPart::Footer:
+            break;
+    }
+}
+
 void Measure(HWND h) {
-    RECT rc{ 0, 0, S(kWidth), S(kTabH) + S(4) + S(ContentHeight()) + S(8) + S(kFooterH) };
+    int most = 0;
+    for (int t = 0; t < kTabs; ++t) most = std::max(most, MeasureTabHeight(t));
+    int bodyH = std::clamp(most, S(300), S(540));
+    RECT rc{ 0, 0, S(kWidth), S(kTabH) + bodyH + S(kFooterH) };
     AdjustWindowRectExForDpi(&rc, GetWindowLongW(h, GWL_STYLE), FALSE, GetWindowLongW(h, GWL_EXSTYLE), g_dpi);
-    // Bottom-right corner of the work area of the monitor the panel is on (bottom-left for right-to-left).
     MONITORINFO mi{ sizeof(mi) };
     GetMonitorInfoW(MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST), &mi);
-    int w = rc.right - rc.left, hgt = std::min<int>(rc.bottom - rc.top, mi.rcWork.bottom - mi.rcWork.top);
+    int w = rc.right - rc.left;
+    int hgt = std::min<int>(rc.bottom - rc.top, mi.rcWork.bottom - mi.rcWork.top - S(16));
     int x = i18n::Rtl() ? mi.rcWork.left + S(12) : mi.rcWork.right - w - S(12);
     int y = mi.rcWork.bottom - hgt - S(12);
     SetWindowPos(h, nullptr, x, y, w, hgt, SWP_NOZORDER | SWP_NOACTIVATE);
@@ -448,7 +724,7 @@ LRESULT CALLBACK WndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_ERASEBKGND:
             return 1;
         case WM_MOUSEMOVE: {
-            int hit = HitTest({ GET_X_LPARAM(lp), GET_Y_LPARAM(lp) });
+            Hit hit = HitTest({ GET_X_LPARAM(lp), GET_Y_LPARAM(lp) });
             if (hit != g_hover) {
                 g_hover = hit;
                 InvalidateRect(h, nullptr, FALSE);
@@ -458,33 +734,52 @@ LRESULT CALLBACK WndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             return 0;
         }
         case WM_MOUSELEAVE:
-            if (g_hover != -1) {
-                g_hover = -1;
+            if (g_hover.part != HitPart::None) {
+                g_hover = {};
                 InvalidateRect(h, nullptr, FALSE);
             }
             return 0;
-        case WM_LBUTTONUP:
-        case WM_RBUTTONUP: {
-            int hit = HitTest({ GET_X_LPARAM(lp), GET_Y_LPARAM(lp) });
-            if (hit >= 100 && hit < 100 + kTabs) {
-                g_tab = hit - 100;
-                g_hover = -1;
+        case WM_MOUSEWHEEL: {
+            int delta = GET_WHEEL_DELTA_WPARAM(wp);
+            RECT rc{};
+            GetClientRect(h, &rc);
+            int bodyH = std::max(1, (int)(rc.bottom - S(kFooterH) - S(kTabH)));
+            int maxScroll = std::max(0, g_contentH[g_tab] - bodyH);
+            int next = std::clamp(g_scrollY[g_tab] - MulDiv(delta, S(44), WHEEL_DELTA), 0, maxScroll);
+            if (next != g_scrollY[g_tab]) {
+                g_scrollY[g_tab] = next;
+                LayoutTab(g_tab, rc.right, S(kTabH), g_scrollY[g_tab]);
+                POINT pt{};
+                GetCursorPos(&pt);
+                ScreenToClient(h, &pt);
+                g_hover = HitTest(pt);
                 InvalidateRect(h, nullptr, FALSE);
-            } else if (hit >= 200 && hit - 200 < (int)g_rows[kTabs].size()) {
-                Row r = g_rows[kTabs][hit - 200];
-                Act(r);
-            } else if (hit >= 0 && hit < (int)g_rows[g_tab].size()) {
-                Row r = g_rows[g_tab][hit];
-                Act(r);
             }
             return 0;
         }
+        case WM_LBUTTONUP:
+        case WM_RBUTTONUP:
+            HandleHit(HitTest({ GET_X_LPARAM(lp), GET_Y_LPARAM(lp) }));
+            return 0;
         case WM_KEYDOWN:
             if (wp == VK_ESCAPE) DestroyWindow(h);
             if (wp == VK_TAB || wp == VK_RIGHT || wp == VK_LEFT) {
                 bool back = wp == VK_LEFT || (wp == VK_TAB && GetKeyState(VK_SHIFT) < 0);
                 g_tab = (g_tab + (back ? kTabs - 1 : 1)) % kTabs;
+                g_hover = {};
                 InvalidateRect(h, nullptr, FALSE);
+            } else if (wp == VK_DOWN || wp == VK_UP || wp == VK_NEXT || wp == VK_PRIOR) {
+                RECT rc{};
+                GetClientRect(h, &rc);
+                int bodyH = std::max(1, (int)(rc.bottom - S(kFooterH) - S(kTabH)));
+                int maxScroll = std::max(0, g_contentH[g_tab] - bodyH);
+                int step = (wp == VK_NEXT || wp == VK_PRIOR) ? bodyH - S(40) : S(40);
+                int dir = (wp == VK_DOWN || wp == VK_NEXT) ? 1 : -1;
+                int next = std::clamp(g_scrollY[g_tab] + dir * step, 0, maxScroll);
+                if (next != g_scrollY[g_tab]) {
+                    g_scrollY[g_tab] = next;
+                    InvalidateRect(h, nullptr, FALSE);
+                }
             }
             return 0;
         case WM_DPICHANGED: {
@@ -503,9 +798,10 @@ LRESULT CALLBACK WndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             break;
         case WM_DESTROY:
             g_wnd = nullptr;
-            for (auto& v : g_rows) v.clear();
-            for (HFONT* f : { &g_font, &g_bold, &g_icons })
-                if (*f) DeleteObject(*f), *f = nullptr;
+            g_model = Model{};
+            for (auto& v : g_layout) v.clear();
+            g_footerRc.clear();
+            DeleteFonts();
             memory_trim::Soon();
             return 0;
     }
@@ -538,13 +834,14 @@ void Show(HINSTANCE inst, const Host& host) {
                              pt.x, pt.y, 100, 100, nullptr, nullptr, inst, nullptr);
     if (!h) return;
     Measure(h);
+    Reload();
     ShowWindow(h, SW_SHOWNORMAL);
     SetForegroundWindow(h);
 }
 
 void Refresh() {
     if (!g_wnd) return;
-    if (g_busy) {  // a command is running from a click: reload once it is done
+    if (g_busy) {
         g_dirty = true;
         return;
     }

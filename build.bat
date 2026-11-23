@@ -20,3 +20,8 @@ g++ -std=c++17 -Os -municode -mwindows -static -s -ffunction-sections -fdata-sec
     build\app_res.o -o TaskbarVitals.exe ^
     -lhid -lsetupapi -lcfgmgr32 -lole32 -loleaut32 -lcomctl32 -lgdi32 -lruntimeobject -lws2_32 -lwinhttp -lbcrypt -lversion -lbluetoothapis || exit /b 1
 echo Built TaskbarVitals.exe
+rem The CPU temperature helper: a separate elevated program (see src\cputemp.h) with the PawnIO IntelMSR module as a resource.
+windres -i helper\cputemp.rc -o build\helper_res.o --include-dir helper --include-dir res --include-dir build || exit /b 1
+g++ -std=c++17 -Os -municode -mwindows -static -s -Wl,--gc-sections -D_WIN32_WINNT=0x0A00 -DWINVER=0x0A00 -Wall ^
+    helper\cputemp_helper.cpp build\helper_res.o -o TaskbarVitalsTemp.exe -lole32 -ladvapi32 -lshell32 -luuid || exit /b 1
+echo Built TaskbarVitalsTemp.exe

@@ -38,6 +38,8 @@ Name: "autostart"; Description: "Start Taskbar Vitals when I sign in to Windows"
 
 [Files]
 Source: "{#Root}\TaskbarVitals.exe"; DestDir: "{app}"; Flags: ignoreversion
+; Reads the CPU temperature (only used when the user turns that on; it copies itself to Program Files then).
+Source: "{#Root}\TaskbarVitalsTemp.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#Root}\third_party\headsetcontrol\headsetcontrol.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#Root}\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
 Source: "{#Root}\installer\THIRD_PARTY_NOTICES.txt"; DestDir: "{app}"; Flags: ignoreversion
@@ -57,11 +59,18 @@ Name: "{autoprograms}\Taskbar Vitals"; Filename: "{app}\TaskbarVitals.exe"
 Filename: "{app}\TaskbarVitals.exe"; Description: "Start Taskbar Vitals now"; Flags: nowait postinstall skipifsilent; Check: not IsUpdate
 
 [UninstallRun]
+; Takes the CPU temperature helper (its task and its copy in Program Files) off the PC, if it was set up.
+Filename: "{app}\TaskbarVitalsTemp.exe"; Parameters: "--remove"; Verb: "runas"; Flags: shellexec runhidden waituntilterminated; RunOnceId: "RemoveTempHelper"; Check: TempHelperInstalled
 Filename: "{app}\TaskbarVitals.exe"; Parameters: "--quit"; Flags: runhidden waituntilterminated; RunOnceId: "QuitApp"
 
 [Code]
 const
   RunKey = 'Software\Microsoft\Windows\CurrentVersion\Run';
+
+function TempHelperInstalled(): Boolean;
+begin
+  Result := FileExists(ExpandConstant('{commonpf}\Taskbar Vitals\TaskbarVitalsTemp.exe'));
+end;
 
 function IsUpdate(): Boolean;
 begin

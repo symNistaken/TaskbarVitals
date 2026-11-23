@@ -1,13 +1,7 @@
 #pragma once
-// Settings panel: a small window that replaces the long tray menu. Sections in tabs (Devices, System,
-// Appearance, General), switches for on/off options, a value with a drop-down for choices, and one row per
-// device that opens the device's own menu.
-//
-// The panel has no settings logic of its own. Its model is the app's menu (main.cpp's BuildMenu): it reads
-// labels, checked and greyed states and submenus with GetMenuItemInfo, and runs a click through the menu's
-// command. So every menu option shows up in the panel, with the menu's translated labels, and runs exactly the
-// code the menu runs. The menu is rebuilt for every click, so commands that are list positions (devices,
-// monitors, languages) always match the lists of that moment.
+// Settings panel: modern Fluent card-based window opened when clicking the taskbar strip or tray icon.
+// Organised into four tabs (Batteries, System, Appearance, General) with grouped cards, inline
+// reorder buttons, live system badges, and drop-down choices backed by main.cpp's commands.
 #include <windows.h>
 
 #include <string>
@@ -15,36 +9,61 @@
 
 namespace panel {
 
-enum class Section { Skip, Devices, System, Appearance, General, Footer };
-enum class Kind { Device, Toggle, Radio, Choice, Action };
-struct Place {
-    Section section = Section::Skip;
-    Kind kind = Kind::Action;
+enum class Tab { Batteries = 0, System = 1, Appearance = 2, General = 3, Count = 4 };
+
+enum class RowKind {
+    SectionHeader,  // Category heading above a card
+    DeviceCard,     // Battery device row: icon, name, status/via, [↑] [↓] [⋯] [Switch]
+    SystemHeader,   // Header of a system card (CPU, RAM, GPU, VRAM): icon, title, subtitle, value badge, [↑] [↓], optional [Switch]
+    Toggle,         // Label + on/off switch (optionally indented inside a system card)
+    Choice,         // Label + rounded pill with current choice + chevron down (opens popup)
+    Action,         // Label + chevron right (runs command)
+    Segmented,      // 2-segment toggle bar ([ left | right ])
 };
 
-// One device row, in the order of the device submenus in the menu.
-struct Device {
-    std::wstring key, name, status;
+struct Row {
+    RowKind kind = RowKind::Action;
+    bool newCard = false;      // starts a new rounded card container (unless SectionHeader)
+    bool indented = false;     // slightly indented sub-row inside a card
+    std::wstring label;        // primary text (or left segment label for Segmented)
+    std::wstring sublabel;     // secondary text under label (or right segment label for Segmented)
+    std::wstring value;        // right-side badge or current choice text
+    wchar_t glyph = 0;         // Segoe Fluent Icons glyph
+    COLORREF accentColor = 0;  // icon accent colour when hasAccent is true
+    bool hasAccent = false;
+    bool on = false;           // switch state (or true = left segment active for Segmented)
+    bool hasSwitch = true;     // for SystemHeader: RAM and GPU memory have a direct switch
+    bool grayed = false;
+    bool dim = false;
+    bool canUp = false;
+    bool canDown = false;
+    UINT id = 0;               // primary command id (toggle/action/choice/left segment)
+    UINT id2 = 0;              // right segment command id (Segmented) or "More (⋯)" popup id (DeviceCard)
+    UINT upId = 0;             // command id for [↑] Move earlier
+    UINT downId = 0;           // command id for [↓] Move later
+};
+
+struct FooterButton {
+    std::wstring label;
     wchar_t glyph = 0;
-    bool hidden = false;
+    UINT id = 0;
+};
+
+struct Model {
+    std::vector<Row> tabs[(int)Tab::Count];
+    std::vector<FooterButton> footer;
 };
 
 struct Host {
-    // Builds the menu with the current state and fills the device rows. The menu stays valid until release().
-    HMENU (*build)(std::vector<Device>& devices) = nullptr;
-    // Runs a command of the menu built last.
+    void (*build)(Model& out) = nullptr;
     void (*run)(UINT command) = nullptr;
-    // Destroys the menu built last.
-    void (*release)() = nullptr;
-    // Where a menu item goes: by its command id, or by the first command id of a submenu.
-    Place (*place)(UINT id) = nullptr;
-    // Light or dark, as the menus (the taskbar theme).
+    UINT (*popup)(UINT id, HWND owner, POINT screenPt) = nullptr;
     bool (*light)() = nullptr;
 };
 
 // Opens the panel near the taskbar of the monitor under the cursor, or brings it to the front.
 void Show(HINSTANCE inst, const Host& host);
-// Reads the state again (new poll results, theme or language change). Does nothing while the panel is closed.
+// Reloads the model (new poll results, system samples, theme or language change). Does nothing while closed.
 void Refresh();
 // Closes the panel (the app is exiting).
 void Close();

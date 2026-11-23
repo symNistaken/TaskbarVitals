@@ -3,7 +3,7 @@ CXX      ?= g++
 WINDRES  ?= windres
 VERSION  ?= 0.0.0
 CHANNEL  ?= dev
-.DEFAULT_GOAL := TaskbarVitals.exe
+.DEFAULT_GOAL := all
 CXXFLAGS ?= -std=c++17 -Os -Wall -Wno-missing-field-initializers -ffunction-sections -fdata-sections \
             -D_WIN32_WINNT=0x0A00 -DWINVER=0x0A00
 LDFLAGS  ?= -municode -mwindows -static -s -Wl,--gc-sections
@@ -12,8 +12,19 @@ LIBS     := -lhid -lsetupapi -lcfgmgr32 -lole32 -loleaut32 -lcomctl32 -lgdi32 -l
 SRC := $(wildcard src/*.cpp) $(wildcard src/drivers/*.cpp)
 OBJ := $(patsubst src/%.cpp,build/%.o,$(SRC)) build/app_res.o
 
+all: TaskbarVitals.exe TaskbarVitalsTemp.exe
+
 TaskbarVitals.exe: $(OBJ)
 	$(CXX) $(LDFLAGS) $^ -o $@ $(LIBS)
+
+# The CPU temperature helper: a separate program that runs elevated (see src/cputemp.h). It embeds the PawnIO
+# IntelMSR module (res/pawnio/IntelMSR.bin) and needs no other source file.
+TaskbarVitalsTemp.exe: helper/cputemp_helper.cpp src/cputemp.h build/helper_res.o
+	$(CXX) $(CXXFLAGS) -municode -mwindows -static -s -Wl,--gc-sections helper/cputemp_helper.cpp build/helper_res.o -o $@ -lole32 -ladvapi32 -lshell32 -luuid
+
+build/helper_res.o: helper/cputemp.rc helper/cputemp.manifest res/app.ico res/pawnio/IntelMSR.bin build/version.h
+	@mkdir -p build
+	$(WINDRES) -i $< -o $@ --include-dir helper --include-dir res --include-dir build
 
 build/%.o: src/%.cpp $(wildcard src/*.h src/drivers/*.h) build/version.h
 	@mkdir -p $(dir $@)
@@ -32,7 +43,7 @@ build/app_res.o: res/app.rc res/app.manifest res/app.ico res/app_light.ico build
 	$(WINDRES) -i $< -o $@ --include-dir res --include-dir build
 
 clean:
-	rm -rf build TaskbarVitals.exe
+	rm -rf build TaskbarVitals.exe TaskbarVitalsTemp.exe
 
 test: test-update-core test-update-win test-update-signature
 	@mkdir -p build
@@ -40,6 +51,8 @@ test: test-update-core test-update-win test-update-signature
 	./build/device_aliases_test.exe
 	$(CXX) -std=c++17 -O2 -Wall -Wextra tests/sysmon_test.cpp -o build/sysmon_test.exe
 	./build/sysmon_test.exe
+	$(CXX) -std=c++17 -O2 -Wall -Wextra tests/cputemp_test.cpp -o build/cputemp_test.exe
+	./build/cputemp_test.exe
 	$(CXX) -std=c++17 -O2 -Wall -Wextra tests/gpumon_test.cpp src/gpumon.cpp -o build/gpumon_test.exe
 	./build/gpumon_test.exe
 	$(CXX) -std=c++17 -O2 -Wall -Wextra tests/alert_rules_test.cpp -o build/alert_rules_test.exe
