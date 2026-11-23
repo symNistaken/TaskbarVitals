@@ -14,6 +14,7 @@
   <a href="https://github.com/symNistaken/TaskbarVitals/releases"><img src="https://img.shields.io/github/downloads/symNistaken/TaskbarVitals/total?style=flat-square&label=Downloads&color=2ea44f" alt="Total downloads"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/symNistaken/TaskbarVitals?style=flat-square&color=555555" alt="GPL-3.0-or-later license"></a>
   <a href="https://github.com/symNistaken/TaskbarVitals/issues/new/choose"><img src="https://img.shields.io/badge/Hardware-Request%20Device-2ea44f?style=flat-square&logo=github&logoColor=white" alt="Request a device"></a>
+  <a href="https://buymeacoffee.com/symnistaken"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-symnistaken-FFDD00?style=flat-square&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me a Coffee"></a>
 </p>
 
 <p>
@@ -335,7 +336,7 @@ Taskbar Vitals is free, open-source, and built with zero telemetry or ads. If it
 - **Star the repository** on GitHub so more wireless peripheral and Windows users can discover it.
 - **Verify or request a device:** Run `TaskbarVitals.exe --report` or submit one of the [Issue Templates](https://github.com/symNistaken/TaskbarVitals/issues/new/choose) to help test untested models or add new protocols.
 - **Bug reports & Q&A:** Open a [Bug Report](https://github.com/symNistaken/TaskbarVitals/issues/new?template=bug-report.yml) with your version and `--list` output if anything looks off.
-- **Sponsor development:** Once enabled in [`.github/FUNDING.yml`](.github/FUNDING.yml), GitHub's **Sponsor** button appears directly at the top of the repository to help cover hardware testing dongles and ongoing Windows releases.
+- **Buy Me a Coffee:** Support ongoing hardware testing and Windows releases at **[buymeacoffee.com/symnistaken](https://buymeacoffee.com/symnistaken)** (also linked directly inside the app under **Settings → General → Support the project...** and via GitHub's **Sponsor** button).
 
 ---
 
