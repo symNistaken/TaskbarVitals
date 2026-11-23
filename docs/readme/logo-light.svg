@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Taskbar Vitals logo" font-family="'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif">
+<title>Taskbar Vitals logo</title>
+<defs><linearGradient id="logoGrad_light" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#f8fafc"/></linearGradient></defs>
+<rect x="2" y="2" width="124" height="124" rx="28" fill="url(#logoGrad_light)" stroke="#cfd8e3" stroke-width="2"/>
+<g transform="translate(15.1 16.0) scale(0.1875)"><path d="M84,120 H396 C424.7,120 448,143.3 448,172 V340 C448,368.7 424.7,392 396,392 H84 C55.3,392 32,368.7 32,340 V172 C32,143.3 55.3,120 84,120 Z M84,164 H396 C400.4,164 404,167.6 404,172 V340 C404,344.4 400.4,348 396,348 H84 C79.6,348 76,344.4 76,340 V172 C76,167.6 79.6,164 84,164 Z" fill="#161b22" fill-rule="evenodd" clip-rule="evenodd"/><path d="M448,216 H470 C481,216 490,225 490,236 V276 C490,287 481,296 470,296 H448 Z" fill="#161b22"/><path d="M100,272 L174.5,272 L201.5,232.2 L239.5,312.8 L268.6,312.6 L300.7,241.3 L316.1,272 L380,272 L380,240 L335.9,240 L314.3,196.8 L285.4,197.4 L253.7,267.8 L218.5,193.2 L190.8,191 L157.5,240 L100,240 Z" fill="#0067c0"/></g>
+</svg>

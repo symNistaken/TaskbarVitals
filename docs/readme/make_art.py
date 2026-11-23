@@ -159,14 +159,34 @@ def row(t, entries, x, cy, s, gap):
     return "".join(out), x - gap
 
 
-def app_icon(x, y, size, color):
+def app_icon(x, y, size, color, pulse_color=None):
     src = open(os.path.join(ROOT, "res", "app.svg"), encoding="utf-8").read()
-    paths = "".join(re.findall(r"<path[^>]*/>", src, re.S))
+    ds = re.findall(r'<path[^>]*\bd="([^"]+)"', src, re.S)
+    assert len(ds) >= 4, f"Expected 4 paths in res/app.svg, got {len(ds)}"
+    pulse = pulse_color or color
     k = size / 512
+    # Combine outer and inner battery rectangles into one subpath so fill-rule="evenodd" hollows the interior.
     return (
-        f'<g transform="translate({x} {y}) scale({k:.4f})" fill="{color}" fill-rule="evenodd" '
-        f'clip-rule="evenodd">{paths}</g>'
+        f'<g transform="translate({x:.1f} {y:.1f}) scale({k:.4f})">'
+        f'<path d="{ds[0]} {ds[1]}" fill="{color}" fill-rule="evenodd" clip-rule="evenodd"/>'
+        f'<path d="{ds[2]}" fill="{color}"/>'
+        f'<path d="{ds[3]}" fill="{pulse}"/>'
+        f'</g>'
     )
+
+
+def logo(t, theme_name):
+    W, H = 128, 128
+    grad_id = f"logoGrad_{theme_name}"
+    out = [
+        f'<defs><linearGradient id="{grad_id}" x1="0" y1="0" x2="1" y2="1">'
+        f'<stop offset="0%" stop-color="{t["icon_tile"]}"/>'
+        f'<stop offset="100%" stop-color="{t["bg"]}"/>'
+        f'</linearGradient></defs>',
+        f'<rect x="2" y="2" width="{W - 4}" height="{H - 4}" rx="28" fill="url(#{grad_id})" stroke="{t["icon_tile_edge"]}" stroke-width="2"/>',
+        app_icon(15.1, 16.0, 96, t["fg"], pulse_color=t["accent"]),
+    ]
+    return svg(W, H, "\n".join(out), "Taskbar Vitals logo")
 
 
 def svg(w, h, body, title):
@@ -212,7 +232,7 @@ def banner(t, theme_name):
     out.append(
         f'<rect x="64" y="98" width="96" height="96" rx="22" fill="{t["icon_tile"]}" stroke="{t["icon_tile_edge"]}"/>'
     )
-    out.append(app_icon(76, 110, 72, t["accent"]))
+    out.append(app_icon(75.3, 110, 72, t["fg"], pulse_color=t["accent"]))
     out.append(
         f'<text x="184" y="142" font-size="56" font-weight="700" letter-spacing="-1.2" fill="{t["fg"]}">Taskbar Vitals</text>'
     )
@@ -316,7 +336,7 @@ def states(t):
 
 if __name__ == "__main__":
     for name, t in THEMES.items():
-        for fn, content in (("banner", banner(t, name)), ("states", states(t))):
+        for fn, content in (("logo", logo(t, name)), ("banner", banner(t, name)), ("states", states(t))):
             path = os.path.join(HERE, f"{fn}-{name}.svg")
             with open(path, "w", encoding="utf-8", newline="\n") as f:
                 f.write(content)

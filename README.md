@@ -1,6 +1,9 @@
 <div align="center">
 
-<img src="res/app.svg" width="76" height="76" alt="Taskbar Vitals logo">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/logo-dark.svg">
+  <img src="docs/readme/logo-light.svg" width="84" height="84" alt="Taskbar Vitals logo">
+</picture>
 
 <h1>Taskbar Vitals</h1>
 
