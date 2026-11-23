@@ -6,7 +6,7 @@ CHANNEL  ?= dev
 .DEFAULT_GOAL := all
 CXXFLAGS ?= -std=c++17 -Os -Wall -Wno-missing-field-initializers -ffunction-sections -fdata-sections \
             -D_WIN32_WINNT=0x0A00 -DWINVER=0x0A00
-LDFLAGS  ?= -municode -mwindows -static -s -Wl,--gc-sections
+LDFLAGS  ?= -municode -mwindows -static -s -Wl,--gc-sections,--nxcompat,--dynamicbase,--high-entropy-va
 LIBS     := -lhid -lsetupapi -lcfgmgr32 -lole32 -loleaut32 -lcomctl32 -lgdi32 -lruntimeobject -lws2_32 -lwinhttp -lbcrypt -lversion -lbluetoothapis
 
 SRC := $(wildcard src/*.cpp) $(wildcard src/drivers/*.cpp)
@@ -20,7 +20,7 @@ TaskbarVitals.exe: $(OBJ)
 # The CPU temperature helper: a separate program that runs elevated (see src/cputemp.h). It embeds the PawnIO
 # IntelMSR module (res/pawnio/IntelMSR.bin) and needs no other source file.
 TaskbarVitalsTemp.exe: helper/cputemp_helper.cpp src/cputemp.h build/helper_res.o
-	$(CXX) $(CXXFLAGS) -municode -mwindows -static -s -Wl,--gc-sections helper/cputemp_helper.cpp build/helper_res.o -o $@ -lole32 -ladvapi32 -lshell32 -luuid
+	$(CXX) $(CXXFLAGS) -municode -mwindows -static -s -Wl,--gc-sections,--nxcompat,--dynamicbase,--high-entropy-va helper/cputemp_helper.cpp build/helper_res.o -o $@ -lole32 -ladvapi32 -lshell32 -luuid
 
 build/helper_res.o: helper/cputemp.rc helper/cputemp.manifest res/app.ico res/pawnio/IntelMSR.bin build/version.h
 	@mkdir -p build

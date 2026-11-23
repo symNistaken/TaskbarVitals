@@ -16,7 +16,10 @@ BEGIN
   BEGIN
     BLOCK "040904B0"
     BEGIN
+      VALUE "CompanyName", "symNistaken"
       VALUE "FileDescription", "Taskbar Vitals CPU temperature helper"
+      VALUE "InternalName", "TaskbarVitalsTemp"
+      VALUE "LegalCopyright", "Copyright (C) 2026 symNistaken & contributors (GPL-3.0-or-later)"
       VALUE "ProductName", "Taskbar Vitals"
       VALUE "FileVersion", WB_VERSION_STRING
       VALUE "ProductVersion", WB_VERSION_STRING

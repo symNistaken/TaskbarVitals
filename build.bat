@@ -14,7 +14,7 @@ rem Every lang\*.txt is a built-in UI language: joined into one resource, each a
 windres -i res\app.rc -o build\app_res.o --include-dir res --include-dir build || exit /b 1
 set SOURCES=
 for %%f in (src\*.cpp src\drivers\*.cpp) do set SOURCES=!SOURCES! %%f
-g++ -std=c++17 -Os -municode -mwindows -static -s -ffunction-sections -fdata-sections -Wl,--gc-sections ^
+g++ -std=c++17 -Os -municode -mwindows -static -s -ffunction-sections -fdata-sections -Wl,--gc-sections,--nxcompat,--dynamicbase,--high-entropy-va ^
     -D_WIN32_WINNT=0x0A00 -DWINVER=0x0A00 -Wall -Wno-missing-field-initializers ^
     !SOURCES! ^
     build\app_res.o -o TaskbarVitals.exe ^
@@ -22,6 +22,6 @@ g++ -std=c++17 -Os -municode -mwindows -static -s -ffunction-sections -fdata-sec
 echo Built TaskbarVitals.exe
 rem The CPU temperature helper: a separate elevated program (see src\cputemp.h) with the PawnIO IntelMSR module as a resource.
 windres -i helper\cputemp.rc -o build\helper_res.o --include-dir helper --include-dir res --include-dir build || exit /b 1
-g++ -std=c++17 -Os -municode -mwindows -static -s -Wl,--gc-sections -D_WIN32_WINNT=0x0A00 -DWINVER=0x0A00 -Wall ^
+g++ -std=c++17 -Os -municode -mwindows -static -s -Wl,--gc-sections,--nxcompat,--dynamicbase,--high-entropy-va -D_WIN32_WINNT=0x0A00 -DWINVER=0x0A00 -Wall ^
     helper\cputemp_helper.cpp build\helper_res.o -o TaskbarVitalsTemp.exe -lole32 -ladvapi32 -lshell32 -luuid || exit /b 1
 echo Built TaskbarVitalsTemp.exe
