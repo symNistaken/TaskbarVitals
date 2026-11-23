@@ -1,0 +1,45 @@
+name: Bug Report
+description: Report a bug in Taskbar Vitals (taskbar strip, system vitals, updater, or UI)
+title: "Bug: <short summary>"
+labels: ["bug"]
+body:
+  - type: input
+    id: app_version
+    attributes:
+      label: Taskbar Vitals Version
+      placeholder: e.g. 2.0.0
+    validations:
+      required: true
+  - type: dropdown
+    id: install_type
+    attributes:
+      label: Platform & Install Type
+      options:
+        - Windows 11 (Setup installer)
+        - Windows 11 (Portable ZIP)
+        - Windows 10 (Setup installer)
+        - Windows 10 (Portable ZIP)
+        - Linux (experimental)
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Clear description of the bug and what you expected to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      placeholder: |
+        1. Open Settings → System...
+        2. Enable ...
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Output of `TaskbarVitals.exe --list` (if device-related)
+      render: text

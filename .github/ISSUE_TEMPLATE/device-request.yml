@@ -1,0 +1,64 @@
+name: Device Support / Hardware Verification
+description: Request support for a wireless peripheral or confirm an untested model
+title: "Device support: <Brand & Model>"
+labels: ["device-support"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Tip: You can also use **Settings → General → Request support for a device...** or run `TaskbarVitals.exe --report` to prefill this information automatically.
+  - type: input
+    id: device_model
+    attributes:
+      label: Device Brand & Model
+      description: Exact model name (and edition/revision if applicable).
+      placeholder: e.g. Logitech G Pro X Superlight 2 / ATK F1 Extreme
+    validations:
+      required: true
+  - type: dropdown
+    id: request_type
+    attributes:
+      label: Request Type
+      options:
+        - New device support request
+        - Confirming an existing / untested device works
+        - Wrong percentage or charging state on a supported device
+    validations:
+      required: true
+  - type: dropdown
+    id: connection
+    attributes:
+      label: Connection Mode
+      options:
+        - 2.4 GHz USB receiver / dongle
+        - USB cable
+        - Bluetooth / BLE
+        - Multiple (specify in notes)
+    validations:
+      required: true
+  - type: textarea
+    id: list_output
+    attributes:
+      label: Output of `TaskbarVitals.exe --list`
+      render: text
+      placeholder: Paste output here...
+  - type: textarea
+    id: dump_output
+    attributes:
+      label: Output of `TaskbarVitals.exe --dump`
+      description: Also saved under `%TEMP%`. Needed to identify exact VID:PID and HID collections.
+      render: text
+      placeholder: Paste relevant VID:PID and HID collection lines here...
+    validations:
+      required: true
+  - type: input
+    id: vendor_battery
+    attributes:
+      label: Battery shown in vendor software
+      description: What percentage / charging state does the manufacturer's official app or LED show right now?
+      placeholder: e.g. 74%, not charging
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional Notes or USB Captures
+      description: Any links to open-source drivers, web configurators, or Wireshark + USBPcap captures if available.

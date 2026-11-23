@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Request device support directly from the app
+    url: https://github.com/symNistaken/TaskbarVitals#cli--automation
+    about: Run TaskbarVitals.exe --report (or Settings → General → Request support for a device...) to prefill device IDs automatically.

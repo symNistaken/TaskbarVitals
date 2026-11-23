@@ -2,7 +2,7 @@
 
 Keychron's stock firmware only reports the keyboard's battery over Bluetooth. With the small QMK change in
 [`k5_max_battery.patch`](k5_max_battery.patch), the keyboard also answers a battery query (`A4`) through the
-Keychron Link receiver and over the USB cable, and BatteryHub shows its level, voltage and charging state.
+Keychron Link receiver and over the USB cable, and Taskbar Vitals shows its level, voltage and charging state.
 
 Tested on the **Keychron K5 Max ANSI RGB** (`3434:0A50`) with the Keychron Link receiver (`3434:D030`).
 
@@ -51,7 +51,7 @@ The app currently names a K5 Max (`0A50`–`0A58`) by model and any other one "K
 1. Set the mode switch to **Cable** and unplug the USB cable.
 2. Hold **Esc** while plugging the cable in. The keyboard enters the STM32 bootloader.
 3. Flash the `.bin` with [QMK Toolbox](https://github.com/qmk/qmk_toolbox/releases) (or `dfu-util`).
-4. Switch back to **2.4 GHz** and check with `BatteryHub.exe --list`:
+4. Switch back to **2.4 GHz** and check with `TaskbarVitals.exe --list`:
    `Keychron K5 Max  [2.4 GHz receiver]  52%, 3743 mV`.
 
 Updating the keyboard from Keychron Launcher replaces this firmware and removes battery reporting. To undo it,

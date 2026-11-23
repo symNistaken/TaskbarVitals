@@ -1,28 +1,29 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="310" viewBox="0 0 1280 310" role="img" aria-label="What the taskbar entries look like: normal, low battery, charging, charged, asleep, and two devices of one kind" font-family="'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif">
-<title>What the taskbar entries look like: normal, low battery, charging, charged, asleep, and two devices of one kind</title>
-<rect x="0.5" y="0.5" width="1279" height="309" rx="18" fill="#17181a" stroke="#26282b"/>
-<rect x="48" y="60" width="1184" height="96.0" rx="12" fill="#202020" stroke="#303030"/>
-<g transform="translate(96.3 88.0) scale(1.6667)" fill="none" stroke="#f3f3f3" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="3" width="11" height="18" rx="5.5"/><path d="M12 3.5v5.5"/></g><text x="146.3" y="117.4" font-size="26.0" fill="#f3f3f3">93%</text>
-<text x="146.7" y="208.0" text-anchor="middle" font-size="25" font-weight="600" fill="#f3f3f3">Normal</text>
-<text x="146.7" y="244.0" text-anchor="middle" font-size="21" fill="#a3a3a3">level in percent</text>
-<line x1="245.3" y1="82" x2="245.3" y2="134.0" stroke="#333333"/>
-<g transform="translate(293.7 88.0) scale(1.6667)" fill="none" stroke="#f3f3f3" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="13.5" width="4.5" height="7" rx="1.6"/><rect x="16.5" y="13.5" width="4.5" height="7" rx="1.6"/></g><text x="343.7" y="117.4" font-size="26.0" fill="#ff8a80">12%</text>
-<text x="344.0" y="208.0" text-anchor="middle" font-size="25" font-weight="600" fill="#f3f3f3">Low battery</text>
-<text x="344.0" y="244.0" text-anchor="middle" font-size="21" fill="#a3a3a3">15% or less</text>
-<line x1="442.7" y1="82" x2="442.7" y2="134.0" stroke="#333333"/>
-<g transform="translate(476.0 88.0) scale(1.6667)" fill="none" stroke="#f3f3f3" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7.2 7.5h9.6a4 4 0 0 1 3.9 3.2l1.1 5.1a2.4 2.4 0 0 1-4.1 2.1L15.8 16H8.2l-1.9 1.9a2.4 2.4 0 0 1-4.1-2.1l1.1-5.1a4 4 0 0 1 3.9-3.2z"/><path d="M7.5 10.6v3.2M5.9 12.2h3.2M15.6 11.4h.01M17.8 13.2h.01"/></g><g transform="translate(524.0 95.0) scale(1.0833)" fill="#4cc2ff" stroke="none"><path d="M13.5 2 5 13.5h6L9.8 22 19 9.8h-6.2z"/></g><text x="556.0" y="117.4" font-size="26.0" fill="#f3f3f3">64%</text>
-<text x="541.3" y="208.0" text-anchor="middle" font-size="25" font-weight="600" fill="#f3f3f3">Charging</text>
-<text x="541.3" y="244.0" text-anchor="middle" font-size="21" fill="#a3a3a3">blue bolt</text>
-<line x1="640.0" y1="82" x2="640.0" y2="134.0" stroke="#333333"/>
-<g transform="translate(664.1 88.0) scale(1.6667)" fill="none" stroke="#f3f3f3" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.6h.01M9.3 9.6h.01M12.6 9.6h.01M15.9 9.6h.01M18 9.6h.01M7.5 12.2h.01M10.8 12.2h.01M14.1 12.2h.01M16.6 12.2h.01M8 15h8"/></g><g transform="translate(712.1 95.0) scale(1.0833)" fill="none" stroke="#6ccb5f" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l4.6 4.6L19.5 6.7"/></g><text x="748.1" y="117.4" font-size="26.0" fill="#f3f3f3">100%</text>
-<text x="738.7" y="208.0" text-anchor="middle" font-size="25" font-weight="600" fill="#f3f3f3">Charged</text>
-<text x="738.7" y="244.0" text-anchor="middle" font-size="21" fill="#a3a3a3">full, still on power</text>
-<line x1="837.3" y1="82" x2="837.3" y2="134.0" stroke="#333333"/>
-<g opacity="0.42"><g transform="translate(885.7 88.0) scale(1.6667)" fill="none" stroke="#f3f3f3" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="3" width="11" height="18" rx="5.5"/><path d="M12 3.5v5.5"/></g><text x="935.7" y="117.4" font-size="26.0" fill="#f3f3f3">71%</text></g>
-<text x="936.0" y="208.0" text-anchor="middle" font-size="25" font-weight="600" fill="#f3f3f3">Asleep</text>
-<text x="936.0" y="244.0" text-anchor="middle" font-size="21" fill="#a3a3a3">last value, dimmed</text>
-<line x1="1034.7" y1="82" x2="1034.7" y2="134.0" stroke="#333333"/>
-<g transform="translate(1076.7 88.0) scale(1.6667)" fill="none" stroke="#f3f3f3" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="3" width="11" height="18" rx="5.5"/><path d="M12 3.5v5.5"/></g><rect x="1104.0" y="110.0" width="25.4" height="21.0" rx="5.0" fill="#f3f3f3"/><text x="1116.7" y="126.2" font-size="15.0" font-weight="700" text-anchor="middle" fill="#202020">MX</text><text x="1139.4" y="117.4" font-size="26.0" fill="#f3f3f3">80%</text>
-<text x="1133.3" y="208.0" text-anchor="middle" font-size="25" font-weight="600" fill="#f3f3f3">Two of a kind</text>
-<text x="1133.3" y="244.0" text-anchor="middle" font-size="21" fill="#a3a3a3">caption on the icon</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="330" viewBox="0 0 1280 330" role="img" aria-label="Taskbar Vitals indicator states: active percentage, low alert, fast charging, fully charged, standby/asleep, and multi-device caption" font-family="'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif">
+<title>Taskbar Vitals indicator states: active percentage, low alert, fast charging, fully charged, standby/asleep, and multi-device caption</title>
+<rect x="0.5" y="0.5" width="1279" height="329" rx="20" fill="#0f1115" stroke="#252a34"/>
+<text x="48" y="42" font-size="15" font-weight="700" letter-spacing="0.8" fill="#4cc2ff">TASKBAR INDICATOR REFERENCE</text>
+<rect x="48" y="66" width="1184" height="98" rx="14" fill="#1a1d23" stroke="#2d333f"/>
+<g transform="translate(98.9 96.5) scale(1.5437)" fill="none" stroke="#f3f5f8" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="3" width="11" height="18" rx="5.5"/><path d="M12 3.5v5.5"/></g><text x="146.7" y="123.8" font-size="24.4" font-weight="500" fill="#f3f5f8">93%</text><rect x="98.9" y="143.3" width="91.6" height="4.7" rx="2.3" fill="#44d62c" opacity="0.9"/>
+<text x="146.7" y="216.0" text-anchor="middle" font-size="23" font-weight="600" fill="#f3f5f8">Active %</text>
+<text x="146.7" y="250.0" text-anchor="middle" font-size="19" fill="#9aa3b2">live level + brand bar</text>
+<line x1="245.3" y1="86" x2="245.3" y2="144" stroke="#2c323e"/>
+<g transform="translate(296.2 96.5) scale(1.5437)" fill="none" stroke="#f3f5f8" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="13.5" width="4.5" height="7" rx="1.6"/><rect x="16.5" y="13.5" width="4.5" height="7" rx="1.6"/></g><text x="344.0" y="123.8" font-size="24.4" font-weight="500" fill="#ff7b72">12%</text>
+<text x="344.0" y="216.0" text-anchor="middle" font-size="23" font-weight="600" fill="#f3f5f8">Low Alert</text>
+<text x="344.0" y="250.0" text-anchor="middle" font-size="19" fill="#9aa3b2">15% or custom alert</text>
+<line x1="442.7" y1="86" x2="442.7" y2="144" stroke="#2c323e"/>
+<g transform="translate(479.4 96.5) scale(1.5437)" fill="none" stroke="#f3f5f8" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M7.2 7.5h9.6a4 4 0 0 1 3.9 3.2l1.1 5.1a2.4 2.4 0 0 1-4.1 2.1L15.8 16H8.2l-1.9 1.9a2.4 2.4 0 0 1-4.1-2.1l1.1-5.1a4 4 0 0 1 3.9-3.2z"/><path d="M7.5 10.6v3.2M5.9 12.2h3.2M15.6 11.4h.01M17.8 13.2h.01"/></g><g transform="translate(525.2 102.3) scale(1.0156)" fill="#4cc2ff" stroke="none"><path d="M13.5 2 5 13.5h6L9.8 22 19 9.8h-6.2z"/></g><text x="555.5" y="123.8" font-size="24.4" font-weight="500" fill="#f3f5f8">64%</text>
+<text x="541.3" y="216.0" text-anchor="middle" font-size="23" font-weight="600" fill="#f3f5f8">Fast Charging</text>
+<text x="541.3" y="250.0" text-anchor="middle" font-size="19" fill="#9aa3b2">on USB cable or dock</text>
+<line x1="640.0" y1="86" x2="640.0" y2="144" stroke="#2c323e"/>
+<g transform="translate(668.5 96.5) scale(1.5437)" fill="none" stroke="#f3f5f8" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.6h.01M9.3 9.6h.01M12.6 9.6h.01M15.9 9.6h.01M18 9.6h.01M7.5 12.2h.01M10.8 12.2h.01M14.1 12.2h.01M16.6 12.2h.01M8 15h8"/></g><g transform="translate(714.3 102.3) scale(1.0156)" fill="none" stroke="#56d364" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l4.6 4.6L19.5 6.7"/></g><text x="747.4" y="123.8" font-size="24.4" font-weight="500" fill="#f3f5f8">100%</text>
+<text x="738.7" y="216.0" text-anchor="middle" font-size="23" font-weight="600" fill="#f3f5f8">Fully Charged</text>
+<text x="738.7" y="250.0" text-anchor="middle" font-size="19" fill="#9aa3b2">100% still on power</text>
+<line x1="837.3" y1="86" x2="837.3" y2="144" stroke="#2c323e"/>
+<g opacity="0.42"><g transform="translate(888.2 96.5) scale(1.5437)" fill="none" stroke="#f3f5f8" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="3" width="11" height="18" rx="5.5"/><path d="M12 3.5v5.5"/></g><text x="936.0" y="123.8" font-size="24.4" font-weight="500" fill="#f3f5f8">71%</text></g>
+<text x="936.0" y="216.0" text-anchor="middle" font-size="23" font-weight="600" fill="#f3f5f8">Standby / Asleep</text>
+<text x="936.0" y="250.0" text-anchor="middle" font-size="19" fill="#9aa3b2">last reading retained</text>
+<line x1="1034.7" y1="86" x2="1034.7" y2="144" stroke="#2c323e"/>
+<g transform="translate(1077.8 96.5) scale(1.5437)" fill="none" stroke="#f3f5f8" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="3" width="11" height="18" rx="5.5"/><path d="M12 3.5v5.5"/></g><rect x="1099.4" y="116.0" width="31.0" height="20.5" rx="4.9" fill="#e6edf3"/><text x="1114.9" y="131.6" font-size="14.6" font-weight="700" text-anchor="middle" fill="#161b22">MX</text><text x="1141.1" y="123.8" font-size="24.4" font-weight="500" fill="#f3f5f8">80%</text>
+<text x="1133.3" y="216.0" text-anchor="middle" font-size="23" font-weight="600" fill="#f3f5f8">Multi-Device Tag</text>
+<text x="1133.3" y="250.0" text-anchor="middle" font-size="19" fill="#9aa3b2">short ID for pairs</text>
 </svg>
