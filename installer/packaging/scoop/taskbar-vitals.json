@@ -6,7 +6,7 @@
     "architecture":  {
                          "64bit":  {
                                        "url":  "https://github.com/symNistaken/TaskbarVitals/releases/download/v2.1.0/TaskbarVitals-2.1.0-portable.zip",
-                                       "hash":  "6f013a94f525cab40e63e2cd5ff84ac9285a5ad1ec4e4155b154cf74df0a7182"
+                                       "hash":  "2f040e22ecd6a025fa1f74d10f39c77cf751a0f66b0c2f0a5d359439430cb1d2"
                                    }
                      },
     "bin":  "TaskbarVitals.exe",
