@@ -1,12 +1,12 @@
 {
-    "version":  "2.0.0",
+    "version":  "2.1.0",
     "description":  "Show wireless peripheral batteries and live CPU, GPU, RAM, laptop battery, and network metrics on the Windows taskbar.",
     "homepage":  "https://github.com/symNistaken/TaskbarVitals",
     "license":  "GPL-3.0-or-later",
     "architecture":  {
                          "64bit":  {
-                                       "url":  "https://github.com/symNistaken/TaskbarVitals/releases/download/v2.0.0/TaskbarVitals-2.0.0-portable.zip",
-                                       "hash":  "08429273f9a8a0e41405c54b6b6a2dbee71b63d934bd65b208cfa281db4ad23a"
+                                       "url":  "https://github.com/symNistaken/TaskbarVitals/releases/download/v2.1.0/TaskbarVitals-2.1.0-portable.zip",
+                                       "hash":  "6f013a94f525cab40e63e2cd5ff84ac9285a5ad1ec4e4155b154cf74df0a7182"
                                    }
                      },
     "bin":  "TaskbarVitals.exe",

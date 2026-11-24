@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
 
 PackageIdentifier: symNistaken.TaskbarVitals
-PackageVersion: 2.0.0
+PackageVersion: 2.1.0
 Platform:
 - Windows.Desktop
 MinimumOSVersion: 10.0.17763.0
@@ -19,7 +19,7 @@ AppsAndFeaturesEntries:
   InstallerType: inno
 Installers:
 - Architecture: x64
-  InstallerUrl: https://github.com/symNistaken/TaskbarVitals/releases/download/v2.0.0/TaskbarVitals-Setup-2.0.0.exe
-  InstallerSha256: DBA1D8960179FB64CDE02B4D8B3B6FCB8D5E41530FBD83EDD13AE0C2095F06F5
+  InstallerUrl: https://github.com/symNistaken/TaskbarVitals/releases/download/v2.1.0/TaskbarVitals-Setup-2.1.0.exe
+  InstallerSha256: 4898664DEB86A255E666C7FE7F6C042AFAEB122DD1C19861F3BA57A826E3D30B
 ManifestType: installer
 ManifestVersion: 1.6.0
