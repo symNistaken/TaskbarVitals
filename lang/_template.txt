@@ -404,8 +404,7 @@ Show battery power (watts) =
 Plugged in = 
 On battery = 
 Remaining: {time} = 
-Estimated full-charge runtime:  = 
- ({full}/{design} mWh) = 
+({full}/{design} mWh) = 
 
 # Overnight improvements (2.0.0)
 Temperature colours = 
