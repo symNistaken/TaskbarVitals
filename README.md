@@ -40,7 +40,7 @@
 
 ---
 
-> **Quick Start:** Grab **[TaskbarVitals-Setup](https://github.com/symNistaken/TaskbarVitals/releases/latest)** (`v2.1.0`) and pick **Install for me only** (no administrator rights needed), or extract the portable ZIP (`TaskbarVitals.exe` runs standalone). Packaging manifests for **winget** and **Scoop** live under [`installer/packaging/`](installer/packaging/README.md).
+> **Quick Start:** Grab **[TaskbarVitals-Setup](https://github.com/symNistaken/TaskbarVitals/releases/latest)** (`v2.1.1`) and pick **Install for me only** (no administrator rights needed), or extract the portable ZIP (`TaskbarVitals.exe` runs standalone). Packaging manifests for **winget** and **Scoop** live under [`installer/packaging/`](installer/packaging/README.md).
 >
 > *Note on first run:* Releases are unsigned open-source builds, so Defender SmartScreen may ask for **More info → Run anyway** (auto-updates verify offline ECDSA P-256 `SHA256SUMS.txt.sig` signatures).
 
@@ -50,7 +50,7 @@
 
 Peripheral companion apps regularly eat hundreds of megabytes of RAM just to show a mouse percentage, while separate HUD overlays cover your game screen for temperatures and wattage. **Taskbar Vitals** replaces both with one lightweight native **C++17 / Win32** utility.
 
-| Pillar | What Ships in 2.1.0 |
+| Pillar | What Ships in 2.1.1 |
 |---|---|
 | **7-Metric System Telemetry** | Live **CPU** (`%`, `°C` on Intel &amp; AMD Ryzen `17h–1Ah`, RAPL `W`), **RAM** (`%` &amp; `Used/Total GB`), **GPU** (`%`, `°C`, `W` via NVML/ADLX/IGCL, **core &amp; VRAM clocks in `MHz`**), **VRAM** (`%` &amp; `GB`), **Storage / NVMe** (`°C`, busy `%`, `R/W MB/s`, capacity), **Network** (`↓`/`↑` + built-in HTTP Speed Test), and **Laptop Battery** (`±W`, `mWh`, runtime). |
 | **85 Hardware &amp; Protocol Families** | Read-only battery, charging, and wake monitoring across **122 driver files** — gaming mice, wireless keyboards, headsets, AirPods/Beats AAP L2CAP, earbuds, gamepads, Bluetooth speakers, and Phone Link, backed by a read-only `HidEventListener` push-wake engine. |
@@ -185,8 +185,8 @@ Taskbar Vitals communicates strictly in **read-only mode** over HID, USB, Blueto
 
 | Package | Best For | Notes |
 |---|---|---|
-| **Setup Installer** (`TaskbarVitals-Setup-2.1.0.exe`) | Daily desktop use | Pick **Install for me only** (no admin rights) or **All users**. Includes Start menu shortcut &amp; uninstaller. |
-| **Portable ZIP** (`TaskbarVitals-2.1.0-portable.zip`) | USB drives / custom folders | Extract and launch `TaskbarVitals.exe`. Bundled with `TaskbarVitalsTemp.exe` &amp; `headsetcontrol.exe`. |
+| **Setup Installer** (`TaskbarVitals-Setup-2.1.1.exe`) | Daily desktop use | Pick **Install for me only** (no admin rights) or **All users**. Includes Start menu shortcut &amp; uninstaller. |
+| **Portable ZIP** (`TaskbarVitals-2.1.1-portable.zip`) | USB drives / custom folders | Extract and launch `TaskbarVitals.exe`. Bundled with `TaskbarVitalsTemp.exe` &amp; `headsetcontrol.exe`. |
 | **winget / Scoop Templates** | Package managers | Manifests live under [`installer/packaging/`](installer/packaging/README.md). |
 
 - **Seamless Legacy Migration:** Installing over an existing `WirelessBattery` or `BatteryHub` setup keeps all device aliases, alert thresholds, startup settings, 30-day battery logs, and 365-day health records intact.
@@ -236,10 +236,10 @@ Uses **C++17 + Win32** (`pacman -S mingw-w64-x86_64-gcc make` in MSYS2 **MINGW64
 
 | Goal | Command |
 |---|---|
-| Build app &amp; temp helper | `make -j12` (MSYS2) or `build.bat 2.1.0 stable` (cmd) |
-| Versioned test build | `make -j12 VERSION=2.1.0 CHANNEL=test` |
-| Run full C++ test suite | `make test VERSION=2.1.0 CHANNEL=test` |
-| Package Setup &amp; Portable ZIP | `powershell -NoProfile -ExecutionPolicy Bypass -File installer\build-installer.ps1 -Version 2.1.0` *(requires [Inno Setup 6](https://jrsoftware.org/isinfo.php))* |
+| Build app &amp; temp helper | `make -j12` (MSYS2) or `build.bat 2.1.1 stable` (cmd) |
+| Versioned test build | `make -j12 VERSION=2.1.1 CHANNEL=test` |
+| Run full C++ test suite | `make test VERSION=2.1.1 CHANNEL=test` |
+| Package Setup &amp; Portable ZIP | `powershell -NoProfile -ExecutionPolicy Bypass -File installer\build-installer.ps1 -Version 2.1.1` *(requires [Inno Setup 6](https://jrsoftware.org/isinfo.php))* |
 
 ### Linux (Experimental)
 
