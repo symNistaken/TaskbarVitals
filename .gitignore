@@ -8,3 +8,6 @@ third_party/
 .claude/
 CLAUDE.md
 AGENTS.md
+
+# Release signature written by scripts/sign-release.ps1 (uploaded to the release, not committed)
+SHA256SUMS.txt.sig
