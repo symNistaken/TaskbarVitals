@@ -192,6 +192,9 @@ Taskbar Vitals communicates strictly in **read-only mode** over HID, USB, Blueto
 - **Seamless Legacy Migration:** Installing over an existing `WirelessBattery` or `BatteryHub` setup keeps all device aliases, alert thresholds, startup settings, 30-day battery logs, and 365-day health records intact.
 - **Windows SmartScreen:** Releases are open-source binaries without a commercial Authenticode signature, so SmartScreen may show *"Windows protected your PC"*. Click **More info → Run anyway** and optionally verify against [`SHA256SUMS.txt`](https://github.com/symNistaken/TaskbarVitals/releases/latest).
 - **ECDSA P-256 Offline Updater Verification:** Stable builds check GitHub Releases anonymously after startup and every 24 hours. Before running any update, `TaskbarVitals.exe` verifies `SHA256SUMS.txt.sig` offline against the embedded ECDSA P-256 public key (`src/update_public_key.h`) via Windows BCrypt and verifies the setup binary hash under an exclusive lock. Zero device or user telemetry ever leaves your PC.
+- **Network connections:** The app only connects out in these cases, and never sends device readings, usage data, or account details:
+  - *Update check* (official stable builds only): `api.github.com`, about 30 seconds after startup and then at most once every 24 hours. It sends a normal HTTPS request, so GitHub sees your IP address and the app version in the user agent. Turn it off with **Automatically check for updates** in the tray menu or Settings. An update is only downloaded (from `github.com` hosts) after you click **Download and install**.
+  - *Speed test*: `speed.cloudflare.com`, only when you click **Run speed test** (tray menu, Settings, or Dashboard). It downloads about 10 MB and uploads 2 MB of filler data. Cloudflare sees your IP address. Never clicking it means it never connects.
 
 ---
 
