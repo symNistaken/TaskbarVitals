@@ -177,6 +177,7 @@ göstergesi eklendiğinde (Görev 1 ve 4):
 - [x] **Görev 15: Linux isim tutarlılığı:** `wireless-battery` → `taskbar-vitals` (binary, `.desktop`, udev kuralı).
   Eski udev dosyası ve config/autostart geçişi eklendi. (19c9ce6)
 - [x] **Görev 16: `main.cpp` modülerleştirme** (`settings_port.h` + `command_routing.h` + `app_state.h` + `app_settings.*` + `notifications.*` + `app_commands.*` olarak 4 adımda taşındı). (d68e6ec, ed5f868, 3a795ab, caca6bc)
+  > Not: 2.0.0 birleştirmesinde bu bölme main'e gelmemişti; güncel main.cpp üzerinden yeniden çıkarıldı (9aa7a52, 3009859, 1d16f90).
 
 ## Ajanın yapamayacağı işler (kullanıcı yapar, ajan yalnızca taslak hazırlar)
 

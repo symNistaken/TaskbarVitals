@@ -7,7 +7,7 @@ Taskbar Vitals is built to read telemetry safely without changing device setting
 - **Read-only peripheral queries:** Vendor drivers in `src/drivers/` only issue read-only battery and link-status HID/RFCOMM queries. Devices are matched strictly by vendor ID, product ID, or protocol-specific HID collections; unknown devices are never written to.
 - **No unprompted elevation:** The main application (`TaskbarVitals.exe`) runs as a standard unprivileged user process for all wireless peripheral monitoring, CPU/RAM usage, and GPU telemetry.
 - **Isolated CPU temperature helper (`TaskbarVitalsTemp.exe`):** Reading Intel CPU package temperature requires MSR access through the external [PawnIO](https://pawnio.eu) driver. When enabled by the user, `TaskbarVitalsTemp.exe` runs as an isolated elevated helper (under a Windows-protected `Program Files` path), embeds the unmodified PawnIO `IntelMSR` module, reads only `IA32_TEMPERATURE_TARGET` (`0x1A2`) and `IA32_PACKAGE_THERM_STATUS` (`0x1B1`), and shares the numeric result over read-only shared memory (`Local\TaskbarVitalsCpuTemp`). It never writes MSRs or accepts external commands beyond shutdown signaling.
-- **100% local data:** Device readings, custom aliases, alert thresholds, and 30-day battery history stay on your PC. Nothing is transmitted externally.
+- **100% local data:** Device readings, custom aliases, alert thresholds, and 30-day battery history stay on your PC. None of it is sent anywhere; the only network connections are listed under Network connections below.
 
 ### Network connections
 

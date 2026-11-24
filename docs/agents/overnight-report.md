@@ -30,6 +30,8 @@
 
 ---
 
+> Not: Görev 16 (`main.cpp` bölme) 2.0.0 birleştirmesinde main'e gelmemişti; daha sonra güncel `main.cpp` üzerinden yeniden uygulandı (`9aa7a52`, `3009859`, `1d16f90`).
+
 ## 2. Elle Test Etmen Gerekenler (Kontrol Listesi)
 
 Uygulamayı `TaskbarVitals.exe` üzerinden Windows masaüstünde çalıştırıp aşağıdaki adımları sırayla doğrulayabilirsin (yalnızca `Poll less during full-screen games` ve `In-game alerts: Only in full screen` varsayılan açıktır; diğer yeni özellikler test sırasında ayarlardan açılmalıdır):
