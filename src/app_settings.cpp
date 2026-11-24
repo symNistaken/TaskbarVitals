@@ -23,6 +23,7 @@
 #include "ignore_devices.h"
 #include "laptopbat.h"
 #include "netmon.h"
+#include "notifications.h"
 #include "osd_policy.h"
 #include "panel.h"
 #include "settings_port.h"
