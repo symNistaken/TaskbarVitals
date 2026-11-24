@@ -13,272 +13,547 @@
     localStorage.setItem("tv-site-theme", next);
   });
 
-  // 2. Interactive Windows Taskbar simulator
+  // Close mobile nav drawer when a hash link is selected
+  document.querySelectorAll(".mobile-nav-panel a").forEach((link) => {
+    link.addEventListener("click", () => {
+      const details = link.closest("details");
+      if (details) details.open = false;
+    });
+  });
+
+  // 2. Interactive Windows Taskbar + Rich Sparkline Hover Card Simulator
   const stage = document.getElementById("desktop-stage");
+  const stageTop = document.getElementById("sim-stage-top");
   const taskbar = document.getElementById("taskbar-preview");
   const stripSys = document.getElementById("strip-system");
   const stripBat = document.getElementById("strip-batteries");
-  const tooltip = document.getElementById("sim-tooltip");
+  const cardDot = document.getElementById("card-dot");
+  const cardTitle = document.getElementById("card-title");
+  const cardMeta = document.getElementById("card-meta");
+  const cardPrimary = document.getElementById("card-primary");
+  const cardFill = document.getElementById("card-bar-fill");
+  const cardSub = document.getElementById("card-sub");
+  const cardChartTitle = document.getElementById("card-chart-title");
+  const cardSvg = document.getElementById("card-svg");
+  const cardAxis = document.getElementById("card-axis");
+
   const valCpu = document.getElementById("val-cpu");
-  const valGpu = document.getElementById("val-gpu");
   const valRam = document.getElementById("val-ram");
+  const valGpu = document.getElementById("val-gpu");
+  const valVram = document.getElementById("val-vram");
+  const valSsd = document.getElementById("val-ssd");
+  const valNet = document.getElementById("val-net");
+  const valSysBat = document.getElementById("val-sysbat");
+
   const itemCpu = document.getElementById("item-cpu");
   const itemGpu = document.getElementById("item-gpu");
-  const ttCpu = document.getElementById("tt-cpu");
-  const ttGpu = document.getElementById("tt-gpu");
-  const ttRam = document.getElementById("tt-ram");
+  const barCpu = document.getElementById("bar-cpu").firstElementChild;
+  const barRam = document.getElementById("bar-ram").firstElementChild;
+  const barGpu = document.getElementById("bar-gpu").firstElementChild;
+  const barVram = document.getElementById("bar-vram").firstElementChild;
+  const barSsd = document.getElementById("bar-ssd").firstElementChild;
+  const barSysBat = document.getElementById("bar-sysbat").firstElementChild;
 
   const simState = {
-    preset: "normal",
+    style: "row",
     layout: "dual",
-    watts: true,
-    temps: true,
-    brands: true,
+    preset: "normal",
+    inspected: "gpu",
   };
 
   const presets = {
     normal: {
-      cpuPct: 11, cpuC: 61, cpuW: 20, cpuHeat: "",
-      gpuPct: 27, gpuC: 59, gpuW: 15, gpuHeat: "",
-      ramPct: 57, ramUsed: "13.6 / 23.8 GB",
+      cpuPct: 12, cpuC: 65, cpuW: 21, cpuHeat: "",
+      ramPct: 60, ramSub: "14.4 / 23.8 GB used",
+      gpuPct: 23, gpuC: 63, gpuW: 22, gpuClock: 2655, gpuMemClock: 8001, gpuHeat: "",
+      vramPct: 66, vramSub: "3.8 / 5.8 GB dedicated",
+      ssdPct: 0, ssdC: 59, ssdSub: "Micron NVMe 512 GB | 217 GB free",
+      netText: "↓23K ↑8K", netPrimary: "↓23 KB/s · ↑8 KB/s", netPct: 14, netPts: [6, 10, 8, 14, 12, 9, 11, 16, 14],
+      netSub: "Active NIC | Built-in test: ↓94 / ↑28 Mbps",
+      batPct: 88, batStrip: "88% -18W", batPrimary: "88% · -18.4 W", batSub: "Discharging | ~3 h 15 min remaining",
     },
     elevated: {
-      cpuPct: 68, cpuC: 76, cpuW: 48, cpuHeat: "",
-      gpuPct: 88, gpuC: 83, gpuW: 112, gpuHeat: "heat-warn",
-      ramPct: 71, ramUsed: "16.9 / 23.8 GB",
+      cpuPct: 64, cpuC: 78, cpuW: 48, cpuHeat: "",
+      ramPct: 74, ramSub: "17.6 / 23.8 GB used",
+      gpuPct: 89, gpuC: 83, gpuW: 112, gpuClock: 2715, gpuMemClock: 8001, gpuHeat: "heat-warn",
+      vramPct: 82, vramSub: "4.8 / 5.8 GB dedicated",
+      ssdPct: 14, ssdC: 62, ssdSub: "Micron NVMe 512 GB | R 340 MB/s · W 95 MB/s",
+      netText: "↓4.2M ↑310K", netPrimary: "↓4.2 MB/s · ↑310 KB/s", netPct: 58, netPts: [18, 32, 45, 52, 49, 64, 55, 61, 58],
+      netSub: "Active NIC | Built-in test: ↓94 / ↑28 Mbps",
+      batPct: 74, batStrip: "74% -46W", batPrimary: "74% · -46.2 W", batSub: "Gaming load | ~1 h 18 min remaining",
     },
     high: {
       cpuPct: 96, cpuC: 92, cpuW: 78, cpuHeat: "heat-high",
-      gpuPct: 99, gpuC: 86, gpuW: 138, gpuHeat: "heat-warn",
-      ramPct: 84, ramUsed: "20.0 / 23.8 GB",
+      ramPct: 86, ramSub: "20.5 / 23.8 GB used",
+      gpuPct: 99, gpuC: 88, gpuW: 138, gpuClock: 2760, gpuMemClock: 8001, gpuHeat: "heat-warn",
+      vramPct: 94, vramSub: "5.5 / 5.8 GB dedicated",
+      ssdPct: 48, ssdC: 67, ssdSub: "Micron NVMe 512 GB | Peak R/W active",
+      netText: "↓11.4M ↑1.8M", netPrimary: "↓11.4 MB/s · ↑1.8 MB/s", netPct: 92, netPts: [42, 68, 74, 88, 91, 84, 96, 89, 92],
+      netSub: "Active NIC | Built-in test: ↓94 / ↑28 Mbps",
+      batPct: 91, batStrip: "91% +45W", batPrimary: "91% · +45.0 W", batSub: "AC connected | Charging to full",
     },
   };
 
-  function renderSim() {
-    const p = presets[simState.preset];
-    const cpuParts = [`${p.cpuPct}%`];
-    const gpuParts = [`${p.gpuPct}%`];
-    if (simState.temps) {
-      cpuParts.push(`${p.cpuC}°`);
-      gpuParts.push(`${p.gpuC}°`);
-    }
-    if (simState.watts) {
-      cpuParts.push(`${p.cpuW}W`);
-      gpuParts.push(`${p.gpuW}W`);
-    }
-    valCpu.textContent = cpuParts.join(" ");
-    valGpu.textContent = gpuParts.join(" ");
-    valRam.textContent = `${p.ramPct}%`;
+  function buildSparklineSvg(points, color, isDeviceForecast) {
+    const w = 260;
+    const h = 44;
+    const midY = (v) => (h - 6 - ((v / 100) * (h - 12))).toFixed(1);
+    const coords = points.map((v, i) => {
+      const xMax = isDeviceForecast ? 132 : w - 4;
+      const x = 4 + (i / (points.length - 1)) * (xMax - 4);
+      return `${x.toFixed(1)},${midY(v)}`;
+    });
+    const endX = isDeviceForecast ? "132.0" : String(w - 4);
+    const areaD = `M 4.0,${h - 2} L ${coords.join(" L ")} L ${endX},${h - 2} Z`;
+    const lineD = `M ${coords.join(" L ")}`;
 
-    itemCpu.classList.remove("heat-warn", "heat-high");
-    itemGpu.classList.remove("heat-warn", "heat-high");
-    if (simState.temps && p.cpuHeat) itemCpu.classList.add(p.cpuHeat);
-    if (simState.temps && p.gpuHeat) itemGpu.classList.add(p.gpuHeat);
-
-    ttCpu.textContent = `${p.cpuPct}%, ${p.cpuC} °C, ${p.cpuW} W`;
-    ttGpu.textContent = `${p.gpuPct}%, ${p.gpuC} °C, ${p.gpuW} W`;
-    ttRam.textContent = `${p.ramPct}% (${p.ramUsed})`;
-
-    stage.classList.toggle("no-brands", !simState.brands);
-
-    const rightBox = document.querySelector(".taskbar-right");
-    if (simState.layout === "combined") {
-      rightBox.insertBefore(stripSys, stripBat);
+    let extra = "";
+    if (isDeviceForecast) {
+      const lastPt = points[points.length - 1];
+      const ly = midY(lastPt);
+      extra =
+        `<line x1="132" y1="2" x2="132" y2="${h - 2}" stroke="rgba(148,163,184,0.4)" stroke-dasharray="2 2"/>` +
+        `<line x1="132" y1="${ly}" x2="${w - 4}" y2="${h - 4}" stroke="${color}" stroke-width="2" stroke-dasharray="4 4"/>` +
+        `<circle cx="132" cy="${ly}" r="3" fill="${color}"/>`;
     } else {
-      taskbar.insertBefore(stripSys, taskbar.firstChild);
+      const lx = w - 4;
+      const ly = midY(points[points.length - 1]);
+      extra = `<circle cx="${lx}" cy="${ly}" r="3" fill="${color}"/>`;
+    }
+
+    return (
+      `<path d="${areaD}" fill="${color}" fill-opacity="0.14"/>` +
+      `<path d="${lineD}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>` +
+      extra
+    );
+  }
+
+  function buildCardModel(key) {
+    const p = presets[simState.preset];
+    const light = stage.getAttribute("data-bar-theme") === "light";
+    switch (key) {
+      case "cpu":
+        return {
+          right: false, color: light ? "#026aa7" : "#2cc5ff", title: "CPU", meta: "PawnIO package telemetry",
+          primary: `${p.cpuPct}% ${p.cpuC}° ${p.cpuW}W`, pct: p.cpuPct,
+          sub: `Load ${p.cpuPct}% | ${p.cpuC} °C | ${p.cpuW} W package`,
+          chartTitle: "Last 3 minutes", leftAxis: "-3m", rightAxis: "Now",
+          pts: [10, 12, 18, 14, 11, 22, 19, 15, p.cpuPct], forecast: false,
+        };
+      case "ram":
+        return {
+          right: false, color: light ? "#6d28d9" : "#a87ffb", title: "RAM", meta: "Physical memory",
+          primary: `${p.ramPct}%`, pct: p.ramPct, sub: p.ramSub,
+          chartTitle: "Last 3 minutes", leftAxis: "-3m", rightAxis: "Now",
+          pts: [58, 58, 59, 60, 60, 60, 61, 60, p.ramPct], forecast: false,
+        };
+      case "vram":
+        return {
+          right: false, color: light ? "#c2410c" : "#ff7a2f", title: "VRAM", meta: "Dedicated GPU memory",
+          primary: `${p.vramPct}%`, pct: p.vramPct, sub: p.vramSub,
+          chartTitle: "Last 3 minutes", leftAxis: "-3m", rightAxis: "Now",
+          pts: [61, 62, 62, 64, 65, 65, 66, 66, p.vramPct], forecast: false,
+        };
+      case "ssd":
+        return {
+          right: false, color: light ? "#9a6700" : "#eab308", title: "Storage", meta: "IOCTL_STORAGE_QUERY_PROPERTY",
+          primary: `${p.ssdPct}% ${p.ssdC}°C`, pct: Math.max(8, p.ssdPct), sub: p.ssdSub,
+          chartTitle: "Last 3 minutes", leftAxis: "-3m", rightAxis: "Now",
+          pts: [2, 5, 3, 1, 8, 2, 1, 0, p.ssdPct], forecast: false,
+        };
+      case "net":
+        return {
+          right: false, color: light ? "#0067c0" : "#38bdf8", title: "Network", meta: "GetIfTable2 counters",
+          primary: p.netPrimary, pct: p.netPct, sub: p.netSub,
+          chartTitle: "Last 3 minutes", leftAxis: "-3m", rightAxis: "Now",
+          pts: p.netPts, forecast: false,
+        };
+      case "sysbat":
+        return {
+          right: false, color: light ? "#0f766e" : "#2dd4bf", title: "Laptop Battery", meta: "SystemBatteryState",
+          primary: p.batPrimary, pct: p.batPct, sub: p.batSub,
+          chartTitle: "Last 3 minutes", leftAxis: "-3m", rightAxis: "Now",
+          pts: [92, 91, 91, 90, 90, 89, 89, 88, p.batPct], forecast: false,
+        };
+      case "headset":
+        return {
+          right: true, color: light ? "#15803d" : "#44d62c", title: "Razer Barracuda X (2022)", meta: "2.4 GHz dongle",
+          primary: "45%", pct: 45, sub: "Estimated time to empty: ~5 d 8 h",
+          chartTitle: "Last 24 hours and forecast", leftAxis: "24h ago", rightAxis: "~5 d 8 h",
+          pts: [54, 52, 50, 49, 48, 47, 46, 45], forecast: true,
+        };
+      case "mouse":
+        return {
+          right: true, color: light ? "#15803d" : "#44d62c", title: "Razer Viper V3 Pro", meta: "Razer receiver",
+          primary: "35%", pct: 35, sub: "Estimated time to empty: ~3 d 20 h (approx.)",
+          chartTitle: "Last 24 hours and forecast", leftAxis: "24h ago", rightAxis: "~3 d 20 h",
+          pts: [50, 48, 47, 45, 42, 40, 38, 35], forecast: true,
+        };
+      case "keyboard":
+        return {
+          right: true, color: light ? "#0f7b0f" : "#34d399", title: "AULA wireless keyboard", meta: "2.4 GHz receiver",
+          primary: "100%", pct: 100, sub: "Full charge recorded | 365-day health tracking active",
+          chartTitle: "Last 24 hours", leftAxis: "24h ago", rightAxis: "Now",
+          pts: [92, 95, 100, 100, 100, 100, 100, 100], forecast: false,
+        };
+      case "phone":
+        return {
+          right: true, color: light ? "#0067c0" : "#4cc2ff", title: "Android Phone (Phone Link)", meta: "Charging",
+          primary: "29% charging", pct: 29, sub: "Windows Phone Link cache | Notify limit: 85%",
+          chartTitle: "Last 24 hours", leftAxis: "24h ago", rightAxis: "Now",
+          pts: [48, 40, 32, 24, 18, 22, 25, 29], forecast: false,
+        };
+      case "gpu":
+      default:
+        return {
+          right: false, color: light ? "#15803d" : "#3ddc68", title: "GPU", meta: "NVIDIA GeForce RTX 4050 Laptop GPU",
+          primary: `${p.gpuPct}% ${p.gpuC}° ${p.gpuW}W ${p.gpuClock}MHz`, pct: p.gpuPct,
+          sub: `Clocks: ${p.gpuClock} / ${p.gpuMemClock} MHz | ${p.gpuPct}% · ${p.gpuW} W`,
+          chartTitle: "Last 3 minutes", leftAxis: "-3m", rightAxis: "Now",
+          pts: [8, 12, 28, 14, 15, 22, 25, 21, p.gpuPct], forecast: false,
+        };
     }
   }
 
-  document.querySelectorAll("[data-preset]").forEach((btn) => {
+  function renderCard() {
+    const model = buildCardModel(simState.inspected);
+    stageTop.classList.toggle("is-right", model.right || simState.layout === "combined");
+    cardDot.style.background = model.color;
+    cardTitle.textContent = model.title;
+    cardMeta.textContent = model.meta;
+    cardPrimary.textContent = model.primary;
+    cardFill.style.width = `${model.pct}%`;
+    cardFill.style.background = model.color;
+    cardSub.textContent = model.sub;
+    cardChartTitle.textContent = model.chartTitle;
+    cardAxis.innerHTML = `<span>${model.leftAxis}</span><span>${model.rightAxis}</span>`;
+    cardSvg.innerHTML = buildSparklineSvg(model.pts, model.color, model.forecast);
+  }
+
+  function renderSim() {
+    const p = presets[simState.preset];
+    valCpu.textContent = `${p.cpuPct}% ${p.cpuC}° ${p.cpuW}W`;
+    valRam.textContent = `${p.ramPct}%`;
+    valGpu.textContent = `${p.gpuPct}% ${p.gpuC}° ${p.gpuW}W ${p.gpuClock}MHz`;
+    valVram.textContent = `${p.vramPct}%`;
+    valSsd.textContent = `${p.ssdPct}% ${p.ssdC}°`;
+    valNet.textContent = p.netText;
+    valSysBat.textContent = p.batStrip;
+
+    barCpu.style.width = `${p.cpuPct}%`;
+    barRam.style.width = `${p.ramPct}%`;
+    barGpu.style.width = `${p.gpuPct}%`;
+    barVram.style.width = `${p.vramPct}%`;
+    barSsd.style.width = `${Math.max(8, p.ssdPct)}%`;
+    barSysBat.style.width = `${p.batPct}%`;
+
+    itemCpu.classList.remove("heat-warn", "heat-high");
+    itemGpu.classList.remove("heat-warn", "heat-high");
+    if (p.cpuHeat) itemCpu.classList.add(p.cpuHeat);
+    if (p.gpuHeat) itemGpu.classList.add(p.gpuHeat);
+
+    stage.setAttribute("data-style", simState.style);
+    taskbar.setAttribute("data-layout", simState.layout);
+
+    const rightBox = document.querySelector(".taskbar-right");
+    const centerIcons = document.querySelector(".taskbar-center-icons");
+    if (simState.layout === "combined") {
+      rightBox.insertBefore(stripSys, stripBat);
+      if (centerIcons) centerIcons.style.marginInline = "0";
+    } else {
+      taskbar.insertBefore(stripSys, taskbar.firstChild);
+      if (centerIcons) centerIcons.style.marginInline = "auto";
+    }
+
+    renderCard();
+  }
+
+  function syncSegGroup(selector, activeBtn) {
+    document.querySelectorAll(selector).forEach((b) => {
+      const isMatch = b === activeBtn;
+      b.classList.toggle("is-active", isMatch);
+      b.setAttribute("aria-pressed", String(isMatch));
+    });
+  }
+
+  document.querySelectorAll("[data-style]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      document.querySelectorAll("[data-preset]").forEach((b) => b.classList.remove("is-active"));
-      btn.classList.add("is-active");
-      simState.preset = btn.dataset.preset;
+      syncSegGroup("[data-style]", btn);
+      simState.style = btn.dataset.style;
       renderSim();
     });
   });
 
   document.querySelectorAll("[data-layout]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      document.querySelectorAll("[data-layout]").forEach((b) => b.classList.remove("is-active"));
-      btn.classList.add("is-active");
+      syncSegGroup("[data-layout]", btn);
       simState.layout = btn.dataset.layout;
+      renderSim();
+    });
+  });
+
+  document.querySelectorAll("[data-preset]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      syncSegGroup("[data-preset]", btn);
+      simState.preset = btn.dataset.preset;
       renderSim();
     });
   });
 
   document.querySelectorAll("[data-bar-theme]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      document.querySelectorAll("[data-bar-theme]").forEach((b) => b.classList.remove("is-active"));
-      btn.classList.add("is-active");
+      syncSegGroup("[data-bar-theme]", btn);
       stage.setAttribute("data-bar-theme", btn.dataset.barTheme);
+      renderCard();
     });
   });
 
-  document.querySelectorAll("[data-toggle]").forEach((chk) => {
-    chk.addEventListener("change", () => {
-      simState[chk.dataset.toggle] = chk.checked;
-      renderSim();
-    });
+  const inspectButtons = Array.from(document.querySelectorAll("[data-inspect]"));
+  inspectButtons.forEach((btn) => {
+    const activate = () => {
+      inspectButtons.forEach((b) => b.classList.remove("is-inspected"));
+      btn.classList.add("is-inspected");
+      simState.inspected = btn.dataset.inspect;
+      renderCard();
+    };
+    btn.addEventListener("mouseenter", activate);
+    btn.addEventListener("focus", activate);
+    btn.addEventListener("click", activate);
   });
-
-  const showTip = () => tooltip.classList.add("is-visible");
-  const hideTip = () => tooltip.classList.remove("is-visible");
-  stripSys.addEventListener("mouseenter", showTip);
-  stripSys.addEventListener("mouseleave", hideTip);
-  stripSys.addEventListener("focus", showTip);
-  stripSys.addEventListener("blur", hideTip);
 
   renderSim();
 
-  // 3. Settings Panel Tab Switcher
+  // Accessible vertical tablist keyboard helper (ArrowUp / ArrowDown / Home / End)
+  function wireTablist(listSelector, activateFn) {
+    const list = document.querySelector(listSelector);
+    if (!list) return;
+    const tabs = Array.from(list.querySelectorAll('[role="tab"]'));
+    const selectTab = (tab, moveFocus) => {
+      const panelId = tab.getAttribute("aria-controls");
+      const panel = panelId ? document.getElementById(panelId) : null;
+      tabs.forEach((t) => {
+        const active = t === tab;
+        t.classList.toggle("is-active", active);
+        t.setAttribute("aria-selected", String(active));
+        t.setAttribute("tabindex", active ? "0" : "-1");
+      });
+      if (panel && tab.id) panel.setAttribute("aria-labelledby", tab.id);
+      if (moveFocus) tab.focus();
+      activateFn(tab);
+    };
+
+    tabs.forEach((tab, idx) => {
+      tab.addEventListener("click", () => selectTab(tab, false));
+      tab.addEventListener("keydown", (e) => {
+        let nextIdx = -1;
+        if (e.key === "ArrowDown" || e.key === "ArrowRight") nextIdx = (idx + 1) % tabs.length;
+        else if (e.key === "ArrowUp" || e.key === "ArrowLeft") nextIdx = (idx - 1 + tabs.length) % tabs.length;
+        else if (e.key === "Home") nextIdx = 0;
+        else if (e.key === "End") nextIdx = tabs.length - 1;
+        if (nextIdx >= 0) {
+          e.preventDefault();
+          selectTab(tabs[nextIdx], true);
+        }
+      });
+    });
+  }
+
+  // 3. Taskbar Layout & Hover Card Capture Switcher
+  const capImg = document.getElementById("capture-img");
+  const capImg2 = document.getElementById("capture-img-secondary");
+  const capText = document.getElementById("capture-cap");
+  const capturesMeta = {
+    "strip-vitals": {
+      src: "docs/screenshots/strip-vitals.png",
+      alt: "1-row Windows 11 System Vitals strip with colored vector icons and progress bars",
+      src2: "docs/screenshots/strip-batteries.png",
+      alt2: "1-row Windows 11 Wireless Batteries strip beside the clock",
+      cap: "<strong>1-Row Dual Strips:</strong> System telemetry sits on the left end while headset, mouse, keyboard, and Phone Link batteries anchor next to the notification area.",
+    },
+    "strip-2row": {
+      src: "docs/screenshots/strip-vitals-2row.png",
+      alt: "Compact 2-row Windows 11 System Vitals taskbar layout",
+      src2: "",
+      alt2: "",
+      cap: "<strong>Compact 2-Row Layout:</strong> Fits all 6–7 system metrics into roughly half the horizontal space.",
+    },
+    "strip-stacked": {
+      src: "docs/screenshots/strip-vitals-stacked.png",
+      alt: "Stacked System Vitals taskbar strip with vector icons above numbers",
+      src2: "docs/screenshots/strip-batteries-stacked.png",
+      alt2: "Stacked Wireless Batteries strip with icons above percentages",
+      cap: "<strong>Icons Above Values (Narrower):</strong> Vector glyphs sit neatly above values across both strips, saving width for centered Windows 11 app icons.",
+    },
+    "strip-ring": {
+      src: "docs/screenshots/strip-batteries-ring.png",
+      alt: "Radial circular battery ring gauges beside the Windows 11 clock",
+      src2: "",
+      alt2: "",
+      cap: "<strong>Radial Ring Style:</strong> Replaces text percentages with clean circular arc gauges and blue charging arcs beside the notification clock.",
+    },
+    "hover-gpu": {
+      src: "docs/screenshots/hover-gpu.png",
+      alt: "GPU rich hover card showing 3-minute sparkline and 2655/8001 MHz clocks",
+      src2: "",
+      alt2: "",
+      cap: "<strong>3-Minute System Sparkline Card:</strong> Hovering GPU shows adapter name, core/VRAM clocks (2655/8001 MHz), load bar, and live 3-minute waveform.",
+    },
+    "hover-device": {
+      src: "docs/screenshots/hover-device.png",
+      alt: "Razer Viper V3 Pro rich hover card showing 24-hour discharge curve and ~3 d 20 h runtime forecast",
+      src2: "",
+      alt2: "",
+      cap: "<strong>24-Hour Discharge &amp; Forecast Card:</strong> Hovering any peripheral plots 24-hour battery discharge alongside a conservative time-to-empty dashed forecast.",
+    },
+  };
+
+  wireTablist(".capture-selector", (btn) => {
+    const info = capturesMeta[btn.dataset.capture];
+    if (!info) return;
+    capImg.src = info.src;
+    capImg.alt = info.alt;
+    if (info.src2) {
+      capImg2.src = info.src2;
+      capImg2.alt = info.alt2;
+      capImg2.hidden = false;
+    } else {
+      capImg2.hidden = true;
+    }
+    capText.innerHTML = info.cap;
+  });
+
+  // 4. Device Dashboard View Switcher
+  const dashImg = document.getElementById("dash-img");
+  const dashCap = document.getElementById("dash-cap");
+  const dashMeta = {
+    overview: {
+      src: "docs/screenshots/dashboard-overview.png",
+      alt: "Taskbar Vitals Device Dashboard Overview tab",
+      cap: "<strong>Overview tab:</strong> Live device cards with brand colors, micro-sparklines, and connection status across mice, keyboards, and headsets.",
+    },
+    comparison: {
+      src: "docs/screenshots/dashboard-comparison.png",
+      alt: "Taskbar Vitals Battery Consumption Comparison tab showing percent-per-day drain rate and estimated full runtime",
+      cap: "<strong>Battery Comparison tab:</strong> Compare peripheral efficiency side-by-side in observed <code>%/day</code> drain rate and full-charge runtime.",
+    },
+    details: {
+      src: "docs/screenshots/dashboard-details.png",
+      alt: "Taskbar Vitals Device Details tab with 7-day trend, runtime estimate, battery health, and charging sessions",
+      cap: "<strong>Device Details &amp; Health:</strong> Inspect 7-day discharge trends, full-charge runtime estimates, 365-day wear health, and recent charging sessions.",
+    },
+  };
+
+  wireTablist(".dash-switcher", (btn) => {
+    const info = dashMeta[btn.dataset.dash];
+    if (!info) return;
+    dashImg.src = info.src;
+    dashImg.alt = info.alt;
+    dashCap.innerHTML = info.cap;
+  });
+
+  // 5. Settings Panel Tab Switcher
   const panelShot = document.getElementById("panel-shot-img");
   const panelCap = document.getElementById("panel-shot-cap");
   const tabMeta = {
     system: {
       src: "docs/screenshots/panel-system.png",
-      alt: "Taskbar Vitals Settings Panel - System tab screenshot",
-      cap: "<strong>System tab:</strong> Live summary pills (<code>18% · 67 °C · 22 W</code>) appear directly on card headers alongside independent toggles and CPU helper setup.",
+      alt: "Settings Panel System tab showing CPU, RAM, and GPU clock toggles",
+      cap: "<strong>System tab:</strong> Live header pills (<code>12% · 65 °C · 21 W</code>), independent usage / °C / watts / MHz clock switches, and PawnIO helper setup.",
+    },
+    "system-storage": {
+      src: "docs/screenshots/panel-system-storage.png",
+      alt: "Settings Panel System tab lower cards showing VRAM, NVMe Storage temperature, Network speed test, and thermal alerts",
+      cap: "<strong>VRAM, Storage &amp; Network:</strong> Zero-admin NVMe temperature/GB monitoring, built-in HTTP Speed Test, and high-temperature warning thresholds.",
     },
     batteries: {
       src: "docs/screenshots/panel-batteries.png",
-      alt: "Taskbar Vitals Settings Panel - Batteries tab screenshot",
-      cap: "<strong>Batteries tab:</strong> Live device rows with <code>↑</code>/<code>↓</code> reorder buttons, per-device <code>⋯</code> action menu, and individual strip visibility switches.",
+      alt: "Settings Panel Batteries tab showing Device dashboard launch button and visibility controls",
+      cap: "<strong>Batteries tab:</strong> Live device rows with <code>↑</code>/<code>↓</code> reorder buttons, per-device <code>⋯</code> menus, <strong>Device dashboard...</strong>, and visibility toggles.",
     },
     "batteries-options": {
       src: "docs/screenshots/panel-batteries-options.png",
-      alt: "Taskbar Vitals Settings Panel - Visibility and Battery alerts options",
-      cap: "<strong>Visibility &amp; Alerts:</strong> Dim sleeping devices, move to tray when no devices are active, record 30-day battery history, and set charge-limit alerts.",
+      alt: "Settings Panel Visibility and Battery alerts section",
+      cap: "<strong>Visibility &amp; Alerts:</strong> Dim sleeping devices, move to tray when empty, record 30-day battery history, and set charge-limit alerts.",
     },
     appearance: {
       src: "docs/screenshots/panel-appearance.png",
-      alt: "Taskbar Vitals Settings Panel - Appearance tab screenshot",
-      cap: "<strong>Appearance tab:</strong> Switch between taskbar strip and tray icons, assign Left end vs Next to the clock positions independently, and enable 15 brand colors.",
+      alt: "Settings Panel Appearance tab showing Dual-strip positioning and Style toggles",
+      cap: "<strong>Appearance tab:</strong> Independent Dual-strip placement, crisp vector icons, compact 2-row layout, stacked icons, and radial battery rings.",
     },
     general: {
       src: "docs/screenshots/panel-general.png",
-      alt: "Taskbar Vitals Settings Panel - General tab screenshot",
-      cap: "<strong>General tab:</strong> Pick from 20 languages, launch with Windows, trigger signed updates, prefill device support reports, or open Buy Me a Coffee.",
+      alt: "Settings Panel General tab showing full-screen polling throttle, Local JSON pipe, and Export/Import settings",
+      cap: "<strong>General tab:</strong> 21 built-in languages, <strong>Poll less during full-screen games</strong>, Local JSON pipe, signed updates, and Export/Import settings.",
     },
   };
 
-  document.querySelectorAll(".panel-tab-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll(".panel-tab-btn").forEach((b) => {
-        b.classList.remove("is-active");
-        b.setAttribute("aria-selected", "false");
-      });
-      btn.classList.add("is-active");
-      btn.setAttribute("aria-selected", "true");
-      const info = tabMeta[btn.dataset.tab];
-      if (!info) return;
-      panelShot.src = info.src;
-      panelShot.alt = info.alt;
-      panelCap.innerHTML = info.cap;
-    });
+  wireTablist(".panel-tab-list", (btn) => {
+    const info = tabMeta[btn.dataset.tab];
+    if (!info) return;
+    panelShot.src = info.src;
+    panelShot.alt = info.alt;
+    panelCap.innerHTML = info.cap;
   });
 
-  // 4. Searchable Hardware Matrix
-  const hwData = [
-    ["8BitDo", "controllers", "Ultimate 2 (2DC8:310B / 6012), Ultimate 2C, 3-mode, Pro 3/2, SN30/SF30 Pro · FF7A/FFA0 & SDL"],
-    ["AKG", "audio", "N9 Hybrid USB dongle (0ECB:20D9, tested) · Airoha RACE 0CD6"],
-    ["Akko", "mice", "Akko Air 01 (3151:5006), V9 Dash Pro (38EE:000C), Dash V9 Ultra (38EE:000F) · FF1C:0092 / Rongyuan"],
-    ["Alienware", "audio", "AW920H 2.4 GHz dongle (413C:A515, tested) + Bluetooth fallback"],
-    ["Apple AirPods / Beats", "audio", "AirPods Max (200A/201F), AirPods Pro 1-3 (2027 tested), AirPods 1-5, Beats · BLE proximity"],
-    ["Arbiter Studio", "mice", "Akitsu (373E:000A/0009), Akitsu 3950, Akitsu Medium (373E:0067/0066 tested)"],
-    ["ASTRO", "audio", "A50 X (046D:0B0B), A50 Gen 5, Gen 4 (9886:002C), Gen 3 (9886:0015), A20 Wireless base stations"],
-    ["ASUS ROG", "mice", "Azoth, Falchion, Scope II 96; Keris, Harpe, Gladius, Chakram, Spatha; Pelta, Cetra Open, Omni"],
-    ["ATK / VXE / VGN", "mice", "VXE R1/Pro Max/SE+/NK, ATK F1/Zero/8K Nano; V75X, Z87, V98 Pro keyboards; N9 Ultra, Mercury, OMNISOUND"],
-    ["Attack Shark & Shared", "mice", "Rongyuan (81 models incl. R3, AJ179 Pro, K86), Xenta (X6/X11/X3 Max), Semico 1A2C (X98, AK820 Max Plus)"],
-    ["Audeze", "audio", "Maxwell (3329:4B19/4B1A) & Maxwell 2 (3329:4B29 tested) · Airoha RACE read-only"],
-    ["AULA", "keyboards", "F75/F87 Pro/F99/F108 Pro, HERO 68 Air (372E:106C); X9 Ultra (320F:22A0), SC580/X; A7Pro headset"],
-    ["BEITONG", "controllers", "KP20 (20BC:5128 tested) & KP40D (20BC:515C) in XInput mode · 00FF report 02"],
-    ["CHERRY / XTRFY", "keyboards", "MX 3.0S Wireless (046A:00EA/00E3 tested) & Cherry XTRFY 1K mouse (046A:0330 tested)"],
-    ["Cooler Master", "mice", "MM712 (tested) & MM731 over 2.4 GHz dongle or USB cable"],
-    ["Corsair", "audio", "Void/HS70/HS80/Virtuoso, Slipstream mice & keyboards (1B1C:2B00/1BDC), Sabre V2 Pro (1B1C:2B2A/2B34)"],
-    ["DAREU", "mice", "EM901X (260D:1074/1090), A980 Pro (1131/1148), A950 Wing (1154/1196), A84 & EK75 Pro (0042/0046)"],
-    ["DARKRIM", "mice", "SHADOW (3654:6901 tested) · CRC-checked 10% step battery query"],
-    ["Darmoshark", "mice", "M3 (248A:FF30), M3S (248A:FF31), M3S Pro Nordic 1K (1915:0723)"],
-    ["ENDORFY", "audio", "Viro Wireless 2.4 GHz dongle (3738:0072) · Airoha RACE 0CD6"],
-    ["Endgame Gear", "mice", "OP1w 4k v1/v2, XM2w 4k v1/v2 (4K dongle), XM2we (3367:1961)"],
-    ["EWEADN", "mice", "S7 Max/Pro/Ultra & S9 Max/Pro/Ultra+ (372E:103D receiver, 372E:1027 cable)"],
-    ["Fantech", "mice", "Helios Go XD5 (25A7:FA7B/FA7C tested), Raigor III (1EA7:0066 tested), Raigor II WG10"],
-    ["Finalmouse", "mice", "UltralightX (361D:0100 tested) & Starlight X (361D:0300/0301 tested) dongles"],
-    ["Flydigi", "controllers", "Vader 5 Pro (37D7:2401) & Apex 5 (37D7:2501 tested) · 20% steps + charging"],
-    ["Fractal Design", "audio", "Scape wireless headset over 2.4 GHz dongle or USB-C cable"],
-    ["G-Wolves", "mice", "Fenrir/Pro/Max/Asym, HTX, HTS, HSK, HTR, HT-S2, Lycan, WARG, VUK & 8K dongles"],
-    ["GameSir", "controllers", "Nova/Nova 2 Lite, G7 Pro (3537:105E), Cyclone 2, Cyclone Pro (3537:1015+BLE), Super Nova (103E), Tarantula Pro"],
-    ["Glorious", "mice", "Model O / O- / D / D- Wireless (tested), Model O 2 / D 2 PRO"],
-    ["HECATE", "mice", "G5M PRO (35BB:D3FB tested) & sibling mice on USB cables 35BB:D3FA/D3FC/D3FD"],
-    ["Hitscan", "mice", "Hyperlight X, Hyperlight N, Hyperlight"],
-    ["HyperX", "audio", "Cloud II/III/III S/Alpha/Alpha 2/Flight S/Stinger Core/Core DTS; Pulsefire Haste (03F0:028E) & Haste 2/Mini/Core"],
-    ["Incott", "mice", "G23 Pro 8K (tested), G23 V2 & G24 (093A:522C / 622C)"],
-    ["Inphic", "mice", "IN10R MAX / IN10 MAX on KP 8K receiver (1D57:FA65)"],
-    ["Jabra", "audio", "All GN Protocol headsets (Evolve2 / Evolve3 tested on Link 390 0B0E:2E51) on USB or Link dongle"],
-    ["JBL", "audio", "Quantum 350 (0ECB:206B tested), 360, 520, 610, 650 (tested), 650X, 850, 950, 950X"],
-    ["Keychron", "keyboards", "M4/M5/M3/M6/M7/Nape Pro mice (1K/4K/TurboLink/Ultra-Link 8K 3434:D028); K5 Max & QMK boards (BT or patched 2.4G)"],
-    ["Kysona & Shared", "mice", "Kysona M600 / Mercury, Chimera V2 (3554:F512 tested), plus shared Pulsar/ATK/Hitscan devices"],
-    ["LAMZU", "mice", "Maya X/M, Tachi, Inca, Paro, Thorn, Atlantis Mini/OG Champion, Orcus (1K/4K/8K/cable)"],
-    ["Logitech", "mice", "Unifying, Bolt, Lightspeed (incl. PRO X3 046D:C54F), Nano, USB, BT; G533/535/633/733/933/935/PRO X & G435 (0ADF)"],
-    ["Machenike", "mice", "L7 Arctic / L7 Mix (248A:FF4C receiver & FF4E cable, both tested)"],
-    ["MAONO", "audio", "MAONO PD200W wireless microphone receiver (352F:040E tested)"],
-    ["MCHOSE", "mice", "L7/M7/A7/K7/K7 V2 Ultra+ (3837:1014), G3 V2 (4245), A5 V1/V2 Ultra; V9 Pro/Pro 2 headsets; G75 V2/K87 V3/K99 keyboards"],
-    ["MOONDROP", "audio", "GM01 Pro headset on 2.4 GHz dongle (35D8:0133 tested) & USB cable"],
-    ["Motospeed / Delux / Ajazz", "mice", "Motospeed X6, Delux M900 Pro / M800 Pro, Ajazz AJ179 / AJ159 / AJ139 V2 MC, AJAZZ AK992 (320F:50C3)"],
-    ["MSI", "mice", "VERSA 300 ELITE (0DB0:9E22 tested), CLUTCH GM31 (0DB0:0D3C tested) & GM41 Lightweight"],
-    ["Niceboy", "mice", "MW400 on 2.4 GHz receiver (248A:FA02 tested)"],
-    ["Ninjutso", "mice", "Sora (248A:5B2F), Sora V2 (1915:AE1C/AE11 tested), Ten & Ten Air (093A:EB01/E020 tested)"],
-    ["Nothing / CMF", "audio", "Nothing Ear (3a) (tested), Ear (a), Ear (2), Ear, CMF Buds via Bluetooth RFCOMM (L/R/case)"],
-    ["NuPhy", "keyboards", "WH80 over USB cable (19F5:A011) or Bluetooth (19F5:324A tested); Air75V2 under SONiX"],
-    ["NZXT", "mice", "Lift Elite Wireless (1E71:2101 dongle / 1E71:2129 cable)"],
-    ["Phones (Phone Link)", "controllers", "Android phones paired via Microsoft Phone Link over Wi-Fi or Bluetooth (Nothing Phone (4a) Pro tested)"],
-    ["PMO / WOBKEY / URX / EVO80", "keyboards", "Wave 75 RGB (36B0:3002/3009 tested), Aurora 80, PMO P75/80, URX Core75, EVO80"],
-    ["Poly / Plantronics", "audio", "Voyager 8200 UC & headsets behind BT600 adapter (047F:02EE/02F7)"],
-    ["Press Play", "mice", "ICARUS V2 Nearlink (7768:6434 receiver & Bluetooth tested)"],
-    ["Pulsar", "mice", "X2 V3 (3710:5402/3402), X2 V3 eS (3710:5403/3406), Feinmann FO1 / 8K (3710:5404) & Kysona-shared"],
-    ["Rapoo", "mice", "VT3 Max Gen 2 (tested), VT9 Gen 2 (tested), Nordic 54L VT mice, legacy VT3 Pro & VT1 Pro Max"],
-    ["RAWM / SADES", "mice", "Leviathan V4 (1915:2346 tested), ES21/ER21/ES11/G11/SA-* & SADES Dagger (1915:232A-234B)"],
-    ["Razer", "mice", "Wireless mice, keyboards & HyperSpeed multi-device dongles; BlackShark V2/V3/V3 X; Barracuda X 2022 & Pro"],
-    ["Redragon", "mice", "M602-KS (258A:002F), M916 Pro 1K (3554:F55D), M915RGB-WL (25A7:FA07), M913, G49, K1NG M999 (320F:226F), Horus Pro"],
-    ["Royal Kludge (RK)", "mice", "MG6 Pro (2E3C:00A6/00E6 dongle, 00A5/00E5 cable); R75 & RK 2.4G Dongle under SONiX"],
-    ["Samsung", "audio", "Galaxy Buds, Buds+, Live, Pro, Buds2/Pro, FE, Core, Buds3/Pro/FE via RFCOMM (L/R/case)"],
-    ["Scyrox", "mice", "V12M on 2.4 GHz receiver (395A:0006)"],
-    ["Sharkoon", "mice", "Skiller SGM50W (260D:1125)"],
-    ["SONiX Keyboards", "keyboards", "AJAZZ AK820 MAX/Pro/AK980 V2, EPOMAKER EA75/P75/Galaxy100, AULA F108 Pro, RK R75, Lofree Flow2, NuPhy Air75V2, etc."],
-    ["Sony", "controllers", "DualShock 4, DualSense, DualSense Edge (USB/BT/adapter); INZONE H9 II, H5 & Buds"],
-    ["Sprime", "mice", "PM1 (1915:AC1C tested, AD8C receiver, USB cable)"],
-    ["SteelSeries", "audio", "Arctis 1/7/7+/9/Pro/Nova 3P/5/7/Pro/Elite (1038:225D/2244), GameBuds; Aerox 3/5/9, Prime, Rival 3/650/Pro"],
-    ["Switch Pro-compatible", "controllers", "Controllers presenting as 057E:2009 (GameSir Tarantula Pro in Switch mode tested)"],
-    ["Taidu", "mice", "TSG808 on Compx 2.4 GHz receiver (3554:F5D5 tested)"],
-    ["Turtle Beach", "audio", "Stealth 700 Gen 3 (10F5:2251/2262 transmitters, 2253 cable)"],
-    ["VAXEE", "mice", "4K (3057:1002) & 8K (3057:2002) receivers; ZYGEN NP-01S V2 cable (3057:1011)"],
-    ["WLMouse", "mice", "YING Magnesium (36A7:A874 tested), Beast X 8K/Mini/Pro/MAX/V2 (A856), Sword X 8K, Beast G"],
-    ["Wraith", "mice", "W1 / W1 Freestyle (093A:522C receiver, 622C cable)"],
-    ["Xbox", "controllers", "Xbox Wireless Adapter, USB & Bluetooth controllers + plugged-in headsets (Windows.Gaming.Input + XInput)"],
-    ["Zenith", "mice", "Zenith Pro (260D:1114 receiver tested, 260D:1143 cable)"],
-    ["ZOWIE", "mice", "EC1/EC2/EC3-CW, DW series (U2-DW, S2-DW, etc.), and U2 on 2.4 GHz receiver"],
-    ["Bluetooth & Fast Pair", "audio", "Any device reporting battery in Windows Bluetooth Settings + Google Fast Pair BLE (FE2C) earbuds (L/R/case)"],
-    ["Generic HID & HeadsetControl", "audio", "Standard HID Battery Strength (0x06/0x85) + bundled HeadsetControl 4.3.0 fallback"],
-  ];
-
-  const catLabels = {
-    mice: "Mice & Receivers",
-    keyboards: "Keyboards",
-    audio: "Headsets & Earbuds",
-    controllers: "Controllers & Phones",
+  // 6. Hardware Explorer powered by ./devices.json with full multi-category mapping
+  const MIXED_CATEGORY_MAP = {
+    "Akko": ["mice", "keyboards"],
+    "ASUS ROG": ["mice", "keyboards", "audio"],
+    "ATK / VXE / VGN": ["mice", "keyboards", "audio"],
+    "Attack Shark & Shared Receivers": ["mice", "keyboards"],
+    "AULA": ["mice", "keyboards", "audio"],
+    "CHERRY / XTRFY": ["mice", "keyboards"],
+    "Corsair": ["mice", "keyboards", "audio"],
+    "DAREU": ["mice", "keyboards"],
+    "HyperX": ["mice", "audio"],
+    "Keychron": ["mice", "keyboards"],
+    "Logitech": ["mice", "keyboards", "audio"],
+    "MCHOSE": ["mice", "keyboards", "audio"],
+    "Motospeed / Delux / Ajazz": ["mice", "keyboards"],
+    "Razer": ["mice", "keyboards", "audio"],
+    "Redragon": ["mice", "keyboards"],
+    "Sony": ["audio", "controllers"],
+    "SteelSeries": ["mice", "audio"],
   };
 
   const searchInput = document.getElementById("hw-search");
+  const clearBtn = document.getElementById("hw-clear");
   const tbody = document.getElementById("hw-tbody");
   const countEl = document.getElementById("hw-count");
   const expandBtn = document.getElementById("hw-expand-btn");
   const matrixLink = document.getElementById("hw-matrix-link");
+  const catLabels = {
+    mice: "Mice",
+    keyboards: "Keyboards",
+    audio: "Audio",
+    controllers: "Controllers",
+    mixed: "Mixed",
+    fallbacks: "Fallbacks",
+  };
+  let devices = [];
   let activeCat = "all";
   let expanded = false;
 
+  function matchesCategoryFilter(entry, cat) {
+    if (cat === "all") return true;
+    if (entry.category === cat) return true;
+    const mapped = MIXED_CATEGORY_MAP[entry.vendor];
+    if (Array.isArray(mapped) && mapped.includes(cat)) return true;
+    if (entry.category !== "mixed") return false;
+    const text = `${entry.models || ""} ${entry.protocol || ""}`.toLowerCase();
+    if (cat === "mice") return /\bmice\b|\bmouse\b/.test(text);
+    if (cat === "keyboards") return /\bkeyboards?\b/.test(text);
+    if (cat === "audio") return /\bheadsets?\b|\bearbuds?\b|\bheadphones?\b|\bspeaker\b/.test(text);
+    if (cat === "controllers") return /\bcontrollers?\b|\bgamepad\b|\bdualsense\b|\bdualshock\b/.test(text);
+    return false;
+  }
+
   function renderHardware() {
     const rawQ = searchInput.value.trim();
+    clearBtn.hidden = rawQ.length === 0;
     const q = rawQ.toLowerCase();
+    const qNoColon = q.replace(/:/g, "");
+
     if (matrixLink) {
       const params = new URLSearchParams();
       if (rawQ) params.set("q", rawQ);
@@ -286,56 +561,86 @@
       const qs = params.toString();
       matrixLink.href = qs ? `compatibility.html?${qs}` : "compatibility.html";
     }
-    const filtered = hwData.filter(([brand, cat, notes]) => {
-      const catMatch = activeCat === "all" || cat === activeCat;
-      if (!catMatch) return false;
+
+    if (devices.length === 0) {
+      tbody.innerHTML = "";
+      expandBtn.style.display = "none";
+      return;
+    }
+
+    const filtered = devices.filter((entry) => {
+      if (!matchesCategoryFilter(entry, activeCat)) return false;
       if (!q) return true;
-      return (
-        brand.toLowerCase().includes(q) ||
-        notes.toLowerCase().includes(q) ||
-        catLabels[cat].toLowerCase().includes(q)
-      );
+      const vidStr = (entry.vidPids || []).join(" ");
+      const hay = `${entry.vendor}\n${entry.models}\n${entry.protocol}\n${vidStr}`.toLowerCase();
+      return hay.includes(q) || (qNoColon.length >= 4 && hay.replace(/:/g, "").includes(qNoColon));
     });
 
-    const visible = expanded || q.length > 0 ? filtered : filtered.slice(0, 14);
+    const visible = expanded || q.length > 0 ? filtered : filtered.slice(0, 12);
     tbody.innerHTML = "";
+
     if (visible.length === 0) {
       const tr = document.createElement("tr");
       const td = document.createElement("td");
       td.colSpan = 3;
-      td.textContent = "No matching brands or VID:PIDs found. Try searching another keyword or run TaskbarVitals.exe --report.";
+      td.textContent = "No matching hardware families found. Try another keyword or VID:PID, or run TaskbarVitals.exe --report.";
       tr.appendChild(td);
       tbody.appendChild(tr);
     } else {
-      visible.forEach(([brand, cat, notes]) => {
+      const frag = document.createDocumentFragment();
+      visible.forEach((entry) => {
         const tr = document.createElement("tr");
+
         const td1 = document.createElement("td");
         td1.className = "hw-brand";
-        td1.textContent = brand;
+        const brandRow = document.createElement("div");
+        brandRow.className = "hw-brand-row";
+        const brandName = document.createElement("span");
+        brandName.textContent = entry.vendor;
+        brandRow.appendChild(brandName);
+        if (entry.tested) {
+          const testedBadge = document.createElement("span");
+          testedBadge.className = "badge-tested";
+          testedBadge.textContent = "Tested";
+          brandRow.appendChild(testedBadge);
+        }
+        td1.appendChild(brandRow);
+
         const td2 = document.createElement("td");
         td2.className = "hw-cat";
-        td2.textContent = catLabels[cat];
+        td2.textContent = catLabels[entry.category] || entry.category;
+
         const td3 = document.createElement("td");
-        td3.textContent = notes;
+        td3.textContent = String(entry.models || "").replace(/\n+/g, " · ");
+
         tr.append(td1, td2, td3);
-        tbody.appendChild(tr);
+        frag.appendChild(tr);
       });
+      tbody.appendChild(frag);
     }
 
-    countEl.textContent = `Showing ${visible.length} of ${filtered.length} matching families (${hwData.length} total supported)`;
-    if (q.length > 0 || filtered.length <= 14) {
+    countEl.textContent = `Showing ${visible.length} of ${filtered.length} matching families (${devices.length} total in devices.json)`;
+    if (q.length > 0 || filtered.length <= 12) {
       expandBtn.style.display = "none";
     } else {
       expandBtn.style.display = "";
-      expandBtn.textContent = expanded ? "Show compact preview (14)" : `Show all ${filtered.length} supported families`;
+      expandBtn.textContent = expanded ? "Show compact preview (12)" : `Show all ${filtered.length} matching families`;
     }
   }
 
   searchInput.addEventListener("input", renderHardware);
+  clearBtn.addEventListener("click", () => {
+    searchInput.value = "";
+    renderHardware();
+    searchInput.focus();
+  });
   document.querySelectorAll(".filter-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
-      document.querySelectorAll(".filter-btn").forEach((b) => b.classList.remove("is-active"));
-      btn.classList.add("is-active");
+      document.querySelectorAll(".filter-btn").forEach((b) => {
+        const active = b === btn;
+        b.classList.toggle("is-active", active);
+        b.setAttribute("aria-pressed", String(active));
+      });
       activeCat = btn.dataset.cat;
       renderHardware();
     });
@@ -344,9 +649,49 @@
     expanded = !expanded;
     renderHardware();
   });
-  renderHardware();
 
-  // 5. Hydrate live latest release links from GitHub API (falls back gracefully to v2.0.1)
+  fetch("./devices.json")
+    .then((res) => (res.ok ? res.json() : null))
+    .then((data) => {
+      if (!Array.isArray(data)) throw new Error("invalid");
+      devices = data;
+      renderHardware();
+    })
+    .catch(() => {
+      countEl.textContent =
+        "Unable to fetch ./devices.json in this context. Open the hosted compatibility matrix or stage _site/ per .github/workflows/pages.yml.";
+      renderHardware();
+    });
+
+  // 7. Copy PowerShell Named Pipe snippet (with fallback when Clipboard API is unavailable)
+  const copyBtn = document.getElementById("copy-pipe-btn");
+  const pipeCode = document.getElementById("pipe-code");
+  if (copyBtn && pipeCode) {
+    const markCopied = () => {
+      copyBtn.textContent = "Copied!";
+      setTimeout(() => { copyBtn.textContent = "Copy snippet"; }, 1800);
+    };
+    copyBtn.addEventListener("click", () => {
+      const text = pipeCode.textContent;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(markCopied).catch(() => {});
+        return;
+      }
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        if (document.execCommand("copy")) markCopied();
+      } catch (_) {}
+      document.body.removeChild(ta);
+    });
+  }
+
+  // 8. Hydrate live GitHub latest release assets (defaults cleanly to releases/latest)
   fetch("https://api.github.com/repos/symNistaken/TaskbarVitals/releases/latest")
     .then((r) => (r.ok ? r.json() : null))
     .then((rel) => {

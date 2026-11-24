@@ -74,6 +74,8 @@ ICONS = {
     "ram": '<rect x="2.5" y="7" width="19" height="9" rx="1.6"/><path d="M6.5 10.5v2.5M10 10.5v2.5M14 10.5v2.5M17.5 10.5v2.5'
            'M5 16v2.5M9 16v2.5M13 16v2.5M17 16v2.5"/>',
     "gpu": '<rect x="2.5" y="4.5" width="19" height="12.5" rx="1.8"/><path d="M9 20.5h6M12 17v3.5"/>',
+    "ssd": '<rect x="3.5" y="5" width="17" height="14" rx="2"/><circle cx="15.5" cy="14" r="1.4"/><path d="M7.5 9.5h9"/>',
+    "net": '<path d="M8 5v14m0 0-3.5-3.5M8 19l3.5-3.5M16 19V5m0 0-3.5 3.5M16 5l3.5 3.5"/>',
     "chevron": '<path d="M7 14.5l5-5 5 5"/>',
 }
 BOLT = '<path d="M13.5 2 5 13.5h6L9.8 22 19 9.8h-6.2z"/>'
@@ -84,6 +86,7 @@ ADV = {
     "%": 0.84, ":": 0.27, ".": 0.27, " ": 0.27, "°": 0.42, "W": 0.94,
     "·": 0.28, "/": 0.39, "+": 0.68, "-": 0.38, "M": 0.88, "X": 0.64,
     "C": 0.66, "P": 0.60, "U": 0.68, "R": 0.63, "A": 0.65, "G": 0.69,
+    "H": 0.68, "z": 0.50, "↓": 0.55, "↑": 0.55, "K": 0.64,
 }
 
 
@@ -109,10 +112,10 @@ def glyph(path, x, y, size, color, filled):
     return f'<g transform="translate({x:.1f} {y:.1f}) scale({k:.4f})" {paint}>{path}</g>'
 
 
-def strip_item(t, x, cy, kind, pct, s, state=None, caption=None, dim=False, label=None, bar_color=None):
+def strip_item(t, x, cy, kind, pct, s, state=None, caption=None, dim=False, label=None, bar_color=None, icon_color=None):
     """Renders one taskbar strip item starting at x. Returns (svg, width)."""
     isz, fsz = 19 * s, 12.5 * s
-    parts = [icon(kind, x, cy - isz / 2, isz, t["fg"])]
+    parts = [icon(kind, x, cy - isz / 2, isz, icon_color or t["fg"])]
     cw = 0.0
     if caption:
         cw = text_w(caption, 7.5 * s) + 4.5 * s
@@ -162,15 +165,15 @@ def row(t, entries, x, cy, s, gap):
 def app_icon(x, y, size, color, pulse_color=None):
     src = open(os.path.join(ROOT, "res", "app.svg"), encoding="utf-8").read()
     ds = re.findall(r'<path[^>]*\bd="([^"]+)"', src, re.S)
-    assert len(ds) >= 4, f"Expected 4 paths in res/app.svg, got {len(ds)}"
+    assert len(ds) >= 2, f"Expected terminal + pulse paths in res/app.svg, got {len(ds)}"
     pulse = pulse_color or color
     k = size / 512
-    # Combine outer and inner battery rectangles into one subpath so fill-rule="evenodd" hollows the interior.
     return (
         f'<g transform="translate({x:.1f} {y:.1f}) scale({k:.4f})">'
-        f'<path d="{ds[0]} {ds[1]}" fill="{color}" fill-rule="evenodd" clip-rule="evenodd"/>'
-        f'<path d="{ds[2]}" fill="{color}"/>'
-        f'<path d="{ds[3]}" fill="{pulse}"/>'
+        f'<rect x="86" y="152" width="316" height="208" rx="42" fill="{pulse}" fill-opacity="0.10" '
+        f'stroke="{color}" stroke-width="28"/>'
+        f'<path d="{ds[0]}" fill="{color}"/>'
+        f'<path d="{ds[1]}" fill="none" stroke="{pulse}" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>'
         f'</g>'
     )
 
@@ -242,7 +245,7 @@ def banner(t, theme_name):
     )
 
     px = 64.0
-    for label in ("50+ Wireless Brands", "CPU / GPU / RAM / Wattage", "Native C++17 · Zero Bloat"):
+    for label in ("85 Brand Families", "7-Metric System Telemetry", "Native C++17 · Zero Bloat"):
         p_svg, pw = pill(t, px, 224, label, size=17)
         out.append(p_svg)
         px += pw + 14
@@ -252,13 +255,17 @@ def banner(t, theme_name):
     out.append(f'<text x="{bx0}" y="{by - 16}" font-size="16" font-weight="600" fill="{t["muted"]}">LIVE DUAL-STRIP TASKBAR PREVIEW</text>')
     out.append(f'<rect x="{bx0}" y="{by}" width="{bx1 - bx0}" height="{bh}" rx="14" fill="{t["bar"]}" stroke="{t["bar_edge"]}"/>')
 
-    gap = 20 * s / 2
+    s = 1.54
+    gap = 15 * s / 2
+    light_mode = (t["bg"] == "#f8fafc")
     readings = [
-        dict(kind="cpu", pct=0, label="11% 66° 20W"),
-        dict(kind="gpu", pct=0, label="27% 59° 15W"),
-        dict(kind="ram", pct=0, label="57%"),
+        dict(kind="cpu", pct=0, label="12% 65° 21W", icon_color="#026aa7" if light_mode else "#2cc5ff", bar_color="#026aa7" if light_mode else "#2cc5ff"),
+        dict(kind="ram", pct=0, label="60%", icon_color="#6d28d9" if light_mode else "#a87ffb", bar_color="#6d28d9" if light_mode else "#a87ffb"),
+        dict(kind="gpu", pct=0, label="23% 63° 22W", icon_color="#15803d" if light_mode else "#3ddc68", bar_color="#15803d" if light_mode else "#3ddc68"),
+        dict(kind="ssd", pct=0, label="0% 59°", icon_color="#a16207" if light_mode else "#eab308", bar_color="#a16207" if light_mode else "#eab308"),
+        dict(kind="net", pct=0, label="↓23K ↑8K", icon_color="#0369a1" if light_mode else "#38bdf8"),
     ]
-    g, left_end = row(t, readings, bx0 + 28, cy, s, gap)
+    g, left_end = row(t, readings, bx0 + 24, cy, s, gap)
     out.append(g)
 
     csz = 11 * s
@@ -266,9 +273,9 @@ def banner(t, theme_name):
     out.append(
         f'<text text-anchor="end" font-size="{csz:.1f}" fill="{t["fg"]}">'
         f'<tspan x="{x}" y="{cy - 4:.1f}">14:32</tspan>'
-        f'<tspan x="{x}" y="{cy + csz + 2:.1f}" fill="{t["muted"]}">Nov 23</tspan></text>'
+        f'<tspan x="{x}" y="{cy + csz + 2:.1f}" fill="{t["muted"]}">Nov 24</tspan></text>'
     )
-    x -= text_w("Nov 23", csz) + 26
+    x -= text_w("Nov 24", csz) + 26
     x -= 16 * s
     out.append(icon("chevron", x, cy - 8 * s, 16 * s, t["fg"]))
     x -= 22 * s
@@ -288,7 +295,7 @@ def banner(t, theme_name):
         W,
         H,
         "\n".join(out),
-        "Taskbar Vitals preview: System Vitals (CPU, GPU, RAM) at the left end of the Windows taskbar and wireless peripheral batteries beside the clock",
+        "Taskbar Vitals preview: 7-metric System Vitals (CPU, RAM, GPU, VRAM, Storage, Network, Battery) at the left end of the Windows taskbar and wireless peripheral batteries beside the clock",
     )
 
 
@@ -303,7 +310,7 @@ def states(t):
         (dict(kind="mouse", pct=93, bar_color="#44d62c"), "Active %", "live level + brand bar"),
         (dict(kind="headset", pct=12, state="low"), "Low Alert", "15% or custom alert"),
         (dict(kind="controller", pct=64, state="charging"), "Fast Charging", "on USB cable or dock"),
-        (dict(kind="keyboard", pct=100, state="full"), "Fully Charged", "100% still on power"),
+        (dict(kind="keyboard", pct=100, state="full"), "Fully Charged", "100% while plugged in"),
         (dict(kind="mouse", pct=71, dim=True), "Standby / Asleep", "last reading retained"),
         (dict(kind="mouse", pct=80, caption="MX"), "Multi-Device Tag", "short ID for pairs"),
     ]

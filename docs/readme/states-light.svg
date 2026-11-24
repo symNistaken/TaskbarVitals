@@ -17,7 +17,7 @@
 <line x1="640.0" y1="86" x2="640.0" y2="144" stroke="#d0d7de"/>
 <g transform="translate(668.5 96.5) scale(1.5437)" fill="none" stroke="#161b22" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.6h.01M9.3 9.6h.01M12.6 9.6h.01M15.9 9.6h.01M18 9.6h.01M7.5 12.2h.01M10.8 12.2h.01M14.1 12.2h.01M16.6 12.2h.01M8 15h8"/></g><g transform="translate(714.3 102.3) scale(1.0156)" fill="none" stroke="#1a7f37" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l4.6 4.6L19.5 6.7"/></g><text x="747.4" y="123.8" font-size="24.4" font-weight="500" fill="#161b22">100%</text>
 <text x="738.7" y="216.0" text-anchor="middle" font-size="23" font-weight="600" fill="#161b22">Fully Charged</text>
-<text x="738.7" y="250.0" text-anchor="middle" font-size="19" fill="#57606a">100% still on power</text>
+<text x="738.7" y="250.0" text-anchor="middle" font-size="19" fill="#57606a">100% while plugged in</text>
 <line x1="837.3" y1="86" x2="837.3" y2="144" stroke="#d0d7de"/>
 <g opacity="0.42"><g transform="translate(888.2 96.5) scale(1.5437)" fill="none" stroke="#161b22" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="3" width="11" height="18" rx="5.5"/><path d="M12 3.5v5.5"/></g><text x="936.0" y="123.8" font-size="24.4" font-weight="500" fill="#161b22">71%</text></g>
 <text x="936.0" y="216.0" text-anchor="middle" font-size="23" font-weight="600" fill="#161b22">Standby / Asleep</text>

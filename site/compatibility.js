@@ -13,10 +13,37 @@
     localStorage.setItem("tv-site-theme", next);
   });
 
+  document.querySelectorAll(".mobile-nav-panel a").forEach((link) => {
+    link.addEventListener("click", () => {
+      const details = link.closest("details");
+      if (details) details.open = false;
+    });
+  });
+
+  const MIXED_CATEGORY_MAP = {
+    "Akko": ["mice", "keyboards"],
+    "ASUS ROG": ["mice", "keyboards", "audio"],
+    "ATK / VXE / VGN": ["mice", "keyboards", "audio"],
+    "Attack Shark & Shared Receivers": ["mice", "keyboards"],
+    "AULA": ["mice", "keyboards", "audio"],
+    "CHERRY / XTRFY": ["mice", "keyboards"],
+    "Corsair": ["mice", "keyboards", "audio"],
+    "DAREU": ["mice", "keyboards"],
+    "HyperX": ["mice", "audio"],
+    "Keychron": ["mice", "keyboards"],
+    "Logitech": ["mice", "keyboards", "audio"],
+    "MCHOSE": ["mice", "keyboards", "audio"],
+    "Motospeed / Delux / Ajazz": ["mice", "keyboards"],
+    "Razer": ["mice", "keyboards", "audio"],
+    "Redragon": ["mice", "keyboards"],
+    "Sony": ["audio", "controllers"],
+    "SteelSeries": ["mice", "audio"],
+  };
+
   const catLabels = {
     mice: "Mice",
     keyboards: "Keyboards",
-    audio: "Headsets & Earbuds",
+    audio: "Audio",
     controllers: "Controllers & Phones",
     mixed: "Mixed",
     fallbacks: "Fallbacks",
@@ -38,24 +65,28 @@
   let loadFailed = false;
 
   // 2. Restore query/filter state from URL
-  const params = new URLSearchParams(window.location.search);
-  const initialQuery = params.get("q") || "";
-  const initialCat = params.get("cat") || "all";
-  const initialTested = params.get("tested") === "1";
+  function applyUrlState() {
+    const params = new URLSearchParams(window.location.search);
+    const initialQuery = params.get("q") || "";
+    const initialCat = params.get("cat") || "all";
+    const initialTested = params.get("tested") === "1";
 
-  if (initialQuery) searchInput.value = initialQuery;
-  if (Object.prototype.hasOwnProperty.call(catLabels, initialCat)) {
-    activeCat = initialCat;
+    searchInput.value = initialQuery;
+    activeCat = Object.prototype.hasOwnProperty.call(catLabels, initialCat) ? initialCat : "all";
+    testedToggle.checked = initialTested;
   }
-  testedToggle.checked = initialTested;
+
+  applyUrlState();
 
   function updateFilterButtons() {
     filterBtns.forEach((btn) => {
-      btn.classList.toggle("is-active", btn.dataset.cat === activeCat);
+      const active = btn.dataset.cat === activeCat;
+      btn.classList.toggle("is-active", active);
+      btn.setAttribute("aria-pressed", String(active));
     });
   }
 
-  function syncUrl() {
+  function syncUrl(pushHistory = false) {
     const next = new URLSearchParams();
     const q = searchInput.value.trim();
     if (q) next.set("q", q);
@@ -63,11 +94,30 @@
     if (testedToggle.checked) next.set("tested", "1");
     const qs = next.toString();
     const target = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
-    window.history.replaceState(null, "", target);
+    if (target === window.location.pathname + window.location.search) return;
+    if (pushHistory) {
+      window.history.pushState(null, "", target);
+    } else {
+      window.history.replaceState(null, "", target);
+    }
+  }
+
+  function matchesCategory(entry) {
+    if (activeCat === "all") return true;
+    if (entry.category === activeCat) return true;
+    const mapped = MIXED_CATEGORY_MAP[entry.vendor];
+    if (Array.isArray(mapped) && mapped.includes(activeCat)) return true;
+    if (entry.category !== "mixed") return false;
+    const text = `${entry.models || ""} ${entry.protocol || ""}`.toLowerCase();
+    if (activeCat === "mice") return /\bmice\b|\bmouse\b/.test(text);
+    if (activeCat === "keyboards") return /\bkeyboards?\b/.test(text);
+    if (activeCat === "audio") return /\bheadsets?\b|\bearbuds?\b|\bheadphones?\b|\bspeaker\b/.test(text);
+    if (activeCat === "controllers") return /\bcontrollers?\b|\bgamepad\b|\bdualsense\b|\bdualshock\b/.test(text);
+    return false;
   }
 
   function matchesEntry(entry, rawQuery) {
-    if (activeCat !== "all" && entry.category !== activeCat) return false;
+    if (!matchesCategory(entry)) return false;
     if (testedToggle.checked && !entry.tested) return false;
     if (!rawQuery) return true;
 
@@ -102,11 +152,11 @@
     });
   }
 
-  function render() {
+  function render(pushHistory = false, skipSync = false) {
     const rawQuery = searchInput.value.trim();
     clearBtn.hidden = rawQuery.length === 0;
     updateFilterButtons();
-    syncUrl();
+    if (!skipSync) syncUrl(pushHistory);
 
     if (loadFailed) {
       tableWrap.hidden = true;
@@ -114,7 +164,7 @@
       resetBtn.hidden = true;
       countEl.textContent = "Unable to load devices.json";
       emptyMsg.textContent =
-        "Could not fetch ./devices.json. If previewing locally, serve site/ over a local HTTP server instead of file://.";
+        "Could not fetch ./devices.json. When previewing locally, stage _site/ (copying docs/ into _site/docs per .github/workflows/pages.yml) and serve _site/ over HTTP.";
       return;
     }
 
@@ -178,7 +228,7 @@
             chip.title = `Filter by ${vp}`;
             chip.addEventListener("click", () => {
               searchInput.value = vp;
-              render();
+              render(true);
               searchInput.focus();
             });
             vpList.appendChild(chip);
@@ -199,24 +249,29 @@
     countEl.textContent = `Showing ${filtered.length} of ${devices.length} entries (${verifiedTotal} hardware-verified)`;
   }
 
-  searchInput.addEventListener("input", render);
+  searchInput.addEventListener("input", () => render(false));
   clearBtn.addEventListener("click", () => {
     searchInput.value = "";
-    render();
+    render(true);
     searchInput.focus();
   });
-  testedToggle.addEventListener("change", render);
+  testedToggle.addEventListener("change", () => render(true));
   filterBtns.forEach((btn) => {
     btn.addEventListener("click", () => {
       activeCat = btn.dataset.cat || "all";
-      render();
+      render(true);
     });
   });
   resetBtn.addEventListener("click", () => {
     searchInput.value = "";
     activeCat = "all";
     testedToggle.checked = false;
-    render();
+    render(true);
+  });
+
+  window.addEventListener("popstate", () => {
+    applyUrlState();
+    render(false, true);
   });
 
   fetch("./devices.json")
@@ -227,10 +282,10 @@
     .then((data) => {
       if (!Array.isArray(data)) throw new Error("Invalid dataset format");
       devices = data;
-      render();
+      render(false);
     })
     .catch(() => {
       loadFailed = true;
-      render();
+      render(false);
     });
 })();

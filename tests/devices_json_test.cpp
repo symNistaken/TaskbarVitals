@@ -86,7 +86,7 @@ void TestDevicesJsonSchemaAndContents() {
     JsonValue root;
     assert(JsonParser(json).Parse(root));
     assert(root.type == JsonValue::Type::Array);
-    assert(root.arr.size() == 78);
+    assert(root.arr.size() == 85);
 
     const std::set<std::string> validCategories = {
         "mice", "keyboards", "audio", "controllers", "mixed", "fallbacks"
@@ -173,6 +173,33 @@ void TestDevicesJsonSchemaAndContents() {
     assert(HasVidPid(*attackShark, "1A2C:A034"));
     assert(!HasVidPid(*attackShark, "1D57:1A2C"));
 
+    const JsonValue* sony = FindVendor(root, "Sony");
+    assert(sony);
+    assert(FindField(*sony, "category")->str == "mixed");
+    assert(FindField(*sony, "tested")->boolVal == true);
+    assert(HasVidPid(*sony, "054C:0ECC"));
+
+    const JsonValue* crociris = FindVendor(root, "CROCIRIS / XIBERIA");
+    assert(crociris && FindField(*crociris, "category")->str == "mice");
+    assert(FindField(*crociris, "tested")->boolVal == true);
+    assert(HasVidPid(*crociris, "36F9:AA20"));
+
+    const JsonValue* ipi = FindVendor(root, "IPI");
+    assert(ipi && FindField(*ipi, "category")->str == "mice");
+    assert(FindField(*ipi, "tested")->boolVal == true);
+    assert(HasVidPid(*ipi, "372E:1014"));
+    assert(HasVidPid(*ipi, "372E:1056"));
+
+    const JsonValue* soundcore = FindVendor(root, "Anker Soundcore");
+    assert(soundcore && FindField(*soundcore, "category")->str == "audio");
+    const JsonValue* marshall = FindVendor(root, "Marshall");
+    assert(marshall && FindField(*marshall, "category")->str == "audio");
+    const JsonValue* roccat = FindVendor(root, "ROCCAT");
+    assert(roccat && HasVidPid(*roccat, "1E7D:3A3F"));
+    const JsonValue* steam = FindVendor(root, "Valve / Steam");
+    assert(steam && FindField(*steam, "category")->str == "controllers");
+    assert(HasVidPid(*steam, "28DE:1142"));
+
     const JsonValue* fallbacks = FindVendor(root, "Universal Fallbacks");
     assert(fallbacks);
     assert(FindField(*fallbacks, "category")->str == "fallbacks");
@@ -190,6 +217,6 @@ void TestDevicesJsonSchemaAndContents() {
 
 int main() {
     TestDevicesJsonSchemaAndContents();
-    std::puts("Devices JSON compatibility dataset tests passed (78 entries, VID:PIDs, schema, cleaning).");
+    std::puts("Devices JSON compatibility dataset tests passed (85 entries, VID:PIDs, schema, cleaning).");
     return 0;
 }
