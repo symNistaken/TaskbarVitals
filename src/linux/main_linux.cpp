@@ -7,6 +7,7 @@
 #include "../devices.h"
 #include "../hid.h"
 #include "../json_output.h"
+#include "../linux_paths.h"
 
 #include <gtk/gtk.h>
 
@@ -68,12 +69,21 @@ State g;
 // ---- settings (GKeyFile under $XDG_CONFIG_HOME) ------------------------------------------------
 
 std::string ConfigPath() {
-    return std::string(g_get_user_config_dir()) + "/wireless-battery/config.ini";
+    return linuxpaths::NewLinuxConfigPath(g_get_user_config_dir());
+}
+
+std::string ConfigReadPath() {
+    const std::string xdg = g_get_user_config_dir();
+    const std::string cur = linuxpaths::NewLinuxConfigPath(xdg);
+    const std::string legacy = linuxpaths::LegacyLinuxConfigPath(xdg);
+    return linuxpaths::ResolveLinuxConfigReadPath(
+        xdg, g_file_test(cur.c_str(), G_FILE_TEST_EXISTS),
+        g_file_test(legacy.c_str(), G_FILE_TEST_EXISTS));
 }
 
 void LoadSettings() {
     g_autoptr(GKeyFile) kf = g_key_file_new();
-    g_key_file_load_from_file(kf, ConfigPath().c_str(), G_KEY_FILE_NONE, nullptr);
+    g_key_file_load_from_file(kf, ConfigReadPath().c_str(), G_KEY_FILE_NONE, nullptr);
     g_autofree gchar** hidden = g_key_file_get_string_list(kf, "general", "hidden", nullptr, nullptr);
     if (hidden) for (int i = 0; hidden[i]; i++) g.hidden.insert(Utf8ToWide(hidden[i]));
     g.hideLastKnown = g_key_file_get_boolean(kf, "general", "hide-last-known", nullptr);
@@ -82,7 +92,7 @@ void LoadSettings() {
 
 void SaveSettings() {
     g_autoptr(GKeyFile) kf = g_key_file_new();
-    g_key_file_load_from_file(kf, ConfigPath().c_str(), G_KEY_FILE_NONE, nullptr);
+    g_key_file_load_from_file(kf, ConfigReadPath().c_str(), G_KEY_FILE_NONE, nullptr);
     std::vector<std::string> items;
     for (const auto& k : g.hidden) items.push_back(WideToUtf8(k));
     std::vector<const char*> ptrs;
@@ -97,19 +107,18 @@ void SaveSettings() {
 }
 
 std::string DesktopPath() {
-    return std::string(g_get_user_config_dir()) + "/autostart/wireless-battery.desktop";
+    return linuxpaths::NewLinuxAutostartPath(g_get_user_config_dir());
 }
 
 void ApplyAutostart(bool on) {
+    const std::string xdg = g_get_user_config_dir();
+    unlink(linuxpaths::LegacyLinuxAutostartPath(xdg).c_str());
     std::string path = DesktopPath();
     if (!on) { unlink(path.c_str()); return; }
     g_mkdir_with_parents(g_path_get_dirname(path.c_str()), 0700);
     g_autofree gchar* exe = g_file_read_link("/proc/self/exe", nullptr);
     if (!exe) return;
-    std::string content =
-        "[Desktop Entry]\nType=Application\nName=Taskbar Vitals\n"
-        "Comment=Show battery levels of wireless devices in the tray\n"
-        "Exec=\"" + std::string(exe) + "\"\nNoDisplay=true\nX-GNOME-Autostart-enabled=true\n";
+    std::string content = linuxpaths::FormatLinuxAutostartEntry(exe);
     g_file_set_contents(path.c_str(), content.c_str(), (gssize)content.size(), nullptr);
 }
 
@@ -392,7 +401,7 @@ static const char* kMenuXml =
 
 static GVariant* sni_get_property(GDBusConnection*, const gchar*, const gchar*, const gchar*,
                                   const gchar* name, GError**, gpointer) {
-    if (!strcmp(name, "Id")) return g_variant_new_string("wireless-battery");
+    if (!strcmp(name, "Id")) return g_variant_new_string("taskbar-vitals");
     if (!strcmp(name, "Category")) return g_variant_new_string("SystemServices");
     if (!strcmp(name, "Title")) return g_variant_new_string("Taskbar Vitals");
     if (!strcmp(name, "IconName")) return g_variant_new_string("battery-good-symbolic");
@@ -658,7 +667,7 @@ int QuitRunning() {
 int main(int argc, char** argv) {
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--help") || !strcmp(argv[i], "-h")) {
-            printf("Usage: wireless-battery [option]\n"
+            printf("Usage: taskbar-vitals [option]\n"
                    "  (no option)  Run the tray app\n"
                    "  --list       Print devices and battery levels, then exit\n"
                    "  --json       Print a JSON array of devices and battery levels, then exit\n"

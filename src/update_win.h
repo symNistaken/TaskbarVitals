@@ -12,8 +12,10 @@ void Shutdown();
 std::wstring MenuLabel();
 bool Busy();
 bool AutomaticEnabled();
+bool AutomaticSetting();
 bool Supported();
 void ToggleAutomatic();
+void SetAutomaticSetting(bool on);
 void Activate(HWND owner);
 
 // Native helpers also used by the download worker and temporary installer helper.

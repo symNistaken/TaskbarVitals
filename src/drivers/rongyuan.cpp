@@ -200,6 +200,8 @@ void PollRongyuan(PollContext& ctx) {
                 }
 
                 if (level >= 1 && level <= 100) s.percent = level;
+                s.vid = vid;
+                s.pid = pid;
                 ctx.out.push_back(s);
                 any = true;
             }

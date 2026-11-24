@@ -10,10 +10,10 @@ Taskbar Vitals is written in native **C++17 / Win32** (with an experimental **GT
 
 | Path | Purpose |
 |---|---|
-| `src/main.cpp`, `src/panel.cpp` | Win32 taskbar strip(s), tray mode, DPI-aware settings panel, and UI lifecycle |
+| `src/main.cpp`, `src/app_settings.cpp`, `src/notifications.cpp`, `src/app_commands.cpp`, `src/panel.cpp` | Win32 taskbar strip(s), tray lifecycle, settings registry/JSON port, alert dispatch, menu/panel commands, DPI-aware settings panel |
 | `src/drivers/` | Vendor-specific, strictly read-only peripheral battery drivers (`PollContext`) |
 | `src/sysmon.cpp`, `src/gpumon.cpp` | Live CPU, RAM, Energy Meter wattage, DXGI/PDH/WDDM/NVML GPU metrics |
-| `src/cputemp.h`, `src/cputemp_client.*`, `helper/cputemp_helper.cpp` | Elevated CPU package temperature helper (`TaskbarVitalsTemp.exe`) embedding PawnIO `IntelMSR.bin` |
+| `src/cputemp.h`, `src/cputemp_client.*`, `helper/cputemp_helper.cpp` | Elevated CPU package temperature helper (`TaskbarVitalsTemp.exe`) embedding PawnIO `IntelMSR.bin` and `AMDFamily17.bin` |
 | `src/update_core.cpp`, `src/update_win.cpp`, `src/update_signature.cpp` | Windows GitHub updater with ECDSA P-256 `SHA256SUMS.txt.sig` verification |
 | `lang/` | UTF-8 localization files (compiled into application resources) |
 | `linux/`, `src/linux/` | Experimental Linux `hidraw` + StatusNotifierItem backend |
@@ -21,7 +21,7 @@ Taskbar Vitals is written in native **C++17 / Win32** (with an experimental **GT
 
 **Third-party components:**
 - **HeadsetControl 4.3.0** (`headsetcontrol.exe`): Bundled by the Windows packaging script (`installer/build-installer.ps1`) with SHA-256 verification and GPL-3.0 corresponding source tarball.
-- **PawnIO IntelMSR module** (`res/pawnio/IntelMSR.bin`, LGPL-2.1+): Embedded unchanged into `TaskbarVitalsTemp.exe` for CPU package temperature reads via the separately installed PawnIO driver.
+- **PawnIO modules** (`res/pawnio/IntelMSR.bin`, `res/pawnio/AMDFamily17.bin`, LGPL-2.1+): Embedded unchanged into `TaskbarVitalsTemp.exe` for read-only Intel/AMD CPU package temperature reads via the separately installed PawnIO driver.
 
 ---
 
@@ -55,7 +55,7 @@ Common build and test commands:
 Requires `g++`, `make`, `gtk4`, and `cairo` development headers (`libgtk-4-dev libcairo2-dev` on Debian/Ubuntu; `gtk4-devel cairo-devel` on Fedora):
 
 ```sh
-./build-linux.sh          # builds ./wireless-battery
+./build-linux.sh          # builds ./taskbar-vitals
 ./build-linux.sh test     # runs Linux HID parser tests
 ./build-linux.sh clean
 ```
@@ -118,8 +118,8 @@ Most peripheral drivers are built from protocol research and cannot all be verif
 ## System Monitoring & Linux Contributions
 
 - **System Vitals (`src/sysmon.cpp`, `src/gpumon.cpp`, `src/cputemp_client.cpp`):**
-  - Keep sampling cheap and non-blocking; delay-load optional DLLs (`pdh.dll`, `dxgi.dll`, `nvml.dll`) only when the user enables those indicators.
-  - Never add driver-write paths or unprompted elevation to `TaskbarVitals.exe`. Changes to `helper/cputemp_helper.cpp` or `src/cputemp.h` must preserve strict read-only MSR bounds (`0x1A2`, `0x1B1`) and session ACL restrictions.
+  - Keep sampling cheap and non-blocking; delay-load optional DLLs (`pdh.dll`, `dxgi.dll`, `nvml.dll`, `amdadlx64.dll`, `ControlLib.dll`) only when the user enables those indicators.
+  - Never add driver-write paths or unprompted elevation to `TaskbarVitals.exe`. Changes to `helper/cputemp_helper.cpp` or `src/cputemp.h` must preserve strict read-only register bounds (Intel MSRs `0x1A2`, `0x1B1`; AMD SMN `0x00059800`) and session ACL restrictions.
 - **Linux (`linux/`, `src/linux/`):**
   - Keep Linux-only code isolated in `linux/` and `src/linux/` with `LF` line endings (enforced by `.gitattributes`), and verify `./build-linux.sh test` passes.
 

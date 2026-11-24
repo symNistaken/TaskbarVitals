@@ -1,5 +1,6 @@
 build/
 wireless-battery
+taskbar-vitals
 *.exe
 *.o
 dist/

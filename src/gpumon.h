@@ -27,6 +27,23 @@ bool ParseInstance(const std::wstring& name, std::uint64_t& luid, std::wstring* 
 // one type added up. 0..100, or -1 when the adapter has no samples.
 int AdapterUse(const std::vector<EngineSample>& samples, std::uint64_t luid);
 
+// Rounds GPU wattage to nearest whole watt; returns -1 for NaN, negative, or implausible (> 1000 W) values.
+inline int RoundGpuWatts(double watts) {
+    if (!(watts >= 0.0 && watts <= 1000.0)) return -1;
+    return static_cast<int>(watts + 0.5);
+}
+
+// Computes average Intel GPU power in watts from two monotonic microjoule/microsecond IGCL energy snapshots.
+// Returns -1 on missing baseline, non-increasing timestamps, counter reset, or outside 50 ms..60 s window.
+inline int IgclWattsFromEnergyDelta(std::uint64_t prevEnergyUj, std::uint64_t prevTimestampUs,
+                                    std::uint64_t curEnergyUj, std::uint64_t curTimestampUs) {
+    if (prevTimestampUs == 0 || curTimestampUs <= prevTimestampUs || curEnergyUj < prevEnergyUj) return -1;
+    const std::uint64_t dtUs = curTimestampUs - prevTimestampUs;
+    if (dtUs < 50000ULL || dtUs > 60000000ULL) return -1;
+    const std::uint64_t watts = (curEnergyUj - prevEnergyUj + dtUs / 2ULL) / dtUs;
+    return watts <= 1000ULL ? static_cast<int>(watts) : -1;
+}
+
 struct Reading {
     bool available = false;  // an adapter was found
     std::wstring name;       // "NVIDIA GeForce RTX 4050 Laptop GPU"

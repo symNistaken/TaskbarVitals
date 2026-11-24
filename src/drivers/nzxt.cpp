@@ -46,11 +46,13 @@ void PollNzxt(PollContext& ctx) {
     bool any = false, have = false;
     int percent = -1, mv = 0;
     bool charging = false;
+    USHORT foundPid = 0;
     for (USHORT pid : { kCable, kReceiver }) {
         if (ctx.IsClaimed(kVid, pid)) continue;
         auto colls = ctx.Find(kVid, pid, [](const HidColl& c) { return c.page() == 0xFFCA && c.usage() == 0x0001; });
         if (colls.empty()) continue;
         any = true;
+        if (!foundPid) foundPid = pid;
         ctx.Claim(kVid, pid);
         for (const HidColl* c : colls) {
             int p = -1, v = 0;
@@ -59,6 +61,7 @@ void PollNzxt(PollContext& ctx) {
             percent = p;
             mv = v;
             charging = ch;
+            foundPid = pid;
             have = true;
         }
     }
@@ -69,6 +72,8 @@ void PollNzxt(PollContext& ctx) {
     s.kind = DeviceKind::Mouse;
     s.via = L"2.4 GHz receiver";
     s.graceSec = 1800;
+    s.vid = kVid;
+    s.pid = foundPid;
     if (have) {
         s.percent = percent;
         s.charging = charging;

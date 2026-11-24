@@ -7,7 +7,7 @@ CHANNEL  ?= dev
 CXXFLAGS ?= -std=c++17 -Os -Wall -Wno-missing-field-initializers -ffunction-sections -fdata-sections \
             -D_WIN32_WINNT=0x0A00 -DWINVER=0x0A00
 LDFLAGS  ?= -municode -mwindows -static -s -Wl,--gc-sections,--nxcompat,--dynamicbase,--high-entropy-va
-LIBS     := -lhid -lsetupapi -lcfgmgr32 -lole32 -loleaut32 -lcomctl32 -lgdi32 -lruntimeobject -lws2_32 -lwinhttp -lbcrypt -lversion -lbluetoothapis -ld3d11 -ldxgi -ld2d1 -ldcomp -ldwmapi -liphlpapi
+LIBS     := -lhid -lsetupapi -lcfgmgr32 -lole32 -loleaut32 -lcomctl32 -lgdi32 -lruntimeobject -lws2_32 -lwinhttp -lbcrypt -lversion -lbluetoothapis -ld3d11 -ldxgi -ld2d1 -ldcomp -ldwmapi -liphlpapi -ladvapi32
 
 SRC := $(wildcard src/*.cpp) $(wildcard src/drivers/*.cpp)
 OBJ := $(patsubst src/%.cpp,build/%.o,$(SRC)) build/app_res.o
@@ -49,6 +49,8 @@ test: test-update-core test-update-win test-update-signature
 	@mkdir -p build
 	$(CXX) -std=c++17 -O2 -Wall tests/device_aliases_test.cpp -o build/device_aliases_test.exe
 	./build/device_aliases_test.exe
+	$(CXX) -std=c++17 -O2 -Wall -Wextra tests/ignore_devices_test.cpp -o build/ignore_devices_test.exe
+	./build/ignore_devices_test.exe
 	$(CXX) -std=c++17 -O2 -Wall -Wextra tests/sysmon_test.cpp -o build/sysmon_test.exe
 	./build/sysmon_test.exe
 	$(CXX) -std=c++17 -O2 -Wall -Wextra tests/cputemp_test.cpp -o build/cputemp_test.exe
@@ -67,10 +69,16 @@ test: test-update-core test-update-win test-update-signature
 	./build/alert_rules_test.exe
 	$(CXX) -std=c++17 -O2 -Wall -Wextra tests/refresh_policy_test.cpp -o build/refresh_policy_test.exe
 	./build/refresh_policy_test.exe
+	$(CXX) -std=c++17 -O2 -Wall -Wextra tests/osd_policy_test.cpp -o build/osd_policy_test.exe
+	./build/osd_policy_test.exe
 	$(CXX) -std=c++17 -O2 -Wall -Wextra tests/history_model_test.cpp -o build/history_model_test.exe
 	./build/history_model_test.exe
 	$(CXX) -std=c++17 -O2 -Wall -Wextra tests/runtime_estimate_test.cpp -o build/runtime_estimate_test.exe
 	./build/runtime_estimate_test.exe
+	$(CXX) -std=c++17 -O2 -Wall -Wextra tests/battery_health_test.cpp -o build/battery_health_test.exe
+	./build/battery_health_test.exe
+	$(CXX) -std=c++17 -O2 -Wall -Wextra tests/evening_reminder_test.cpp -o build/evening_reminder_test.exe
+	./build/evening_reminder_test.exe
 	$(CXX) -std=c++17 -O2 -Wall -Wextra tests/charge_estimate_test.cpp -o build/charge_estimate_test.exe
 	./build/charge_estimate_test.exe
 	$(CXX) $(CXXFLAGS) tests/status_json_test.cpp src/status_json.cpp -o build/status_json_test.exe
@@ -211,6 +219,18 @@ test: test-update-core test-update-win test-update-signature
 	./build/gamesir_ble_protocol_test.exe
 	$(CXX) -std=c++17 -O2 -Wall -Wextra tests/fastpair_stream_test.cpp -o build/fastpair_stream_test.exe
 	./build/fastpair_stream_test.exe
+	$(CXX) -std=c++17 -O2 -Wall -Wextra tests/settings_port_test.cpp -o build/settings_port_test.exe
+	./build/settings_port_test.exe
+	$(CXX) -std=c++17 -O2 -Wall -Wextra tests/devices_json_test.cpp -o build/devices_json_test.exe
+	./build/devices_json_test.exe
+	$(CXX) -std=c++17 -O2 -Wall -Wextra -D_WIN32_WINNT=0x0A00 -DWINVER=0x0A00 tests/live_api_test.cpp src/live_api_pipe.cpp -o build/live_api_test.exe -ladvapi32
+	./build/live_api_test.exe
+	$(CXX) -std=c++17 -O2 -Wall -Wextra tests/linux_paths_test.cpp -o build/linux_paths_test.exe
+	./build/linux_paths_test.exe
+	$(CXX) -std=c++17 -O2 -Wall -Wextra tests/command_routing_test.cpp -o build/command_routing_test.exe
+	./build/command_routing_test.exe
+	$(CXX) -std=c++17 -O2 -Wall -Wextra tests/packaging_manifests_test.cpp -o build/packaging_manifests_test.exe
+	./build/packaging_manifests_test.exe
 
 test-update-core:
 	@mkdir -p build

@@ -53,11 +53,11 @@ Most peripheral apps eat hundreds of megabytes of RAM just to tell you your mous
 
 | Pillar | What You Get |
 |---|---|
-| **Live System Vitals Strip** | Real-time **CPU** usage (%) and package power (W), **RAM** usage (% and GB), and **GPU** load (%), temperature (°C), VRAM usage (% and GB), and board wattage (W via NVML), with custom **System item order**. |
+| **Live System Vitals Strip** | Real-time **CPU** usage (%) and package power (W), **RAM** usage (% and GB), and **GPU** load (%), temperature (°C), VRAM usage (% and GB), and board wattage (W via NVML / ADLX / IGCL), with custom **System item order**. |
 | **Direct Peripheral Engine** | Read-only battery & charging status for wireless mice, keyboards, headsets, earbuds, gamepads, and linked Android phones across **75+ brand/protocol families** without manufacturer bloatware. |
 | **Dual-Strip Taskbar Layout** | Keep **System Vitals** pinned to the **Left end of the taskbar** while keeping **Peripheral Batteries** **Next to the clock** — or combine both into one strip, target specific monitors, or switch to per-device tray icons. |
 | **15 Brand Color Themes & Aliases** | Automatic color-coded level bars for Razer, Logitech, SteelSeries, Corsair, ROG, ZOWIE, HyperX, PlayStation, Xbox, Samsung, Apple, Jabra, JBL, Cooler Master, and Steam, plus custom device names (up to 64 chars). |
-| **Smart Alerts & 30-Day Charts** | Per-device low-battery alerts (5%–40% thresholds with smart re-arm) and a DPI-aware native **24h / 7d / 30d** discharge chart with conservative time-to-empty estimation. |
+| **Smart Alerts & 30-Day Charts** | Per-device low-battery alerts (5%–40% thresholds with smart re-arm), a DPI-aware native **24h / 7d / 30d** discharge chart with conservative time-to-empty estimation, and 365-day **Battery health** wear tracking across full discharge cycles. |
 | **100% Local & Signed Updates** | Zero accounts, zero cloud telemetry. Official Windows updates verify ECDSA P-256 `SHA256SUMS.txt.sig` signatures offline before executing an installer. |
 
 ---
@@ -72,10 +72,12 @@ Enable hardware vitals without running heavyweight overlays or background suites
 
 | Component | What Is Measured | How It Works Under the Hood |
 |---|---|---|
-| **Processor (CPU)** | Core load (`%`), package temperature (`°C`), and package wattage (`W`) | Load via `GetSystemTimes`; RAPL wattage via Windows **Energy Meter** PDH counters; optional CPU package temperature via the isolated `TaskbarVitalsTemp.exe` helper (`PawnIO` `IntelMSR`, read-only). |
-| **Graphics (GPU & VRAM)** | Engine usage (`%`), temperature (`°C`), board wattage (`W`), and dedicated VRAM (`%` & `GB`) | Automatically selects the adapter with the largest dedicated memory (discrete GPU on dual-GPU laptops) via DXGI, PDH (`GPU Engine` / `GPU Adapter Memory`), WDDM `D3DKMTQueryAdapterInfo`, and `nvml.dll`. |
+| **Processor (CPU)** | Core load (`%`), package temperature (`°C`), and package wattage (`W`) | Load via `GetSystemTimes`; RAPL wattage via Windows **Energy Meter** PDH counters; optional CPU package temperature via the isolated `TaskbarVitalsTemp.exe` helper (`PawnIO` `IntelMSR` for Intel, `AMDFamily17` SMN for AMD Ryzen, read-only). |
+| **Graphics (GPU & VRAM)** | Engine usage (`%`), temperature (`°C`), board wattage (`W`), and dedicated VRAM (`%` & `GB`) | Automatically selects the adapter with the largest dedicated memory (discrete GPU on dual-GPU laptops) via DXGI, PDH (`GPU Engine` / `GPU Adapter Memory`), WDDM `D3DKMTQueryAdapterInfo`, NVIDIA NVML (`nvml.dll`), AMD ADLX (`amdadlx64.dll`), and Intel IGCL (`ControlLib.dll`). |
 | **Memory (RAM)** | Physical memory percentage + `Used / Total GB` in the tooltip and System card | Native `GlobalMemoryStatusEx` call with virtually zero CPU cost. |
-| **Thermal Warnings & Cleanup** | Automatic color shifts at **≥80 °C (orange)** and **≥90 °C (red)** | Performance counters and optional DLLs (`pdh.dll`, `dxgi.dll`, `nvml.dll`) are delay-loaded on first use and freed immediately when disabled. |
+| **Laptop Battery** | Charge percentage (`%`), charging / full state, and remaining runtime in the tooltip | Native `GetSystemPowerStatus` call; disabled in Settings on desktop PCs without a system battery. |
+| **Network** | Live download (`↓`) and upload (`↑`) throughput (`B/s` – `GB/s`) | Reads `GetIfTable2` interface counters from delay-loaded `iphlpapi.dll` (excluding loopback, tunnel, filter, and disconnected adapters); freed immediately when disabled. |
+| **Thermal Warnings & Cleanup** | Configurable temperature colour thresholds (**Standard 80/90 °C**, **Laptop 85/95 °C**, **Strict 70/85 °C**) shifting text to orange/red, plus optional high-temperature alerts | Performance counters and optional DLLs (`pdh.dll`, `dxgi.dll`, `nvml.dll`, `amdadlx64.dll`, `ControlLib.dll`, `iphlpapi.dll`) are delay-loaded on first use and freed immediately when disabled. |
 
 ---
 
@@ -104,10 +106,10 @@ Click anywhere on the taskbar strip to open the modern, DPI-aware **Settings Pan
 
 | Tab / Area | Controls & Behavior |
 |---|---|
-| **Batteries** | Reorder (`↑`/`↓`), toggle, or customize devices via `⋯` (rename up to 64 chars, per-device 5%–40% alerts, 30-day **Battery history**), plus **Visibility** (`Dim sleeping devices`, `Hide last known / asleep devices`, `Show disconnected devices`, `Move to tray when no devices`) and **Battery alerts** (`Record battery history`, `Notify when charged to`, `Check battery every`). |
-| **System** | Live summary pills and `↑`/`↓` ordering across **CPU** (`Show CPU usage`, `Show CPU temperature`, CPU temp helper setup/removal, `Show CPU power (watts)`), **GPU** (`Show GPU usage`, `Show GPU temperature`, `Show GPU power (watts)`), **RAM usage**, and **GPU memory**. |
+| **Batteries** | Reorder (`↑`/`↓`), toggle, or customize devices via `⋯` (rename up to 64 chars, per-device 5%–40% alerts, 30-day **Battery history** with CSV export and 365-day **Battery health** wear tracking, `Ignore this device...`), plus **Visibility** (`Dim sleeping devices`, `Hide last known / asleep devices`, `Show disconnected devices`, `Move to tray when no devices`), **Battery alerts** (`Record battery history`, `Notify when charged to`, `Evening charge reminder`, `Alert sound`, `In-game alerts`, `In-game alert corner`, `Check battery every`), and **Ignored devices...**. |
+| **System** | Live summary pills and `↑`/`↓` ordering across **CPU** (`Show CPU usage`, `Show CPU temperature`, CPU temp helper setup/removal, `Show CPU power (watts)`), **GPU** (`Show GPU usage`, `Show GPU temperature`, `Show GPU power (watts)`), **RAM usage**, **GPU memory**, **Laptop battery**, and **Network** (`Show network speed`), plus **Options** (`Temperature colours` presets, `High temperature alert`, and `Check system every`). |
 | **Appearance** | **Display mode** (`Show on the taskbar` / `Show as tray icons`), **Position on the taskbar** (`Battery strip position`, `CPU / RAM / GPU strip position`, `Strip order`, `Position on the taskbar`, `Make room for other taskbar widgets`, `Show the widget on`), and **Style** (`Icons above percentages`, backdrop plate, 15 `Brand colors`). |
-| **General** | `Language` (20 built-in languages), `Start with Windows`, `Automatically check for updates`, `Check for updates...`, `Request support for a device...`, and `Support the project...`. |
+| **General** | `Language` (20 built-in languages), `Start with Windows`, `Poll less during full-screen games` (stretches battery polling to at least 5 minutes while active full-screen apps run), `Local JSON pipe (\\.\pipe\TaskbarVitals)` (opt-in read-only live snapshot pipe for Stream Deck / Rainmeter / scripts), `Automatically check for updates`, `Check for updates...`, `Export settings...`, `Import settings...` (JSON backup, excluding Windows startup registration), `Request support for a device...`, and `Support the project...`. |
 | **Indicator States** | Red `%` marks ≤15%; blue `⚡` indicates active charging; green `✓` marks 100% on power; dimmed items retain the last reading while asleep; `×` marks explicit offline links; small badges distinguish identical devices. |
 
 ---
@@ -123,91 +125,9 @@ Taskbar Vitals communicates strictly in **read-only mode** via HID, USB, Bluetoo
 | **Headsets & Earbuds** | Apple AirPods / Beats, Samsung Galaxy Buds, Nothing / CMF Buds, ASTRO (`A50 X / Gen 5 / Gen 4 / Gen 3 / A20`), Sony INZONE (`H9 II`, `H5`, `Buds`), SteelSeries Arctis & GameBuds, HyperX Cloud & Stinger, Razer BlackShark & Barracuda, Logitech G & G435, Corsair Void / Virtuoso / HS, JBL Quantum, Audeze Maxwell / 2, Turtle Beach Stealth 700 Gen 3, Alienware AW920H, Jabra GNP, AKG N9 Hybrid, Fractal Scape, Poly BT600, ATK N9 / Mercury, MCHOSE V9, AULA A7Pro, VGN OMNISOUND, MOONDROP GM01 Pro, ENDORFY Viro, Google Fast Pair, HeadsetControl 4.3.0 |
 | **Controllers & Phones** | Xbox Wireless / Bluetooth, PlayStation DualShock 4 / DualSense / Edge, Switch Pro (`057E:2009`), 8BitDo (`Ultimate 2` / `2C` / `Pro 2/3`), GameSir (`Nova`, `G7 Pro`, `Cyclone 2`, `Cyclone Pro`, `Super Nova`, `Tarantula Pro`), Flydigi (`Vader 5 Pro`, `Apex 5`), BEITONG (`KP20`, `KP40D`), Android phones via Microsoft Phone Link, Generic HID Battery |
 
-<details>
-  <summary><strong>Full A–Z Hardware &amp; Protocol Compatibility Matrix (all 79 vendor &amp; fallback entries)</strong></summary>
-
-| Vendor / Family | Supported Models &amp; VID:PIDs | Protocol &amp; Notes |
-|---|---|---|
-| **8BitDo** | Ultimate 2 Wireless (X-input `2DC8:310B` tested on 2.4 GHz dongle; D-input `2DC8:6012` hold B, firmware 1.03+, dongle / USB / BT), Ultimate 2C Wireless, Ultimate 3-mode / 2.4G / Bluetooth, Pro 3 / Pro 2, SN30 Pro, SF30 Pro | Vendor HID status query (`FF7A` / `FFA0`) and SDL gamepad input report `01` / `04`, with charging state |
-| **AKG** | N9 Hybrid on USB dongle (`0ECB:20D9`, tested) | Airoha RACE on `FF13:0001`: output `06`, input `07`, battery attribute `0CD6` (read-only) |
-| **Akko** | Akko Air 01 (`3151:5006`, tested), V9 Dash Pro (`38EE:000C`, tested), Dash V9 Ultra (`38EE:000F`, tested) on 2.4 GHz receiver | Air 01: Rongyuan `0xF7` status report; V9 Dash Pro / Ultra: read-only 64-byte `0x1A` query on `FF1C:0092` (charging supported on Pro) |
-| **Alienware** | AW920H headset on 2.4 GHz dongle (`413C:A515`, tested); Bluetooth handled via Bluetooth fallback | Vendor query `06 C0 0A` on `FF13:0001`, XOR-checksummed reply `07` (level, charging, critical) |
-| **Apple AirPods / Beats** | AirPods Max (tested, `200A` Lightning &amp; `201F` USB-C), AirPods Pro 3 (tested, `2027`), AirPods Pro 1/2, AirPods 1–5, Beats headphones/earbuds | BLE proximity pairing (`0x07`) broadcasts matched to paired device (10% steps + charging; L/R/case for earbuds) |
-| **Arbiter Studio** | Akitsu (`373E:000A` 8K / `0009` cable), Akitsu 3950 (`373E:0039` 8K / `0038` cable), Akitsu Medium (`373E:0067` 8K &amp; `0066` cable, both tested) | Read-only vendor feature report `0x83` on `FFFF:0000` (battery &amp; charging) |
-| **ASTRO** | A50 X (`046D:0B0B`, tested), A50 Gen 5 (`046D:0B1C`), A50 Gen 4 (`9886:002C` tested, `002D`/`002A`), A50 Gen 3 (`9886:0015` tested, `0014`/`0018`/`001D`/`0026`), A20 Wireless (`9886:0037`–`0045`) via USB base station | Vendor status protocol: battery percentage, charging, and docked state |
-| **ASUS ROG** | Strix Scope II 96 (RX), Azoth, Falchion keyboards; Keris, Harpe, Gladius, Chakram, Spatha, Pugio, Strix Impact mice; Pelta headset (2.4 GHz dongle); Cetra Open Wireless earbuds (SpeedNova `0B05:1CAC`, L/R/case); Omni Receiver | ROG HID battery query |
-| **ATK / VXE / VGN** | **Mice:** VXE R1 / R1 Pro Max / R1 SE+ / X3 Pro, ATK F1 Extreme (Kysona-shared; R1 cables pair with receivers `3554:F58F`/`373B:1085` &amp; `373B:1272`/`3554:F58A`); VXE R1 NK &amp; NearLink mice (`373B:1216`); ATK Zero (`373B:1154` cable, `124F`/`1155` 8K L0/L1); ATK 8K Nano (`373B:1178`).<br>**Keyboards:** ATK V75X, VGN/VXE S99, V98 Pro/V2, N75 Pro, VXE75/V2, VXE V87, Feker Alice80 (tested) on `320F:5088`/`5055`; ATK Z87 (`373B:1012`, tested).<br>**Headsets:** ATK N9 Pro, N9 Ultra (tested); ATK Mercury I / M1 (`373B:107C` v0005); VGN OMNISOUND / ZHOUTING (`372E:10BB`, tested) | Mice: Kysona checksummed, BITMOUSE report `08` on `FF05:0001`, or Holtek `82` on `FF10:0001`.<br>Keyboards: Evision report `04` cmd `1A` (polled ≤10m); Z87 on `FF1C:0092`.<br>Headsets: N9 virtual COM (close ATK app); Mercury `FF22:0001` (no charging); OMNISOUND V HUB `55 65 01` on `000C:0001` |
-| **Attack Shark &amp; Shared Receivers** | Rongyuan receivers (81 models incl. Attack Shark R3, AJAZZ AJ179 Pro `3151:402D`, K86, X82 PRO HE, Ajazz/MSI boards; K86 BT shown as keyboard); Xenta receivers (Attack Shark X6/R1, X11, X3 Max, V3 Pro, V6; X6 also `1D57:FA61` untested); Semico `1A2C` boards (Attack Shark X98 `1A2C:8FFF` tested &amp; `A034` cable; AJAZZ AK820 Max Plus `1A2C:8FFF`/`A036`) | Rongyuan status report; Xenta passive broadcasts; Semico read-only `0x0E` (`AA 55 CC 33` on `FF02:0002`, charging flag omitted on X98) |
-| **Audeze** | Maxwell (`3329:4B19` dongle, `3329:4B1A` USB-C cable), Maxwell 2 (`3329:4B29` dongle, tested); Xbox IDs untested | Airoha RACE report `06` / `07`, battery attribute `0CD6` (single read-only query) |
-| **AULA** | F75 / F87 Pro / F99 keyboards (2.4 GHz); X9 Ultra (tested) &amp; V9 mice (`320F:22A0` AULA-8K); SC580 / SC580X mouse (`088D:062E` cable, `089D:062F` receiver, both tested); HERO 68 Air (`372E:106C`, tested); A7Pro headset (`38A6:0001`, tested); *(F108 Pro under SONiX)* | F-series: `0x13`/`0x4A` checksummed (BT/wired untested); X9: `FF1C:0092` cmd `1A` (2.4 GHz); SC580: `0x30` on `FF02:0000` (2.4 GHz/USB); HERO 68: 20-byte `0x87` on `FF60`; A7Pro: `55 65 01` on `FF90:0001` (2.4 GHz) |
-| **BEITONG** | KP20 / BTP-KP20 (`20BC:5128`, XInput, tested) &amp; KP40D / BTP-KP40D (`20BC:515C`, XInput) on 2.4 GHz receiver | Read-only nibble-scrambled report `02` on usage page `00FF` with charging state (no iControl needed) |
-| **CHERRY / XTRFY** | MX 3.0S Wireless keyboard (`046A:00EA` dongle, `046A:00E3` cable, both tested); Cherry XTRFY mouse on 1K receiver (`046A:0330`, tested) | MX 3.0S: `1A` on `FF1C:0092` + USB power state (BT via Bluetooth); XTRFY: CompX 17-byte `08 03`/`08 04` |
-| **Cooler Master** | MM712 (tested), MM731 over 2.4 GHz dongle or USB cable | Read-only vendor HID status report |
-| **Corsair** | Void / Void Pro / Void Elite / HS70 / HS80; Bragi devices (Virtuoso, Void V2, HS80 MAX, Slipstream mice/keyboards incl. `1B1C:2B00` Scimitar Elite SE Wireless &amp; Dark Core RGB Pro SE `1B1C:1BDC`); Sabre V2 Pro Ultralight (`1B1C:2B2A`, tested); Sabre v2 PRO WIRELESS MG (`1B1C:2B34`, untested) | Vendor HID reports, Bragi `GET`, and Compx 17-byte battery protocol (all read-only) |
-| **DAREU** | EM901X (`260D:1074` receiver / `1090` cable, tested); A84 keyboard (`260D:0022`, untested); A980 Pro (`260D:1131` receiver / `1148` cable, tested); A950 Wing (`260D:1154` receiver / `1196` cable, tested); EK75 Pro (`260D:0042` receiver / `0046` cable, tested) | EM901X: report `08`/`09`; A84: SONiX `04 F6`; A980 Pro &amp; EK75 Pro: Togran 65-byte report `0A`; A950 Wing: Compx 17-byte on `FF02:0002` (mV + charging) |
-| **DARKRIM** | SHADOW (寸渊影弑) on `3654:6901` USB receiver (tested) | Read-only CRC-checked battery query &amp; charging flag in 10% steps ([protocol notes](docs/darkrim.md)) |
-| **Darmoshark** | M3 (`248A:FF30`) &amp; M3S (`248A:FF31`) on 2.4 GHz receiver; M3S Pro on Nordic 1K receiver (`1915:0723`) | M3/M3S: HID feature report; M3S Pro: vendor query on `FF0A` |
-| **ENDORFY** | Viro Wireless on 2.4 GHz dongle (`3738:0072`, untested) | Read-only Airoha RACE `0CD6` on report `06`/`07` (no charging state) |
-| **Endgame Gear** | OP1w 4k (v1/v2), XM2w 4k (v1/v2) on 4K dongle; XM2we (`3367:1961`) | Read-only vendor feature report `A1` cmd `B4` |
-| **EWEADN (前行者)** | S7 Max / Pro / Ultra &amp; S9 Max / Pro / Ultra / Ultra+ (`372E:103D` receiver); S9 Ultra (`372E:1027` cable) | Read-only feature report `03` (`47`, `4F 81`) on `FF00:0001` with charging bit |
-| **Fantech** | Helios Go XD5 (`25A7:FA7B` cable, `25A7:FA7C` dongle tested); Raigor III (`1EA7:0066` tested) &amp; Raigor II WG10 (`1EA7:0066`/`0064`, untested) | XD5: `08 04` with `0x55` checksum; Raigor: `B5` status-page query on `FFB5:0001` (no charging state) |
-| **Finalmouse** | UltralightX (`361D:0100`, tested); Starlight X (`361D:0300`/`0301`, tested); dongles only | xpanel `FF00` read-only GETs + wake (`0xE0`), voltage curve / % + charging |
-| **Flydigi** | Vader 5 Pro / 黑武士 5 Pro (`37D7:2401`) &amp; Apex 5 (`37D7:2501`, tested) over 2.4 GHz or USB | `FFA0:0001` vendor info query (20% steps + charging; no Space Station needed) |
-| **Fractal Design** | Scape headset on 2.4 GHz dongle or USB-C cable | `GET_DEVICE_STATE` query on usage page `FF00` |
-| **G-Wolves** | Fenrir / Pro / Max / Asym, HTX, HTS, HSK, HTR, HT-S2, Lycan, WARG, VUK &amp; 8K dongles | Glorious or Kysona protocol depending on model |
-| **GameSir** | Nova Lite / Nova 2 / Nova 2 Lite (2.4 GHz / USB), G7 Pro (tested, ZZZ `3537:105E`) &amp; Xbox GIP mode pads, Cyclone 2 (XInput), Cyclone Pro (`3537:1015` dongle + initial BLE pair), Super Nova / NovaPro (`3537:103E` tested / `100E` cable), Tarantula Pro (`3537:103E`/`1050`) | `FF7A`, `FFF0`, `Windows.Gaming.Input`, BLE service `0x8650` ([Cyclone Pro notes](docs/gamesir_cyclone_pro.md)), and SAPJoy `FFA0` ([SAPJoy notes](docs/gamesir_sapjoy.md)) |
-| **Glorious** | Model O / O- / D / D- Wireless (tested), Model O 2 / D 2 PRO | Vendor feature report |
-| **HECATE** | G5M PRO (tested, `35BB:D3FB`) &amp; sibling mice on same receiver / USB cables `35BB:D3FA`/`D3FC`/`D3FD` | Kysona protocol *(G2 Wireless 7.1 dongle `35BB:A009`/`A209` unsupported)* |
-| **Hitscan** | Hyperlight X, Hyperlight N, Hyperlight | Glorious feature report or shared Kysona checksummed protocol |
-| **HyperX** | Cloud III / III S, Cloud II (HP/Kingston/DTS) / II Core, Cloud Alpha / Alpha 2, Cloud Flight (`03F0:0C8C` PS untested) / Flight S, Cloud Stinger Core (tested, `0951:1713` / DTS `03F0:0A8E`), Cloud Core DTS (`0951:173F` tested); Pulsefire Haste 2 / 2 Mini (`03F0:0F98` tested, `0D97` untested) / 2 Core (`03F0:0AB5` tested); Pulsefire Haste Wireless (orig `03F0:028E` / `048E`, tested) | Vendor HID reports; Haste 2 ([protocol notes](docs/hyperx_haste_2.md)); original Haste uses `0x51` on `FF00:0001` ([protocol notes](docs/hyperx_pulsefire_haste.md)) |
-| **Incott** | G23 Pro (1st gen, 8K receiver &amp; cable tested), G23 V2 / G24 (`093A:522C` receiver, `622C` cable) | Pushed status report `09` on 8K; read-only feature fallback on cable / non-8K |
-| **Inphic** | IN10R MAX / IN10 MAX on KP 8K receiver (`1D57:FA65`; model `73` tested, `74` untested) | Passive Xenta status reports; two matching frames confirm level ([protocol notes](docs/inphic.md)) |
-| **Jabra** | All GNP-speaking headsets (Evolve2 / Evolve3, etc., tested on Link 390 `0B0E:2E51`) on USB or Link dongle (excludes DECT bases) | GNP status query (class `12` / op `02`) on `FF00` at GNP address `08`/`04` |
-| **JBL** | Quantum 650 (tested), 520 / 650X / 850 / 950 / 950X (dongle or cable); Quantum 350 (`0ECB:206B`, tested), Quantum 610 (`0ECB:205C`), Quantum 360 (`0ECB:2115`) | HIDV3 device-info query on `FF12` (520–950X) with charging; HIDV1 feature reports (350 / 610 / 360) |
-| **Keychron** | **Mice:** M4 / 4K Link (`3434:D038`), TurboLink 8K (`M5`/`G6 HE`), Ultra-Link 8K (`3434:D028`), 1K mice (`3434:D030`/`D031`), Nape Pro trackball (Link-KM / cable).<br>**Keyboards:** K5 Max (`3434:0A50`, tested) &amp; QMK wireless models on `3434:D030` or cable | Mice: Keychron Launcher / Ultra-Link (`B5 03`/`B3 06` on `FFC1`) / Nape Pro (`A7 31`).<br>Keyboards: Stock firmware = Bluetooth only; 2.4 GHz/USB needs the `FF60:0061` patch ([firmware guide](docs/keychron_keyboard_firmware/README.md)) |
-| **Kysona &amp; Shared (`3554`/`373B`)** | Kysona M600 / Mercury, Chimera V2 (`3554:F512`, tested), plus shared Pulsar, ATK VXE &amp; Hitscan models | Shared vendor protocol with checksummed replies |
-| **LAMZU** | Maya X, Maya, Maya M, Tachi, Inca, Paro, Thorn, Atlantis Mini / OG Champion, Orcus (cable, 1K, 4K/8K dongles) | Vendor feature report from LAMZU Aurora |
-| **Logitech** | Mice &amp; keyboards on Unifying, Bolt, Lightspeed (incl. PRO X3 SUPERSTRIKE `046D:C54F`), Nano (`046D:C542` excluded), USB, or Bluetooth; G headsets (`G533`, `G535`, `G633`/`635`/`733`/`933`/`935`, `G PRO`/`PRO X`); `G435` (`046D:0ADF`) | HID++ 1.0/2.0 feature discovery (battery, voltage, ADC); G435: CRC-16 framed `GET_BATTERY` in mV |
-| **Machenike** | L7 Arctic / L7 Mix (`248A:FF4C` receiver &amp; `248A:FF4E` cable, both tested) | Read-only feature report `51` cmd `06` with duplicate suppression ([protocol notes](docs/machenike.md)) |
-| **MAONO** | PD200W on 2.4 GHz receiver (`352F:040E`, tested) | Battery percentage |
-| **MCHOSE** | **Mice:** L7 / M7 / A7 / K7 families (L7 Ultra tested), A5 V2 Ultra (`3837:100C`), K7 Ultra (`3837:1001`, tested), A7 V2 Ultra+ (`3837:100B`), G3 V2 (`3837:4245` / `418C`, tested), K7 V2 Ultra+ (`3837:1014` / `4028` cable, tested; `1018`/`1016`/`102C`/`102D` untested), A5 Pro / Pro Max 1st gen (`2023:F013`–`F019`).<br>**Headsets:** V9 Pro 2 (`3837:6011`, tested), V9 / V9 PRO (tested) / S9 PRO / G9 PRO / X9 (`291D:385D`).<br>**Keyboards:** K99 V2, G75 Pro, X75, K87 (`05AC:024F` BY layout), K87 V3 (`3837:1015`), G75 V2 (tested) / G87 V2 / K99 V3 (`3837:3033`) | Mice: Inverted feature payload / `3837` Realtek (`41E4`/`3837`), G3 V2 (`FF01:0010`), K7 V2 (`0x4D`/`0x0900`), A5 1st gen (`0x83` on `FFFF`).<br>Headsets: M HUB `MC` (`FF07:0222`) &amp; `BLK` (`FF90:0001`).<br>Keyboards: `0x13`/`0x4A`, `0x4D`/`0x0900` (`FF80:0001` every 3m), &amp; `GLW` (`0001:0000`) |
-| **MOONDROP** | GM01 Pro headset (`35D8:0133` dongle tested; shows charging + last level on USB cable) | Read-only WalkPlay command on report `4B` |
-| **Motospeed / Delux / Ajazz** | Motospeed X6, Delux M900 Pro (Xenta 30/50 &amp; legacy 3D), Delux M800 Pro (tested), Ajazz AJ179 family, AJ159 &amp; `3151` AJ-series, AJ139 V2 MC (`A8A5:2255` / `A8A4:2255`), AJAZZ AK992 (`320F:50C3` Telink, tested) | Passive Xenta `40`/`41`, `0xF7` + report `0x05`, and EVision `FF1C:0092` (AK992) |
-| **MSI** | VERSA 300 ELITE WIRELESS (`0DB0:9E22`, tested), CLUTCH GM31 Lightweight (`0DB0:0D3C` tested / `0D3B`), CLUTCH GM41 Lightweight (`0DB0:0D4C` / `0D4B`) | `0F 20` on `FF0D:00B0` / `FF00:0001`; GM41 passive `A0 xx 07` on `FF10:0006` |
-| **Niceboy** | MW400 on 2.4 GHz receiver (`248A:FA02`, tested) | Read-only report `05` (`24 FA 48`), voltage mapped to 10% steps + charging |
-| **Ninjutso** | Sora (on Delux M800 Pro `248A:5B2F`), Sora V2 (`1915:AE1C` / `AE11`, tested), Ten Air (`093A:EB01` / `E020`, tested), Ten (`093A:EB01` / `E020`, untested) | NinjaForce feature report `0x05` (`0x15`) / `0x06` (`0x13`/`12`/`11`) |
-| **Nothing / CMF** | Nothing Ear (3a) (tested), Ear (a), Ear (2), Ear, CMF Buds (Bluetooth) | Read-only `0xC007` query on NT Link RFCOMM (`aeac4a03-dff5-498f-843a-34487cf133eb`); L/R/case tooltip |
-| **NuPhy** | WH80 over USB cable (`19F5:A011`) or Bluetooth (`19F5:324A`, tested); *(Air75V2 under SONiX)* | Read-only NuPhyIO USB query; Windows Bluetooth level ([protocol notes](docs/nuphy.md)) |
-| **NZXT** | Lift Elite Wireless (`1E71:2101` dongle, `1E71:2129` cable) | Vendor read `4E 02 81 .. B0` |
-| **Phones (Phone Link)** | Android phones paired with Microsoft Phone Link over Wi-Fi or Bluetooth (tested: Nothing Phone (4a) Pro) | Reads Phone Link's Windows 11 companion file (`StartMenuCompanion.json`); dimmed if &gt;3h stale |
-| **PMO / WOBKEY / URX / EVO80** | PMO Wave 75 RGB (`36B0:3002` dongle &amp; `3009` cable, tested), Aurora 80 (`3004`), PMO P75 (`302B`), PMO 80 (`3012`), URX Core75, EVO80 | PMO Hub (`AA 30` on `FF60`) or VIA custom-get `08 00 07` (no charging flag) |
-| **Poly / Plantronics** | Voyager 8200 UC &amp; headsets behind BT600 (`047F:02EE` / `02F7`) | Report `07` item `0A 1A` (read-only) |
-| **Press Play** | ICARUS V2 Nearlink on `7768:6434` receiver (tested) or Bluetooth (tested) | Read-only output report `06 05` on `FFB2:0001` or Windows Bluetooth level |
-| **Pulsar** | X2 V3 (`3710:5402` 1K / `3402` cable), X2 V3 eS (`3710:5403` 8K / `3406` cable), Feinmann FO1 / 8K (`3710:5404`), plus Kysona-shared Pulsar mice | Read-only 64-byte feature register `08 81 01` (Feinmann on `FFFF:0001` interface 3; no charging state) |
-| **Rapoo** | VT3 Max Gen 2 (tested), VT9 Gen 2 (tested), Nordic 54L VT mice, legacy VT3 Pro &amp; VT1 Pro Max (2.4 GHz &amp; cable) | Passive HID report `07` on `FF00:0002` (13/16/19 bytes) or legacy `BB`; includes charging ([protocol notes](docs/rapoo.md)) |
-| **RAWM / SADES** | Leviathan V4 (`1915:2346`, tested), ES21/ER21/ES11/G11/SA-* &amp; SADES Dagger (`1915:232A`–`234B` or cable) | Read-only RAWM HUB 2.0 JSON device-info query ([protocol notes](docs/rawm.md)) |
-| **Razer** | Wireless mice, keyboards &amp; dongles; BlackShark V2 HyperSpeed / V2 Pro (2020/2023) / V3 / V3 Pro / V3 X (`1532:057D` tested) / V3 Pro Xbox (`1532:0A55`/`0A4E`); Barracuda X 2022 (`1532:054E`/`0550` tested, `0552`); Barracuda Pro (`1532:053A`) | Razer feature reports ([HyperSpeed notes](docs/razer_hyperspeed.md)); BlackShark vendor queries (V3 polled every 5m); Barracuda X Airoha queries |
-| **Redragon** | `M602-KS` (`258A:002F`, tested); Compx: `M916 Pro 1K` (`3554:F55D`, tested), `M913 Impact Elite` (tri-mode), `G49`; Areson: `M915RGB-WL` (`25A7:FA07`, tested), orig `M913 Impact Elite` (`25A7:FA07`/`FA08`); Evision: `K1NG M999` (`320F:226F`, tested), `Horus Pro / V2` (`3554:FA09`, `41E4:2001`) | Kysona protocol, Areson 17-byte `GetPower` in 10% steps ([Areson notes](docs/areson.md)), or Evision `FF1C:0092` (M999 shows charging on magnetic dock) |
-| **Royal Kludge (RK)** | MG6 Pro (`2E3C:00A6`/`00E6` dongle, `00A5`/`00E5` cable); *(R75 &amp; RK 2.4G Dongle under SONiX)* | QiWang 64-byte `GET_BATTER_VOL` frame (%, mV, charging) |
-| **Samsung** | Galaxy Buds, Buds+, Buds Live, Buds Pro, Buds2/Pro, Buds FE, Buds Core, Buds3/Pro/FE (Bluetooth) | Read-only RFCOMM (SPP) broadcasts; tray shows lower bud, tooltip shows L/R/case (close Galaxy Buds app) |
-| **Scyrox** | V12M on 2.4 GHz receiver (`395A:0006`) | Read-only S-Center 2.0 profile read on `FF00:0002` (no charging flag) |
-| **Sharkoon** | Skiller SGM50W (`260D:1125`, untested) | Compx feature `08 04` / reply `09` on `FF01:0000` |
-| **SONiX Keyboards** | AJAZZ AK820 MAX (tested), EPOMAKER EA75 (tested), AULA F108 Pro (`05AC:024F`), AJAZZ AK980 V2 (`0C45:FEFE`), AJAZZ AK820 Pro (`0C45:FDFD`/`FEFE`), EPOMAKER P75 (`342D:E479`); *untested IDs:* EPOMAKER Galaxy100 (`342D:E489`), RSQ_20055_2.4G (`342D:E411`), RK R75 (`342D:E485`), Redragon Arlokks K742B (`342D:E4BC`), M1 V5 VIA (`342D:E4C2`), Lucky65V2 (`342D:E407`), Lofree Flow2 (`388D:0002`/`0003`), MSI FORGE TKL W FRIEREN (`0DB0:0CA0`), Essential75 (`36B0:30BD`), NUT65 (`342D:E51A`), RK 2.4G Dongle (`342D:E487`), WEIKAV MAX102 (`342D:E537`), NuPhy Air75V2 (`19F5:3245`), SKN Qinglong (`362D:D028`), Lemokey Link (`362D:D030`), Wireless Link (`362D:D101`), Spade65-QMK (`342D:E49F`) | Read-only `20 01` report on `FF60:0061` (33-byte reports, 2.4 GHz mode only, no charging flag) |
-| **Sony** | DualShock 4, DualSense, DualSense Edge (USB, BT, wireless adapter); INZONE H9 II, H5, Buds (USB-C dongle) | Gamepad input report &amp; INZONE vendor protocol |
-| **Sprime** | PM1 (`1915:AC1C` tested, `AD8C` receiver, cable) | Feature report `0x05` cmd `0x15` |
-| **SteelSeries** | Arctis 1/7/7+/9/Pro/Pro Wireless, Arctis Nova 3P/5/7/7X/7P/Pro (`1038:225D` tested), Arctis Nova Elite (`1038:2244`), GameBuds; Aerox 3/5/9 (Destiny 2 `185C`/`185E`, Diablo IV `1860`, CS2 Dragon Lore `1878`/`187A` tested, Gen 2 `1890`/`1892`), Prime Wireless, Rival 3 Gen 2, Rival 650 (tested), Rival Pro | Vendor HID reports; Aerox/Prime &amp; Rival 650 unify cable + receiver (preferring cable when both answer) |
-| **Switch Pro-compatible** | Controllers presenting as `057E:2009` (tested: GameSir Tarantula Pro in Switch mode) | 5-step battery from HID report `0x30` once full reports are active |
-| **Taidu (钛度)** | TSG808 on Compx 2.4 GHz receiver (`3554:F5D5`, tested) | Kysona protocol |
-| **Turtle Beach** | Stealth 700 Gen 3 (`10F5:2251` tested in HaloBattery, `2262` PC untested, `2253` cable) | RACE `0x9942` + tunnelled CoAP `GET /GSI` key `240` (no charging flag) |
-| **VAXEE** | 4K (`3057:1002`) &amp; 8K (`3057:2002`, e.g. NP-01 Ergo 8K) receivers; ZYGEN NP-01S V2 cable (`3057:1011`) | Read-only feature report `0E` on `FF05:0001` in 5% steps + charging ([protocol notes](docs/vaxee.md)) |
-| **WLMouse** | YING Magnesium (`36A7:A874` 8K, tested), Beast X 8K / Mini / Pro / MAX / V2 (`36A7:A856`), Sword X 8K, Beast G (`36A7:A860`/`A861` untested; excludes Beast X 4K) | Vendor feature report `0x83` (YING uses Glorious protocol) |
-| **Wraith** | W1 / W1 Freestyle (`093A:522C` receiver, `622C` cable — distinguished from Incott by model code) | Read-only `86` button scan + pushed status report `09` |
-| **Xbox** | Xbox Wireless Adapter, USB, or Bluetooth controllers &amp; plugged-in headsets | `Windows.Gaming.Input` real percentage + XInput fallback |
-| **Zenith** | Zenith Pro (`260D:1114` receiver tested, `1143` cable untested) | Compx `08 04` output report on `FF02:0002` (%, charging, mV) |
-| **ZOWIE** | EC1/EC2/EC3-CW, DW series (U2-DW, S2-DW, etc.), U2 on 2.4 GHz receiver | Community-documented read-only vendor commands |
-| **Universal Fallbacks** | **Bluetooth &amp; Fast Pair** (any device showing battery in Windows Settings + BLE `FE2C` Fast Pair earbuds like Jabra Elite 8 Active, Pixel Buds, Sony, JBL, Bose); **Generic HID** (usage `0x06`/`0x85`); **HeadsetControl 4.3.0** (`headsetcontrol -o json`, bundled) | Fallbacks run only for devices not claimed by a dedicated vendor driver |
-
-</details>
+> **Full A–Z Hardware & Protocol Compatibility Matrix:** Browse and filter all 78 supported vendor &amp; fallback families by brand, model, protocol, category, or `VID:PID` on the **[Searchable Compatibility Page](https://symnistaken.github.io/TaskbarVitals/compatibility.html)** (backed by [`site/devices.json`](site/devices.json)).
+>
+> Run `TaskbarVitals.exe --dump` to find your device's exact `VID:PID`, or `TaskbarVitals.exe --report` to request support for an unlisted model.
 
 <details>
   <summary><strong>Hardware-verified models (48 physical tests recorded)</strong></summary>
@@ -228,6 +148,7 @@ Confirmation covers the noted connection mode and percentage reading; not every 
 - **Crowded Windows 11 centered taskbars:** Extremely full taskbars can cause app buttons to reach the widget area. On Windows 10, Taskbar Vitals narrows the task-button region automatically.
 - **Sleeping devices:** Sleeping mice/keyboards may not respond to queries. Their last reading stays visible and dimmed (configurable in Settings), with a 30-minute retention grace window for Logitech receivers and similar sleeping links.
 - **Microsoft Phone Link:** Reads `%LOCALAPPDATA%` companion data (`StartMenuCompanion.json`), which is an undocumented Windows 11 format. Cards older than 3 hours appear dimmed.
+- **In-game alerts (OSD):** On multi-monitor setups, Smart Auto (`Only in full screen`) places the lightweight corner overlay on a free side monitor so the game HUD stays clear, and you can also target the game monitor explicitly. It appears over borderless full-screen games and desktop apps, but may not be visible over games running in exclusive full-screen mode.
 
 <details>
   <summary><strong>Device-specific protocol limits &amp; unsupported hardware notes</strong></summary>
@@ -254,7 +175,7 @@ Confirmation covers the noted connection mode and percentage reading; not every 
 **Windows setup tips:**
 - **SmartScreen:** Releases are open-source and not commercially code-signed. If SmartScreen prompts, select **More info → Run anyway**, or [build from source](#building-from-source).
 - **Windows 11 Tray Overflow:** In tray mode, move icons out of `^` via **Settings → Personalization → Taskbar → Other system tray icons**.
-- **Ignoring a Device:** Add comma-separated `VID:PID` entries (from `--dump`) to `IgnoreDevices` under `HKCU\Software\WirelessBattery`. Drawing tablets are ignored automatically.
+- **Ignoring a Device:** Choose `⋯ → Ignore this device...` on any device card (or add comma-separated `VID:PID` entries from `--dump` to `IgnoreDevices` under `HKCU\Software\WirelessBattery`), and unignore anytime under **Settings → Batteries → Ignored devices...**. Drawing tablets are ignored automatically.
 
 ### Signed Auto-Updater (Windows)
 
@@ -286,6 +207,18 @@ Example `--json` output (`graceSec` indicates how long sleeping readings stay vi
 [{"key":"kysona:373B:1085","name":"CX Wireless mouse","via":"2.4 GHz receiver","kind":"mouse","percent":85,"level":"","detail":"","charging":false,"asleep":false,"connected":true,"millivolts":4029,"graceSec":1800}]
 ```
 
+With **Local JSON pipe (`\\.\pipe\TaskbarVitals`)** enabled under **Settings → General**, external tools (Stream Deck, Rainmeter, Home Assistant scripts) can read live device + system telemetry from Windows in PowerShell without spawning a new poll:
+
+```powershell
+$pipe = [System.IO.Pipes.NamedPipeClientStream]::new('.', 'TaskbarVitals', [System.IO.Pipes.PipeDirection]::In)
+$pipe.Connect(1000)
+$reader = [System.IO.StreamReader]::new($pipe)
+$snapshot = $reader.ReadToEnd() | ConvertFrom-Json
+$reader.Dispose(); $pipe.Dispose()
+$snapshot.devices
+$snapshot.system
+```
+
 ---
 
 ## Building from Source
@@ -311,11 +244,11 @@ Reuses core read-only HID drivers over `hidraw` with a GTK4 StatusNotifierItem t
 # Fedora: sudo dnf install gcc-c++ make gtk4-devel cairo-devel
 # Ubuntu: sudo apt install g++ make libgtk-4-dev libcairo2-dev
 ./build-linux.sh
-./wireless-battery --list
+./taskbar-vitals --list
 ./build-linux.sh test
 
-# Grant hidraw permissions (remove any older 99-wireless-battery.rules first)
-sudo cp linux/70-wireless-battery.rules /etc/udev/rules.d/
+# Grant hidraw permissions (remove any older 99-wireless-battery.rules or 70-wireless-battery.rules first)
+sudo cp linux/70-taskbar-vitals.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
 

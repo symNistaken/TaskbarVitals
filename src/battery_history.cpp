@@ -1,7 +1,10 @@
 #include "battery_history.h"
-#include "history_model.h"
+#include "battery_health.h"
 #include "demo_history.h"
+#include "file_dialog.h"
+#include "history_model.h"
 #include "runtime_estimate.h"
+#include "settings_port.h"
 #include "i18n.h"
 #include "memory_trim.h"
 
@@ -15,29 +18,42 @@ namespace battery_history {
 namespace {
 
 Store g_store;
+HealthStore g_health;
 std::set<std::wstring> g_keysAtStartup;  // see KeysAtStartup()
 bool g_demo = false;
 std::wstring g_file;
+std::wstring g_healthFile;
 HWND g_view = nullptr;
-HWND g_btn24 = nullptr, g_btn7 = nullptr, g_btn30 = nullptr, g_btnClear = nullptr;
+HWND g_btn24 = nullptr, g_btn7 = nullptr, g_btn30 = nullptr, g_btnExportCsv = nullptr, g_btnClear = nullptr;
 std::wstring g_key, g_name;
 int g_days = 7;
-constexpr int k24Hours = 201, k7Days = 202, k30Days = 203, kClear = 204;
-constexpr int64_t kSecondsPerDay = 86400;
+bool g_exporting = false;
+constexpr int k24Hours = 201, k7Days = 202, k30Days = 203, kClear = 204, kExportCsv = 205;
 constexpr DWORD kMaxFileBytes = 4 * 1024 * 1024;
+constexpr DWORD kMaxHealthFileBytes = 2 * 1024 * 1024;
 constexpr DWORD kCompactAfterBytes = 1024 * 1024;
 const wchar_t kWindowClass[] = L"WirelessBatteryHistoryViewer";
 
 int64_t UtcNow() { return static_cast<int64_t>(std::time(nullptr)); }
 
-// Plain ASCII rows only, with a hex-encoded device key. No telemetry is uploaded.
-std::wstring HistoryPath() {
+std::wstring DataFolder() {
     wchar_t appdata[MAX_PATH] = {};
     DWORD n = GetEnvironmentVariableW(L"LOCALAPPDATA", appdata, MAX_PATH);
     if (!n || n >= MAX_PATH) return {};
     std::wstring folder = std::wstring(appdata) + L"\\WirelessBattery";
     if (!CreateDirectoryW(folder.c_str(), nullptr) && GetLastError() != ERROR_ALREADY_EXISTS) return {};
-    return folder + L"\\battery_history.tsv";
+    return folder;
+}
+
+// Plain ASCII rows only, with a hex-encoded device key. No telemetry is uploaded.
+std::wstring HistoryPath() {
+    const std::wstring folder = DataFolder();
+    return folder.empty() ? std::wstring{} : folder + L"\\battery_history.tsv";
+}
+
+std::wstring HealthPath() {
+    const std::wstring folder = DataFolder();
+    return folder.empty() ? std::wstring{} : folder + L"\\battery_health.tsv";
 }
 
 bool WriteAll(HANDLE file, const std::string& data) {
@@ -51,6 +67,47 @@ bool WriteAll(HANDLE file, const std::string& data) {
     return true;
 }
 
+bool WriteAtomicFile(const std::wstring& path, const std::string& bytes) {
+    if (path.empty()) return false;
+    const std::wstring temp = path + L".tmp";
+    HANDLE file = CreateFileW(temp.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (file == INVALID_HANDLE_VALUE) return false;
+    const bool ok = WriteAll(file, bytes) && FlushFileBuffers(file);
+    CloseHandle(file);
+    if (!ok || !MoveFileExW(temp.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+        DeleteFileW(temp.c_str());
+        return false;
+    }
+    return true;
+}
+
+bool ReadBoundedFile(const std::wstring& path, DWORD maxBytes, std::string& data, bool& tooLarge) {
+    data.clear();
+    tooLarge = false;
+    if (path.empty()) return false;
+    HANDLE file = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                              nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (file == INVALID_HANDLE_VALUE) return false;
+    LARGE_INTEGER length{};
+    if (!GetFileSizeEx(file, &length) || length.QuadPart < 0 || length.QuadPart > maxBytes) {
+        CloseHandle(file);
+        tooLarge = true;
+        return false;
+    }
+    data.assign(static_cast<size_t>(length.QuadPart), '\0');
+    size_t offset = 0;
+    bool ok = true;
+    while (offset < data.size()) {
+        DWORD got = 0;
+        DWORD count = static_cast<DWORD>(std::min<size_t>(data.size() - offset, 1 << 20));
+        if (!ReadFile(file, &data[offset], count, &got, nullptr) || !got) { ok = false; break; }
+        offset += got;
+    }
+    CloseHandle(file);
+    if (!ok) data.clear();
+    return ok;
+}
+
 bool Rewrite() {
     if (g_file.empty()) return false;
     // Bound the on-disk file even if device keys are unusually long.
@@ -60,16 +117,24 @@ bool Rewrite() {
         g_store.samples.erase(g_store.samples.begin(), g_store.samples.begin() + drop);
         bytes = g_store.Serialize();
     }
-    const std::wstring temp = g_file + L".tmp";
-    HANDLE file = CreateFileW(temp.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (file == INVALID_HANDLE_VALUE) return false;
-    const bool ok = WriteAll(file, bytes) && FlushFileBuffers(file);
-    CloseHandle(file);
-    if (!ok || !MoveFileExW(temp.c_str(), g_file.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
-        DeleteFileW(temp.c_str());
-        return false;
+    return WriteAtomicFile(g_file, bytes);
+}
+
+bool RewriteHealth() {
+    if (g_healthFile.empty()) return false;
+    std::string bytes = g_health.Serialize();
+    while (bytes.size() > kMaxHealthFileBytes && (!g_health.dailies.empty() || !g_health.cycles.empty())) {
+        if (!g_health.dailies.empty()) {
+            const size_t drop = std::max<size_t>(1, g_health.dailies.size() / 8);
+            g_health.dailies.erase(g_health.dailies.begin(), g_health.dailies.begin() + drop);
+        } else {
+            const size_t drop = std::max<size_t>(1, g_health.cycles.size() / 8);
+            g_health.cycles.erase(g_health.cycles.begin(), g_health.cycles.begin() + drop);
+        }
+        bytes = g_health.Serialize();
     }
-    return true;
+    if (bytes.size() > kMaxHealthFileBytes) return false;
+    return WriteAtomicFile(g_healthFile, bytes);
 }
 
 void Append(const Sample& s) {
@@ -86,27 +151,48 @@ void Append(const Sample& s) {
 }
 
 void Load() {
-    if (g_file.empty()) return;
-    HANDLE file = CreateFileW(g_file.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
-                              nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (file == INVALID_HANDLE_VALUE) return; // first run
-    LARGE_INTEGER length{};
-    if (!GetFileSizeEx(file, &length) || length.QuadPart < 0 || length.QuadPart > kMaxFileBytes) {
-        CloseHandle(file); g_file.clear(); return; // leave an unexpectedly large file untouched
+    std::string data;
+    bool tooLarge = false;
+    if (!ReadBoundedFile(g_file, kMaxFileBytes, data, tooLarge)) {
+        if (tooLarge) g_file.clear(); // leave an unexpectedly large file untouched
+        return;
     }
-    std::string data(static_cast<size_t>(length.QuadPart), '\0');
-    size_t offset = 0;
-    bool ok = true;
-    while (offset < data.size()) {
-        DWORD got = 0;
-        DWORD count = static_cast<DWORD>(std::min<size_t>(data.size()-offset, 1 << 20));
-        if (!ReadFile(file, &data[offset], count, &got, nullptr) || !got) { ok = false; break; }
-        offset += got;
-    }
-    CloseHandle(file);
-    if (!ok) return;
     g_store.Load(data, UtcNow());
     if (data != g_store.Serialize()) Rewrite(); // remove expired/malformed/incomplete records at startup
+}
+
+void LoadHealth() {
+    std::string data;
+    bool tooLarge = false;
+    const bool readOk = ReadBoundedFile(g_healthFile, kMaxHealthFileBytes, data, tooLarge);
+    if (tooLarge) {
+        g_healthFile.clear(); // leave an unexpectedly large file untouched
+        return;
+    }
+    const int64_t now = UtcNow();
+    if (readOk && !data.empty()) {
+        g_health.Load(data, now);
+    }
+    if (g_health.dailies.empty() && g_health.cycles.empty() && g_health.active.empty() &&
+        !g_store.samples.empty()) {
+        g_health.SeedFromHistory(g_store.samples, now);
+        RewriteHealth();
+        return;
+    }
+    if (readOk && data != g_health.Serialize()) RewriteHealth();
+}
+
+HealthStore DemoHealth(int64_t now) {
+    HealthStore hs;
+    hs.cycles = {
+        {g_key, now - 122 * kSecondsPerDay, 38.2},
+        {g_key, now - 117 * kSecondsPerDay, 37.9},
+        {g_key, now - 112 * kSecondsPerDay, 38.0},
+        {g_key, now - 16 * kSecondsPerDay, 29.1},
+        {g_key, now - 10 * kSecondsPerDay, 28.9},
+        {g_key, now - 4 * kSecondsPerDay, 29.0},
+    };
+    return hs;
 }
 
 std::vector<Sample> Visible(int64_t now) {
@@ -179,6 +265,42 @@ void SetControlFont(HWND h) {
         g_uiFont ? g_uiFont : GetStockObject(DEFAULT_GUI_FONT)), TRUE);
 }
 
+std::wstring DefaultCsvFilename(const std::wstring& deviceName) {
+    std::wstring stem;
+    for (wchar_t c : deviceName) {
+        if (static_cast<unsigned int>(c) < 32u || c == L'<' || c == L'>' || c == L':' || c == L'"' ||
+            c == L'/' || c == L'\\' || c == L'|' || c == L'?' || c == L'*') {
+            stem.push_back(L'-');
+        } else {
+            stem.push_back(c);
+        }
+    }
+    while (!stem.empty() && (stem.back() == L' ' || stem.back() == L'.')) stem.pop_back();
+    if (stem.empty()) stem = L"battery";
+    return stem + L"-history.csv";
+}
+
+void ExportHistoryCsv(HWND w) {
+    if (g_exporting) return;
+    g_exporting = true;
+    const std::wstring key = g_key;
+    const std::wstring name = g_name;
+    const int64_t now = UtcNow();
+    const auto samples = g_demo ? DemoSamples(key, now) : g_store.For(key, 0, now);
+    std::wstring path;
+    const std::wstring filter = file_dialog::BuildFilter(T(L"CSV files (*.csv)"), L"*.csv", T(L"All files (*.*)"));
+    if (file_dialog::PickFile(w, file_dialog::Mode::Save, T(L"Export battery history"), filter, L"csv",
+                              DefaultCsvFilename(name), path)) {
+        const std::string csv = settings_port::HistoryToCsv(key, name, samples);
+        if (file_dialog::WriteUtf8File(path, csv)) {
+            MessageBoxW(w, T(L"Battery history exported."), T(L"Battery history"), MB_OK | MB_ICONINFORMATION);
+        } else {
+            MessageBoxW(w, T(L"Could not export battery history."), T(L"Battery history"), MB_OK | MB_ICONWARNING);
+        }
+    }
+    g_exporting = false;
+}
+
 void Layout(HWND w) {
     RECT rect{};
     GetClientRect(w, &rect);
@@ -187,11 +309,15 @@ void Layout(HWND w) {
     const int y = Ui(w, 18);
     const int height = Ui(w, 38);
     const int gap = Ui(w, 10);
-    const int buttonWidth = Ui(w, 150);
+    const int buttonWidth = Ui(w, 136);
+    const int clearWidth = Ui(w, 188);
+    const int exportWidth = Ui(w, 148);
     if (g_btn24) MoveWindow(g_btn24, margin, y, buttonWidth, height, TRUE);
     if (g_btn7) MoveWindow(g_btn7, margin + buttonWidth + gap, y, buttonWidth, height, TRUE);
     if (g_btn30) MoveWindow(g_btn30, margin + 2 * (buttonWidth + gap), y, buttonWidth, height, TRUE);
-    if (g_btnClear) MoveWindow(g_btnClear, right - margin - Ui(w, 192), y, Ui(w, 192), height, TRUE);
+    const int clearX = right - margin - clearWidth;
+    if (g_btnExportCsv) MoveWindow(g_btnExportCsv, clearX - gap - exportWidth, y, exportWidth, height, TRUE);
+    if (g_btnClear) MoveWindow(g_btnClear, clearX, y, clearWidth, height, TRUE);
 }
 
 void Label(HDC dc, const std::wstring& str, RECT r, COLORREF color,
@@ -362,7 +488,37 @@ void Paint(HWND w) {
     Label(dc, etaDetails, RECT{eta.left + (eta.right - eta.left) / 2, eta.top + Ui(w, 43),
                                eta.right - Ui(w, 16), eta.bottom - Ui(w, 5)}, P().muted);
 
-    RECT panel{margin, Ui(w, 332), width - margin, height - Ui(w, 22)};
+    const WearSummary wear = g_demo ? EvaluateWear(DemoHealth(now), g_key) : EvaluateWear(g_health, g_key);
+    RECT health{margin, Ui(w, 330), width - margin, Ui(w, 404)};
+    RoundedPanel(dc, health, P().panel, P().border, Ui(w, 12));
+    Label(dc, T(L"Battery health"),
+          RECT{health.left + Ui(w, 16), health.top + Ui(w, 7), health.right - Ui(w, 20), health.top + Ui(w, 32)}, P().muted);
+    if (wear.state == WearState::Ready) {
+        const std::wstring summary = TF(
+            L"Full charge lasted about {early} h in the first month, about {recent} h recently ({change}).",
+            {{L"early", std::to_wstring(wear.earlyHours)},
+             {L"recent", std::to_wstring(wear.recentHours)},
+             {L"change", FormatChangePercent(wear.changePercent)}});
+        saved = static_cast<HFONT>(SelectObject(dc, g_uiBold ? g_uiBold : GetStockObject(DEFAULT_GUI_FONT)));
+        Label(dc, summary,
+              RECT{health.left + Ui(w, 16), health.top + Ui(w, 32), health.right - Ui(w, 16), health.bottom - Ui(w, 6)},
+              P().text);
+        SelectObject(dc, saved);
+    } else {
+        const int splitX = health.left + (health.right - health.left) * 2 / 5;
+        saved = static_cast<HFONT>(SelectObject(dc, g_uiValue ? g_uiValue : GetStockObject(DEFAULT_GUI_FONT)));
+        Label(dc, T(L"Not enough data yet"),
+              RECT{health.left + Ui(w, 16), health.top + Ui(w, 32), splitX - Ui(w, 8), health.bottom - Ui(w, 6)},
+              P().blue);
+        SelectObject(dc, saved);
+        const std::wstring needed = TF(L"Requires at least {count} full discharge cycles (95% to 20%).",
+                                       {{L"count", std::to_wstring(kMinCyclesForTrend)}});
+        Label(dc, needed,
+              RECT{splitX, health.top + Ui(w, 39), health.right - Ui(w, 16), health.bottom - Ui(w, 5)},
+              P().muted);
+    }
+
+    RECT panel{margin, Ui(w, 416), width - margin, height - Ui(w, 22)};
     if (panel.bottom > panel.top + Ui(w, 140)) {
         RoundedPanel(dc, panel, P().panel, P().border, Ui(w, 14));
         Label(dc, T(L"Blue: recorded battery; green: measured increase"),
@@ -459,7 +615,8 @@ LRESULT CALLBACK ViewProc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
             if (lp && !lstrcmpW(reinterpret_cast<LPCWSTR>(lp), L"ImmersiveColorSet")) {
                 ApplyTheme(w);
                 InvalidateRect(w, nullptr, TRUE);
-                for (HWND b : {g_btn24, g_btn7, g_btn30, g_btnClear}) if (b) InvalidateRect(b, nullptr, TRUE);
+                for (HWND b : {g_btn24, g_btn7, g_btn30, g_btnExportCsv, g_btnClear})
+                    if (b) InvalidateRect(b, nullptr, TRUE);
             }
             break;
         case WM_CREATE: {
@@ -478,17 +635,20 @@ LRESULT CALLBACK ViewProc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
             g_btn30 = CreateWindowExW(0, L"BUTTON", T(L"Last 30 days"),
                                      WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 110, 28,
                                      w, reinterpret_cast<HMENU>(static_cast<INT_PTR>(k30Days)), inst, nullptr);
+            g_btnExportCsv = CreateWindowExW(0, L"BUTTON", T(L"Export CSV..."),
+                                             WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 130, 28,
+                                             w, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kExportCsv)), inst, nullptr);
             g_btnClear = CreateWindowExW(0, L"BUTTON", T(L"Clear device history"),
                                         WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 145, 28,
                                         w, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kClear)), inst, nullptr);
-            for (HWND b : {g_btn24, g_btn7, g_btn30, g_btnClear}) SetControlFont(b);
+            for (HWND b : {g_btn24, g_btn7, g_btn30, g_btnExportCsv, g_btnClear}) SetControlFont(b);
             EnableWindow(g_btnClear, g_demo ? FALSE : TRUE);
             Layout(w);
             return 0;
         }
         case WM_GETMINMAXINFO: {
             auto* info = reinterpret_cast<MINMAXINFO*>(lp);
-            if (info) { info->ptMinTrackSize.x = Ui(w, 880); info->ptMinTrackSize.y = Ui(w, 620); }
+            if (info) { info->ptMinTrackSize.x = Ui(w, 880); info->ptMinTrackSize.y = Ui(w, 680); }
             return 0;
         }
         case WM_SIZE: Layout(w); InvalidateRect(w, nullptr, TRUE); return 0;
@@ -503,13 +663,21 @@ LRESULT CALLBACK ViewProc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
                 case k24Hours: g_days = 1; break;
                 case k7Days:   g_days = 7; break;
                 case k30Days:  g_days = 30; break;
+                case kExportCsv:
+                    ExportHistoryCsv(w);
+                    return 0;
                 case kClear:
                     if (!g_demo && MessageBoxW(w, T(L"Clear battery history for this device?"),
                                                T(L"Battery history"), MB_YESNO | MB_ICONQUESTION) == IDYES) {
                         Store before = g_store;
+                        HealthStore healthBefore = g_health;
                         g_store.Clear(g_key);
-                        if (!Rewrite()) {
+                        g_health.Clear(g_key);
+                        const bool ok = Rewrite() && (g_healthFile.empty() || RewriteHealth());
+                        if (!ok) {
                             g_store = std::move(before);
+                            g_health = std::move(healthBefore);
+                            Rewrite();
                             MessageBoxW(w, T(L"Could not save history changes."),
                                         T(L"Battery history"), MB_OK | MB_ICONWARNING);
                         }
@@ -524,7 +692,7 @@ LRESULT CALLBACK ViewProc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_CLOSE: DestroyWindow(w); return 0;
         case WM_DESTROY:
             g_view = nullptr;
-            g_btn24 = g_btn7 = g_btn30 = g_btnClear = nullptr;
+            g_btn24 = g_btn7 = g_btn30 = g_btnExportCsv = g_btnClear = nullptr;
             if (g_uiFont) DeleteObject(g_uiFont);
             if (g_uiBold) DeleteObject(g_uiBold);
             if (g_uiTitle) DeleteObject(g_uiTitle);
@@ -541,10 +709,14 @@ LRESULT CALLBACK ViewProc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
 void Initialize(bool demo) {
     g_demo = demo;
     g_store = Store{};
+    g_health = HealthStore{};
     g_file.clear();
+    g_healthFile.clear();
     if (!demo) {
         g_file = HistoryPath();
         Load();
+        g_healthFile = HealthPath();
+        LoadHealth();
     }
     g_keysAtStartup.clear();
     for (const auto& s : g_store.samples) g_keysAtStartup.insert(s.key);
@@ -557,6 +729,7 @@ void Observe(const std::wstring& key, int percent, bool charging) {
     Sample s{key, UtcNow(), percent, charging};
     if (g_store.Record(s)) {
         Append(s);
+        if (g_health.Record(s)) RewriteHealth();
         if (g_view && key == g_key) InvalidateRect(g_view, nullptr, FALSE);
     }
 }
@@ -621,6 +794,12 @@ std::wstring EstimatedRuntimeText(const std::wstring& key) {
     return CompactRuntimeText(EstimateRuntime(samples, now));
 }
 
+RuntimeEstimate EstimateFor(const std::wstring& key) {
+    const int64_t now = UtcNow();
+    const auto points = g_demo ? DemoSamples(key, now) : g_store.For(key, now - kRetentionSeconds, now);
+    return EstimateRuntime(points, now);
+}
+
 void Show(HWND owner, const std::wstring& key, const std::wstring& displayName) {
     if (key.empty()) return;
     g_key = key;
@@ -642,7 +821,7 @@ void Show(HWND owner, const std::wstring& key, const std::wstring& displayName) 
     wc.lpszClassName = kWindowClass;
     if (!RegisterClassExW(&wc) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) return;
     g_days = 7;
-    RECT bounds{0, 0, 1020, 710};
+    RECT bounds{0, 0, 1020, 770};
     AdjustWindowRectEx(&bounds, WS_OVERLAPPEDWINDOW, FALSE, WS_EX_APPWINDOW);
     g_view = CreateWindowExW(WS_EX_APPWINDOW, kWindowClass, title.c_str(), WS_OVERLAPPEDWINDOW,
                              CW_USEDEFAULT, CW_USEDEFAULT, bounds.right-bounds.left, bounds.bottom-bounds.top,

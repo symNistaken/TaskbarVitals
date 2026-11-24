@@ -1,12 +1,16 @@
-// GPU counter instance names and the per-adapter use (the busiest engine type, engines of one type added up).
+// GPU counter instance names, per-adapter use, clocks, and wattage rounding/IGCL helpers.
 #include <cassert>
+#include <cmath>
 #include <cstdio>
+#include <limits>
 
 #include "../src/gpumon.h"
 
 using gpumon::AdapterUse;
 using gpumon::EngineSample;
+using gpumon::IgclWattsFromEnergyDelta;
 using gpumon::ParseInstance;
+using gpumon::RoundGpuWatts;
 
 int main() {
     std::uint64_t luid = 0;
@@ -43,6 +47,20 @@ int main() {
     assert(gpumon::FormatClocksMhz(-1, 6000) == L"6000 MHz");
     assert(gpumon::FormatClocksMhz(-1, -1).empty());
 
-    std::puts("GPU monitor tests passed (instance names, LUIDs, busiest engine type, clocks, other adapters, cap).");
+    assert(RoundGpuWatts(0.0) == 0);
+    assert(RoundGpuWatts(42.4) == 42);
+    assert(RoundGpuWatts(42.5) == 43);
+    assert(RoundGpuWatts(1000.0) == 1000);
+    assert(RoundGpuWatts(1000.1) == -1);
+    assert(RoundGpuWatts(-0.1) == -1);
+    assert(RoundGpuWatts(std::numeric_limits<double>::quiet_NaN()) == -1);
+
+    assert(IgclWattsFromEnergyDelta(1000000ULL, 0ULL, 2000000ULL, 1000000ULL) == -1);
+    assert(IgclWattsFromEnergyDelta(1000000ULL, 1000000ULL, 2000000ULL, 1049999ULL) == -1);
+    assert(IgclWattsFromEnergyDelta(10000000ULL, 1000000ULL, 25500000ULL, 1500000ULL) == 31);
+    assert(IgclWattsFromEnergyDelta(0ULL, 1000000ULL, 240000000ULL, 3000000ULL) == 120);
+    assert(IgclWattsFromEnergyDelta(0ULL, 1000000ULL, 1500000000ULL, 2000000ULL) == -1);
+
+    std::puts("GPU monitor tests passed (instance names, LUIDs, busiest engine type, clocks, wattage helpers, cap).");
     return 0;
 }

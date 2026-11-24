@@ -26,6 +26,7 @@ struct PollContext
     {
         out.push_back(s);
         if (!out.back().vid) out.back().vid = vid;
+        if (!out.back().pid) out.back().pid = pid;
         Claim(vid, pid);
     }
     // A device key that stays the same when the receiver moves to another USB port (HID paths change

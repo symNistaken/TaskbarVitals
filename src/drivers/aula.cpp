@@ -468,6 +468,8 @@ void PollSc580(PollContext& ctx) {
                 s.percent = data[9];
             }
             s.graceSec = 1800;  // only used when the receiver stops answering altogether
+            s.vid = m.vid;
+            s.pid = m.pid;
             ctx.out.push_back(s);
             break;
         }

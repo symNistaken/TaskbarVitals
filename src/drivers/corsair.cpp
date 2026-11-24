@@ -204,6 +204,8 @@ void PollCorsair(PollContext& ctx) {
                 s.key = L"corsair:" + Hex4(pid) + L":" + std::to_wstring(target);
                 s.name = product.empty() ? L"Corsair wireless device" : product;
                 s.kind = GuessKind(s.name);
+                s.vid = vid;
+                s.pid = pid;
                 // A receiver names itself, not the device behind it, and has mouse collections of its own.
                 // Property 12 is the paired device's product id (read-only); Corsair headsets use 0Axx.
                 unsigned devPid = 0;

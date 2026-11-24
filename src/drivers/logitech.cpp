@@ -291,6 +291,8 @@ bool PollLogitechDevice(PollContext& ctx, USHORT pid, const std::vector<const Hi
         s.via = idx == 0xFF ? L"USB / Bluetooth" : L"Logitech receiver";
         s.graceSec = idx == 0xFF ? 0 : 1800;  // receiver devices drop off the link while sleeping
         s.kind = passthrough ? DeviceKind::Mouse : GuessKind(s.name);
+        s.vid = 0x046D;
+        s.pid = pid;
 
         // Logi Bolt (BLE-based) keyboards/mice can take ~600-800 ms to wake from BLE peripheral
         // latency on the initial ping when idle, whereas empty or offline receiver slots immediately

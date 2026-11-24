@@ -49,15 +49,33 @@ int main() {
     assert(tricky.find(L"C:\\A&amp;B\\&lt;x&gt;&quot;y&quot;.exe") != std::wstring::npos);
     assert(tricky.find(L"<x>") == std::wstring::npos);
 
-    // AMD Ryzen / Threadripper SMN THM_TCON_CUR_TMP encoding & SKU Tctl offsets.
+    // AMD Family 17h+ SMN THM_TCON_CUR_TMP constants, Tctl/Tdie arithmetic, and vendor detection.
+    assert(kAmdSmnThmTconCurTmp == 0x00059800u && kAmdSmnCurTemp == 0x00059800u);
+    assert(kAmdCurTempRangeSelBit == (1u << 19));
+    auto encodeAmd = [](int eighthsC, bool rangeSel = false) -> std::uint32_t {
+        return (static_cast<std::uint32_t>(eighthsC) << 21) | (rangeSel ? kAmdCurTempRangeSelBit : 0u);
+    };
+    assert(AmdTctlMilliC(0) == 0);
+    assert(AmdTctlMilliC(encodeAmd(65 * 8)) == 65000);
+    assert(AmdTctlMilliC(encodeAmd(65 * 8 + 4)) == 65500);
+    assert(AmdTctlMilliC(encodeAmd((49 + 62) * 8, true)) == 62000);
     assert(AmdTctlOffset("AMD Ryzen 7 5800X 8-Core Processor") == 0);
     assert(AmdTctlOffset("AMD Ryzen 7 1700X Eight-Core Processor") == -20);
     assert(AmdTctlOffset("AMD Ryzen 7 2700X Eight-Core Processor") == -10);
     assert(AmdTctlOffset("AMD Ryzen Threadripper 1950X 16-Core Processor") == -27);
+    assert(AmdTdieOffsetC("AMD Ryzen 5 1600X Six-Core Processor") == -20);
+    assert(AmdTdieOffsetC("AMD Ryzen Threadripper 2990WX 32-Core Processor") == -27);
+    assert(AmdTdieOffsetC(nullptr) == 0);
     assert(AmdPackageTemperature(50U * 8U << 21, 0) == 50);
+    assert(AmdPackageTemperature(encodeAmd(65 * 8 + 3)) == 65);
+    assert(AmdPackageTemperature(encodeAmd(65 * 8 + 4)) == 66);
     assert(AmdPackageTemperature(((100U * 8U) << 21) | (1U << 19), 0) == 51);  // range bit subtracts 49 C
     assert(AmdPackageTemperature((85U * 8U) << 21, -20) == 65);
     assert(AmdPackageTemperature(0xFFFFFFFFU, 0) == -1);  // out of believable range
+    assert(DetectCpuVendor("GenuineIntel") == CpuVendor::Intel);
+    assert(DetectCpuVendor("AuthenticAMD") == CpuVendor::Amd);
+    assert(DetectCpuVendor("Other") == CpuVendor::Unknown);
+    assert(DetectCpuVendor(nullptr) == CpuVendor::Unknown);
 
     std::puts("CPU temperature tests passed (TjMax, Intel/AMD package reading, shared block age, task definition, escaping).");
     return 0;

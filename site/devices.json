@@ -1,0 +1,626 @@
+[
+  {
+    "vendor": "8BitDo",
+    "category": "controllers",
+    "models": "Ultimate 2 Wireless (X-input 2DC8:310B tested on 2.4 GHz dongle; D-input 2DC8:6012 hold B, firmware 1.03+, dongle / USB / BT), Ultimate 2C Wireless, Ultimate 3-mode / 2.4G / Bluetooth, Pro 3 / Pro 2, SN30 Pro, SF30 Pro",
+    "protocol": "Vendor HID status query (FF7A / FFA0) and SDL gamepad input report 01 / 04, with charging state",
+    "vidPids": ["2DC8:310B", "2DC8:6012"],
+    "tested": true
+  },
+  {
+    "vendor": "AKG",
+    "category": "audio",
+    "models": "N9 Hybrid on USB dongle (0ECB:20D9, tested)",
+    "protocol": "Airoha RACE on FF13:0001: output 06, input 07, battery attribute 0CD6 (read-only)",
+    "vidPids": ["0ECB:20D9"],
+    "tested": true
+  },
+  {
+    "vendor": "Akko",
+    "category": "mixed",
+    "models": "Akko Air 01 (3151:5006, tested), V9 Dash Pro (38EE:000C, tested), Dash V9 Ultra (38EE:000F, tested) on 2.4 GHz receiver",
+    "protocol": "Air 01: Rongyuan 0xF7 status report; V9 Dash Pro / Ultra: read-only 64-byte 0x1A query on FF1C:0092 (charging supported on Pro)",
+    "vidPids": ["3151:5006", "38EE:000C", "38EE:000F"],
+    "tested": true
+  },
+  {
+    "vendor": "Alienware",
+    "category": "audio",
+    "models": "AW920H headset on 2.4 GHz dongle (413C:A515, tested); Bluetooth handled via Bluetooth fallback",
+    "protocol": "Vendor query 06 C0 0A on FF13:0001, XOR-checksummed reply 07 (level, charging, critical)",
+    "vidPids": ["413C:A515"],
+    "tested": true
+  },
+  {
+    "vendor": "Apple AirPods / Beats",
+    "category": "audio",
+    "models": "AirPods Max (tested, 200A Lightning & 201F USB-C), AirPods Pro 3 (tested, 2027), AirPods Pro 1/2, AirPods 1–5, Beats headphones/earbuds",
+    "protocol": "BLE proximity pairing (0x07) broadcasts matched to paired device (10% steps + charging; L/R/case for earbuds)",
+    "vidPids": [],
+    "tested": true
+  },
+  {
+    "vendor": "Arbiter Studio",
+    "category": "mice",
+    "models": "Akitsu (373E:000A 8K / 0009 cable), Akitsu 3950 (373E:0039 8K / 0038 cable), Akitsu Medium (373E:0067 8K & 0066 cable, both tested)",
+    "protocol": "Read-only vendor feature report 0x83 on FFFF:0000 (battery & charging)",
+    "vidPids": ["373E:000A", "373E:0009", "373E:0039", "373E:0038", "373E:0067", "373E:0066"],
+    "tested": true
+  },
+  {
+    "vendor": "ASTRO",
+    "category": "audio",
+    "models": "A50 X (046D:0B0B, tested), A50 Gen 5 (046D:0B1C), A50 Gen 4 (9886:002C tested, 002D/002A), A50 Gen 3 (9886:0015 tested, 0014/0018/001D/0026), A20 Wireless (9886:0037–0045) via USB base station",
+    "protocol": "Vendor status protocol: battery percentage, charging, and docked state",
+    "vidPids": ["046D:0B0B", "046D:0B1C", "9886:002C", "9886:002D", "9886:002A", "9886:0015", "9886:0014", "9886:0018", "9886:001D", "9886:0026", "9886:0037", "9886:0045"],
+    "tested": true
+  },
+  {
+    "vendor": "ASUS ROG",
+    "category": "mixed",
+    "models": "Strix Scope II 96 (RX), Azoth, Falchion keyboards; Keris, Harpe, Gladius, Chakram, Spatha, Pugio, Strix Impact mice; Pelta headset (2.4 GHz dongle); Cetra Open Wireless earbuds (SpeedNova 0B05:1CAC, L/R/case); Omni Receiver",
+    "protocol": "ROG HID battery query",
+    "vidPids": ["0B05:1CAC"],
+    "tested": false
+  },
+  {
+    "vendor": "ATK / VXE / VGN",
+    "category": "mixed",
+    "models": "Mice: VXE R1 / R1 Pro Max / R1 SE+ / X3 Pro, ATK F1 Extreme (Kysona-shared; R1 cables pair with receivers 3554:F58F/373B:1085 & 373B:1272/3554:F58A); VXE R1 NK & NearLink mice (373B:1216); ATK Zero (373B:1154 cable, 124F/1155 8K L0/L1); ATK 8K Nano (373B:1178).\nKeyboards: ATK V75X, VGN/VXE S99, V98 Pro/V2, N75 Pro, VXE75/V2, VXE V87, Feker Alice80 (tested) on 320F:5088/5055; ATK Z87 (373B:1012, tested).\nHeadsets: ATK N9 Pro, N9 Ultra (tested); ATK Mercury I / M1 (373B:107C v0005); VGN OMNISOUND / ZHOUTING (372E:10BB, tested)",
+    "protocol": "Mice: Kysona checksummed, BITMOUSE report 08 on FF05:0001, or Holtek 82 on FF10:0001.\nKeyboards: Evision report 04 cmd 1A (polled ≤10m); Z87 on FF1C:0092.\nHeadsets: N9 virtual COM (close ATK app); Mercury FF22:0001 (no charging); OMNISOUND V HUB 55 65 01 on 000C:0001",
+    "vidPids": ["3554:F58F", "373B:1085", "373B:1272", "3554:F58A", "373B:1216", "373B:1154", "373B:124F", "373B:1155", "373B:1178", "320F:5088", "320F:5055", "373B:1012", "373B:107C", "372E:10BB"],
+    "tested": true
+  },
+  {
+    "vendor": "Attack Shark & Shared Receivers",
+    "category": "mixed",
+    "models": "Rongyuan receivers (81 models incl. Attack Shark R3, AJAZZ AJ179 Pro 3151:402D, K86, X82 PRO HE, Ajazz/MSI boards; K86 BT shown as keyboard); Xenta receivers (Attack Shark X6/R1, X11, X3 Max, V3 Pro, V6; X6 also 1D57:FA61 untested); Semico 1A2C boards (Attack Shark X98 1A2C:8FFF tested & A034 cable; AJAZZ AK820 Max Plus 1A2C:8FFF/A036)",
+    "protocol": "Rongyuan status report; Xenta passive broadcasts; Semico read-only 0x0E (AA 55 CC 33 on FF02:0002, charging flag omitted on X98)",
+    "vidPids": ["3151:402D", "1D57:FA61", "1A2C:8FFF", "1A2C:A034", "1A2C:A036"],
+    "tested": true
+  },
+  {
+    "vendor": "Audeze",
+    "category": "audio",
+    "models": "Maxwell (3329:4B19 dongle, 3329:4B1A USB-C cable), Maxwell 2 (3329:4B29 dongle, tested); Xbox IDs untested",
+    "protocol": "Airoha RACE report 06 / 07, battery attribute 0CD6 (single read-only query)",
+    "vidPids": ["3329:4B19", "3329:4B1A", "3329:4B29"],
+    "tested": true
+  },
+  {
+    "vendor": "AULA",
+    "category": "mixed",
+    "models": "F75 / F87 Pro / F99 keyboards (2.4 GHz); X9 Ultra (tested) & V9 mice (320F:22A0 AULA-8K); SC580 / SC580X mouse (088D:062E cable, 089D:062F receiver, both tested); HERO 68 Air (372E:106C, tested); A7Pro headset (38A6:0001, tested); (F108 Pro under SONiX)",
+    "protocol": "F-series: 0x13/0x4A checksummed (BT/wired untested); X9: FF1C:0092 cmd 1A (2.4 GHz); SC580: 0x30 on FF02:0000 (2.4 GHz/USB); HERO 68: 20-byte 0x87 on FF60; A7Pro: 55 65 01 on FF90:0001 (2.4 GHz)",
+    "vidPids": ["320F:22A0", "088D:062E", "089D:062F", "372E:106C", "38A6:0001"],
+    "tested": true
+  },
+  {
+    "vendor": "BEITONG",
+    "category": "controllers",
+    "models": "KP20 / BTP-KP20 (20BC:5128, XInput, tested) & KP40D / BTP-KP40D (20BC:515C, XInput) on 2.4 GHz receiver",
+    "protocol": "Read-only nibble-scrambled report 02 on usage page 00FF with charging state (no iControl needed)",
+    "vidPids": ["20BC:5128", "20BC:515C"],
+    "tested": true
+  },
+  {
+    "vendor": "CHERRY / XTRFY",
+    "category": "mixed",
+    "models": "MX 3.0S Wireless keyboard (046A:00EA dongle, 046A:00E3 cable, both tested); Cherry XTRFY mouse on 1K receiver (046A:0330, tested)",
+    "protocol": "MX 3.0S: 1A on FF1C:0092 + USB power state (BT via Bluetooth); XTRFY: CompX 17-byte 08 03/08 04",
+    "vidPids": ["046A:00EA", "046A:00E3", "046A:0330"],
+    "tested": true
+  },
+  {
+    "vendor": "Cooler Master",
+    "category": "mice",
+    "models": "MM712 (tested), MM731 over 2.4 GHz dongle or USB cable",
+    "protocol": "Read-only vendor HID status report",
+    "vidPids": [],
+    "tested": true
+  },
+  {
+    "vendor": "Corsair",
+    "category": "mixed",
+    "models": "Void / Void Pro / Void Elite / HS70 / HS80; Bragi devices (Virtuoso, Void V2, HS80 MAX, Slipstream mice/keyboards incl. 1B1C:2B00 Scimitar Elite SE Wireless & Dark Core RGB Pro SE 1B1C:1BDC); Sabre V2 Pro Ultralight (1B1C:2B2A, tested); Sabre v2 PRO WIRELESS MG (1B1C:2B34, untested)",
+    "protocol": "Vendor HID reports, Bragi GET, and Compx 17-byte battery protocol (all read-only)",
+    "vidPids": ["1B1C:2B00", "1B1C:1BDC", "1B1C:2B2A", "1B1C:2B34"],
+    "tested": true
+  },
+  {
+    "vendor": "DAREU",
+    "category": "mixed",
+    "models": "EM901X (260D:1074 receiver / 1090 cable, tested); A84 keyboard (260D:0022, untested); A980 Pro (260D:1131 receiver / 1148 cable, tested); A950 Wing (260D:1154 receiver / 1196 cable, tested); EK75 Pro (260D:0042 receiver / 0046 cable, tested)",
+    "protocol": "EM901X: report 08/09; A84: SONiX 04 F6; A980 Pro & EK75 Pro: Togran 65-byte report 0A; A950 Wing: Compx 17-byte on FF02:0002 (mV + charging)",
+    "vidPids": ["260D:1074", "260D:1090", "260D:0022", "260D:1131", "260D:1148", "260D:1154", "260D:1196", "260D:0042", "260D:0046"],
+    "tested": true
+  },
+  {
+    "vendor": "DARKRIM",
+    "category": "audio",
+    "models": "SHADOW (寸渊影弑) on 3654:6901 USB receiver (tested)",
+    "protocol": "Read-only CRC-checked battery query & charging flag in 10% steps (protocol notes: docs/darkrim.md)",
+    "vidPids": ["3654:6901"],
+    "tested": true
+  },
+  {
+    "vendor": "Darmoshark",
+    "category": "mice",
+    "models": "M3 (248A:FF30) & M3S (248A:FF31) on 2.4 GHz receiver; M3S Pro on Nordic 1K receiver (1915:0723)",
+    "protocol": "M3/M3S: HID feature report; M3S Pro: vendor query on FF0A",
+    "vidPids": ["248A:FF30", "248A:FF31", "1915:0723"],
+    "tested": false
+  },
+  {
+    "vendor": "ENDORFY",
+    "category": "audio",
+    "models": "Viro Wireless on 2.4 GHz dongle (3738:0072, untested)",
+    "protocol": "Read-only Airoha RACE 0CD6 on report 06/07 (no charging state)",
+    "vidPids": ["3738:0072"],
+    "tested": false
+  },
+  {
+    "vendor": "Endgame Gear",
+    "category": "mice",
+    "models": "OP1w 4k (v1/v2), XM2w 4k (v1/v2) on 4K dongle; XM2we (3367:1961)",
+    "protocol": "Read-only vendor feature report A1 cmd B4",
+    "vidPids": ["3367:1961"],
+    "tested": false
+  },
+  {
+    "vendor": "EWEADN (前行者)",
+    "category": "mice",
+    "models": "S7 Max / Pro / Ultra & S9 Max / Pro / Ultra / Ultra+ (372E:103D receiver); S9 Ultra (372E:1027 cable)",
+    "protocol": "Read-only feature report 03 (47, 4F 81) on FF00:0001 with charging bit",
+    "vidPids": ["372E:103D", "372E:1027"],
+    "tested": false
+  },
+  {
+    "vendor": "Fantech",
+    "category": "mice",
+    "models": "Helios Go XD5 (25A7:FA7B cable, 25A7:FA7C dongle tested); Raigor III (1EA7:0066 tested) & Raigor II WG10 (1EA7:0066/0064, untested)",
+    "protocol": "XD5: 08 04 with 0x55 checksum; Raigor: B5 status-page query on FFB5:0001 (no charging state)",
+    "vidPids": ["25A7:FA7B", "25A7:FA7C", "1EA7:0066", "1EA7:0064"],
+    "tested": true
+  },
+  {
+    "vendor": "Finalmouse",
+    "category": "mice",
+    "models": "UltralightX (361D:0100, tested); Starlight X (361D:0300/0301, tested); dongles only",
+    "protocol": "xpanel FF00 read-only GETs + wake (0xE0), voltage curve / % + charging",
+    "vidPids": ["361D:0100", "361D:0300", "361D:0301"],
+    "tested": true
+  },
+  {
+    "vendor": "Flydigi",
+    "category": "controllers",
+    "models": "Vader 5 Pro / 黑武士 5 Pro (37D7:2401) & Apex 5 (37D7:2501, tested) over 2.4 GHz or USB",
+    "protocol": "FFA0:0001 vendor info query (20% steps + charging; no Space Station needed)",
+    "vidPids": ["37D7:2401", "37D7:2501"],
+    "tested": true
+  },
+  {
+    "vendor": "Fractal Design",
+    "category": "audio",
+    "models": "Scape headset on 2.4 GHz dongle or USB-C cable",
+    "protocol": "GET_DEVICE_STATE query on usage page FF00",
+    "vidPids": [],
+    "tested": false
+  },
+  {
+    "vendor": "G-Wolves",
+    "category": "mice",
+    "models": "Fenrir / Pro / Max / Asym, HTX, HTS, HSK, HTR, HT-S2, Lycan, WARG, VUK & 8K dongles",
+    "protocol": "Glorious or Kysona protocol depending on model",
+    "vidPids": [],
+    "tested": false
+  },
+  {
+    "vendor": "GameSir",
+    "category": "controllers",
+    "models": "Nova Lite / Nova 2 / Nova 2 Lite (2.4 GHz / USB), G7 Pro (tested, ZZZ 3537:105E) & Xbox GIP mode pads, Cyclone 2 (XInput), Cyclone Pro (3537:1015 dongle + initial BLE pair), Super Nova / NovaPro (3537:103E tested / 100E cable), Tarantula Pro (3537:103E/1050)",
+    "protocol": "FF7A, FFF0, Windows.Gaming.Input, BLE service 0x8650 (Cyclone Pro notes: docs/gamesir_cyclone_pro.md), and SAPJoy FFA0 (SAPJoy notes: docs/gamesir_sapjoy.md)",
+    "vidPids": ["3537:105E", "3537:1015", "3537:103E", "3537:100E", "3537:1050"],
+    "tested": true
+  },
+  {
+    "vendor": "Glorious",
+    "category": "mice",
+    "models": "Model O / O- / D / D- Wireless (tested), Model O 2 / D 2 PRO",
+    "protocol": "Vendor feature report",
+    "vidPids": [],
+    "tested": true
+  },
+  {
+    "vendor": "HECATE",
+    "category": "mice",
+    "models": "G5M PRO (tested, 35BB:D3FB) & sibling mice on same receiver / USB cables 35BB:D3FA/D3FC/D3FD",
+    "protocol": "Kysona protocol (G2 Wireless 7.1 dongle 35BB:A009/A209 unsupported)",
+    "vidPids": ["35BB:D3FB", "35BB:D3FA", "35BB:D3FC", "35BB:D3FD"],
+    "tested": true
+  },
+  {
+    "vendor": "Hitscan",
+    "category": "mice",
+    "models": "Hyperlight X, Hyperlight N, Hyperlight",
+    "protocol": "Glorious feature report or shared Kysona checksummed protocol",
+    "vidPids": [],
+    "tested": false
+  },
+  {
+    "vendor": "HyperX",
+    "category": "mixed",
+    "models": "Cloud III / III S, Cloud II (HP/Kingston/DTS) / II Core, Cloud Alpha / Alpha 2, Cloud Flight (03F0:0C8C PS untested) / Flight S, Cloud Stinger Core (tested, 0951:1713 / DTS 03F0:0A8E), Cloud Core DTS (0951:173F tested); Pulsefire Haste 2 / 2 Mini (03F0:0F98 tested, 0D97 untested) / 2 Core (03F0:0AB5 tested); Pulsefire Haste Wireless (orig 03F0:028E / 048E, tested)",
+    "protocol": "Vendor HID reports; Haste 2 (protocol notes: docs/hyperx_haste_2.md); original Haste uses 0x51 on FF00:0001 (protocol notes: docs/hyperx_pulsefire_haste.md)",
+    "vidPids": ["03F0:0C8C", "0951:1713", "03F0:0A8E", "0951:173F", "03F0:0F98", "03F0:0D97", "03F0:0AB5", "03F0:028E", "03F0:048E"],
+    "tested": true
+  },
+  {
+    "vendor": "Incott",
+    "category": "mice",
+    "models": "G23 Pro (1st gen, 8K receiver & cable tested), G23 V2 / G24 (093A:522C receiver, 622C cable)",
+    "protocol": "Pushed status report 09 on 8K; read-only feature fallback on cable / non-8K",
+    "vidPids": ["093A:522C", "093A:622C"],
+    "tested": true
+  },
+  {
+    "vendor": "Inphic",
+    "category": "mice",
+    "models": "IN10R MAX / IN10 MAX on KP 8K receiver (1D57:FA65; model 73 tested, 74 untested)",
+    "protocol": "Passive Xenta status reports; two matching frames confirm level (protocol notes: docs/inphic.md)",
+    "vidPids": ["1D57:FA65"],
+    "tested": true
+  },
+  {
+    "vendor": "Jabra",
+    "category": "audio",
+    "models": "All GNP-speaking headsets (Evolve2 / Evolve3, etc., tested on Link 390 0B0E:2E51) on USB or Link dongle (excludes DECT bases)",
+    "protocol": "GNP status query (class 12 / op 02) on FF00 at GNP address 08/04",
+    "vidPids": ["0B0E:2E51"],
+    "tested": true
+  },
+  {
+    "vendor": "JBL",
+    "category": "audio",
+    "models": "Quantum 650 (tested), 520 / 650X / 850 / 950 / 950X (dongle or cable); Quantum 350 (0ECB:206B, tested), Quantum 610 (0ECB:205C), Quantum 360 (0ECB:2115)",
+    "protocol": "HIDV3 device-info query on FF12 (520–950X) with charging; HIDV1 feature reports (350 / 610 / 360)",
+    "vidPids": ["0ECB:206B", "0ECB:205C", "0ECB:2115"],
+    "tested": true
+  },
+  {
+    "vendor": "Keychron",
+    "category": "mixed",
+    "models": "Mice: M4 / 4K Link (3434:D038), TurboLink 8K (M5/G6 HE), Ultra-Link 8K (3434:D028), 1K mice (3434:D030/D031), Nape Pro trackball (Link-KM / cable).\nKeyboards: K5 Max (3434:0A50, tested) & QMK wireless models on 3434:D030 or cable",
+    "protocol": "Mice: Keychron Launcher / Ultra-Link (B5 03/B3 06 on FFC1) / Nape Pro (A7 31).\nKeyboards: Stock firmware = Bluetooth only; 2.4 GHz/USB needs the FF60:0061 patch (firmware guide: docs/keychron_keyboard_firmware/README.md)",
+    "vidPids": ["3434:D038", "3434:D028", "3434:D030", "3434:D031", "3434:0A50"],
+    "tested": true
+  },
+  {
+    "vendor": "Kysona & Shared (3554/373B)",
+    "category": "mice",
+    "models": "Kysona M600 / Mercury, Chimera V2 (3554:F512, tested), plus shared Pulsar, ATK VXE & Hitscan models",
+    "protocol": "Shared vendor protocol with checksummed replies",
+    "vidPids": ["3554:F512"],
+    "tested": true
+  },
+  {
+    "vendor": "LAMZU",
+    "category": "mice",
+    "models": "Maya X, Maya, Maya M, Tachi, Inca, Paro, Thorn, Atlantis Mini / OG Champion, Orcus (cable, 1K, 4K/8K dongles)",
+    "protocol": "Vendor feature report from LAMZU Aurora",
+    "vidPids": [],
+    "tested": false
+  },
+  {
+    "vendor": "Logitech",
+    "category": "mixed",
+    "models": "Mice & keyboards on Unifying, Bolt, Lightspeed (incl. PRO X3 SUPERSTRIKE 046D:C54F), Nano (046D:C542 excluded), USB, or Bluetooth; G headsets (G533, G535, G633/635/733/933/935, G PRO/PRO X); G435 (046D:0ADF)",
+    "protocol": "HID++ 1.0/2.0 feature discovery (battery, voltage, ADC); G435: CRC-16 framed GET_BATTERY in mV",
+    "vidPids": ["046D:C54F", "046D:C542", "046D:0ADF"],
+    "tested": false
+  },
+  {
+    "vendor": "Machenike",
+    "category": "mice",
+    "models": "L7 Arctic / L7 Mix (248A:FF4C receiver & 248A:FF4E cable, both tested)",
+    "protocol": "Read-only feature report 51 cmd 06 with duplicate suppression (protocol notes: docs/machenike.md)",
+    "vidPids": ["248A:FF4C", "248A:FF4E"],
+    "tested": true
+  },
+  {
+    "vendor": "MAONO",
+    "category": "audio",
+    "models": "PD200W on 2.4 GHz receiver (352F:040E, tested)",
+    "protocol": "Battery percentage",
+    "vidPids": ["352F:040E"],
+    "tested": true
+  },
+  {
+    "vendor": "MCHOSE",
+    "category": "mixed",
+    "models": "Mice: L7 / M7 / A7 / K7 families (L7 Ultra tested), A5 V2 Ultra (3837:100C), K7 Ultra (3837:1001, tested), A7 V2 Ultra+ (3837:100B), G3 V2 (3837:4245 / 418C, tested), K7 V2 Ultra+ (3837:1014 / 4028 cable, tested; 1018/1016/102C/102D untested), A5 Pro / Pro Max 1st gen (2023:F013–F019).\nHeadsets: V9 Pro 2 (3837:6011, tested), V9 / V9 PRO (tested) / S9 PRO / G9 PRO / X9 (291D:385D).\nKeyboards: K99 V2, G75 Pro, X75, K87 (05AC:024F BY layout), K87 V3 (3837:1015), G75 V2 (tested) / G87 V2 / K99 V3 (3837:3033)",
+    "protocol": "Mice: Inverted feature payload / 3837 Realtek (41E4/3837), G3 V2 (FF01:0010), K7 V2 (0x4D/0x0900), A5 1st gen (0x83 on FFFF).\nHeadsets: M HUB MC (FF07:0222) & BLK (FF90:0001).\nKeyboards: 0x13/0x4A, 0x4D/0x0900 (FF80:0001 every 3m), & GLW (0001:0000)",
+    "vidPids": ["3837:100C", "3837:1001", "3837:100B", "3837:4245", "3837:418C", "3837:1014", "3837:4028", "3837:1018", "3837:1016", "3837:102C", "3837:102D", "2023:F013", "2023:F019", "3837:6011", "291D:385D", "05AC:024F", "3837:1015", "3837:3033"],
+    "tested": true
+  },
+  {
+    "vendor": "MOONDROP",
+    "category": "audio",
+    "models": "GM01 Pro headset (35D8:0133 dongle tested; shows charging + last level on USB cable)",
+    "protocol": "Read-only WalkPlay command on report 4B",
+    "vidPids": ["35D8:0133"],
+    "tested": true
+  },
+  {
+    "vendor": "Motospeed / Delux / Ajazz",
+    "category": "mixed",
+    "models": "Motospeed X6, Delux M900 Pro (Xenta 30/50 & legacy 3D), Delux M800 Pro (tested), Ajazz AJ179 family, AJ159 & 3151 AJ-series, AJ139 V2 MC (A8A5:2255 / A8A4:2255), AJAZZ AK992 (320F:50C3 Telink, tested)",
+    "protocol": "Passive Xenta 40/41, 0xF7 + report 0x05, and EVision FF1C:0092 (AK992)",
+    "vidPids": ["A8A5:2255", "A8A4:2255", "320F:50C3"],
+    "tested": true
+  },
+  {
+    "vendor": "MSI",
+    "category": "mice",
+    "models": "VERSA 300 ELITE WIRELESS (0DB0:9E22, tested), CLUTCH GM31 Lightweight (0DB0:0D3C tested / 0D3B), CLUTCH GM41 Lightweight (0DB0:0D4C / 0D4B)",
+    "protocol": "0F 20 on FF0D:00B0 / FF00:0001; GM41 passive A0 xx 07 on FF10:0006",
+    "vidPids": ["0DB0:9E22", "0DB0:0D3C", "0DB0:0D3B", "0DB0:0D4C", "0DB0:0D4B"],
+    "tested": true
+  },
+  {
+    "vendor": "Niceboy",
+    "category": "mice",
+    "models": "MW400 on 2.4 GHz receiver (248A:FA02, tested)",
+    "protocol": "Read-only report 05 (24 FA 48), voltage mapped to 10% steps + charging",
+    "vidPids": ["248A:FA02"],
+    "tested": true
+  },
+  {
+    "vendor": "Ninjutso",
+    "category": "mice",
+    "models": "Sora (on Delux M800 Pro 248A:5B2F), Sora V2 (1915:AE1C / AE11, tested), Ten Air (093A:EB01 / E020, tested), Ten (093A:EB01 / E020, untested)",
+    "protocol": "NinjaForce feature report 0x05 (0x15) / 0x06 (0x13/12/11)",
+    "vidPids": ["248A:5B2F", "1915:AE1C", "1915:AE11", "093A:EB01", "093A:E020"],
+    "tested": true
+  },
+  {
+    "vendor": "Nothing / CMF",
+    "category": "audio",
+    "models": "Nothing Ear (3a) (tested), Ear (a), Ear (2), Ear, CMF Buds (Bluetooth)",
+    "protocol": "Read-only 0xC007 query on NT Link RFCOMM (aeac4a03-dff5-498f-843a-34487cf133eb); L/R/case tooltip",
+    "vidPids": [],
+    "tested": true
+  },
+  {
+    "vendor": "NuPhy",
+    "category": "keyboards",
+    "models": "WH80 over USB cable (19F5:A011) or Bluetooth (19F5:324A, tested); (Air75V2 under SONiX)",
+    "protocol": "Read-only NuPhyIO USB query; Windows Bluetooth level (protocol notes: docs/nuphy.md)",
+    "vidPids": ["19F5:A011", "19F5:324A"],
+    "tested": true
+  },
+  {
+    "vendor": "NZXT",
+    "category": "mice",
+    "models": "Lift Elite Wireless (1E71:2101 dongle, 1E71:2129 cable)",
+    "protocol": "Vendor read 4E 02 81 .. B0",
+    "vidPids": ["1E71:2101", "1E71:2129"],
+    "tested": false
+  },
+  {
+    "vendor": "Phones (Phone Link)",
+    "category": "controllers",
+    "models": "Android phones paired with Microsoft Phone Link over Wi-Fi or Bluetooth (tested: Nothing Phone (4a) Pro)",
+    "protocol": "Reads Phone Link's Windows 11 companion file (StartMenuCompanion.json); dimmed if >3h stale",
+    "vidPids": [],
+    "tested": true
+  },
+  {
+    "vendor": "PMO / WOBKEY / URX / EVO80",
+    "category": "keyboards",
+    "models": "PMO Wave 75 RGB (36B0:3002 dongle & 3009 cable, tested), Aurora 80 (3004), PMO P75 (302B), PMO 80 (3012), URX Core75, EVO80",
+    "protocol": "PMO Hub (AA 30 on FF60) or VIA custom-get 08 00 07 (no charging flag)",
+    "vidPids": ["36B0:3002", "36B0:3009", "36B0:3004", "36B0:302B", "36B0:3012"],
+    "tested": true
+  },
+  {
+    "vendor": "Poly / Plantronics",
+    "category": "audio",
+    "models": "Voyager 8200 UC & headsets behind BT600 (047F:02EE / 02F7)",
+    "protocol": "Report 07 item 0A 1A (read-only)",
+    "vidPids": ["047F:02EE", "047F:02F7"],
+    "tested": false
+  },
+  {
+    "vendor": "Press Play",
+    "category": "mice",
+    "models": "ICARUS V2 Nearlink on 7768:6434 receiver (tested) or Bluetooth (tested)",
+    "protocol": "Read-only output report 06 05 on FFB2:0001 or Windows Bluetooth level",
+    "vidPids": ["7768:6434"],
+    "tested": true
+  },
+  {
+    "vendor": "Pulsar",
+    "category": "mice",
+    "models": "X2 V3 (3710:5402 1K / 3402 cable), X2 V3 eS (3710:5403 8K / 3406 cable), Feinmann FO1 / 8K (3710:5404), plus Kysona-shared Pulsar mice",
+    "protocol": "Read-only 64-byte feature register 08 81 01 (Feinmann on FFFF:0001 interface 3; no charging state)",
+    "vidPids": ["3710:5402", "3710:3402", "3710:5403", "3710:3406", "3710:5404"],
+    "tested": false
+  },
+  {
+    "vendor": "Rapoo",
+    "category": "mice",
+    "models": "VT3 Max Gen 2 (tested), VT9 Gen 2 (tested), Nordic 54L VT mice, legacy VT3 Pro & VT1 Pro Max (2.4 GHz & cable)",
+    "protocol": "Passive HID report 07 on FF00:0002 (13/16/19 bytes) or legacy BB; includes charging (protocol notes: docs/rapoo.md)",
+    "vidPids": [],
+    "tested": true
+  },
+  {
+    "vendor": "RAWM / SADES",
+    "category": "mice",
+    "models": "Leviathan V4 (1915:2346, tested), ES21/ER21/ES11/G11/SA-* & SADES Dagger (1915:232A–234B or cable)",
+    "protocol": "Read-only RAWM HUB 2.0 JSON device-info query (protocol notes: docs/rawm.md)",
+    "vidPids": ["1915:2346", "1915:232A", "1915:234B"],
+    "tested": true
+  },
+  {
+    "vendor": "Razer",
+    "category": "mixed",
+    "models": "Wireless mice, keyboards & dongles; BlackShark V2 HyperSpeed / V2 Pro (2020/2023) / V3 / V3 Pro / V3 X (1532:057D tested) / V3 Pro Xbox (1532:0A55/0A4E); Barracuda X 2022 (1532:054E/0550 tested, 0552); Barracuda Pro (1532:053A)",
+    "protocol": "Razer feature reports (HyperSpeed notes: docs/razer_hyperspeed.md); BlackShark vendor queries (V3 polled every 5m); Barracuda X Airoha queries",
+    "vidPids": ["1532:057D", "1532:0A55", "1532:0A4E", "1532:054E", "1532:0550", "1532:0552", "1532:053A"],
+    "tested": true
+  },
+  {
+    "vendor": "Redragon",
+    "category": "mixed",
+    "models": "M602-KS (258A:002F, tested); Compx: M916 Pro 1K (3554:F55D, tested), M913 Impact Elite (tri-mode), G49; Areson: M915RGB-WL (25A7:FA07, tested), orig M913 Impact Elite (25A7:FA07/FA08); Evision: K1NG M999 (320F:226F, tested), Horus Pro / V2 (3554:FA09, 41E4:2001)",
+    "protocol": "Kysona protocol, Areson 17-byte GetPower in 10% steps (Areson notes: docs/areson.md), or Evision FF1C:0092 (M999 shows charging on magnetic dock)",
+    "vidPids": ["258A:002F", "3554:F55D", "25A7:FA07", "25A7:FA08", "320F:226F", "3554:FA09", "41E4:2001"],
+    "tested": true
+  },
+  {
+    "vendor": "Royal Kludge (RK)",
+    "category": "mice",
+    "models": "MG6 Pro (2E3C:00A6/00E6 dongle, 00A5/00E5 cable); (R75 & RK 2.4G Dongle under SONiX)",
+    "protocol": "QiWang 64-byte GET_BATTER_VOL frame (%, mV, charging)",
+    "vidPids": ["2E3C:00A6", "2E3C:00E6", "2E3C:00A5", "2E3C:00E5"],
+    "tested": false
+  },
+  {
+    "vendor": "Samsung",
+    "category": "audio",
+    "models": "Galaxy Buds, Buds+, Buds Live, Buds Pro, Buds2/Pro, Buds FE, Buds Core, Buds3/Pro/FE (Bluetooth)",
+    "protocol": "Read-only RFCOMM (SPP) broadcasts; tray shows lower bud, tooltip shows L/R/case (close Galaxy Buds app)",
+    "vidPids": [],
+    "tested": false
+  },
+  {
+    "vendor": "Scyrox",
+    "category": "mice",
+    "models": "V12M on 2.4 GHz receiver (395A:0006)",
+    "protocol": "Read-only S-Center 2.0 profile read on FF00:0002 (no charging flag)",
+    "vidPids": ["395A:0006"],
+    "tested": false
+  },
+  {
+    "vendor": "Sharkoon",
+    "category": "mice",
+    "models": "Skiller SGM50W (260D:1125, untested)",
+    "protocol": "Compx feature 08 04 / reply 09 on FF01:0000",
+    "vidPids": ["260D:1125"],
+    "tested": false
+  },
+  {
+    "vendor": "SONiX Keyboards",
+    "category": "keyboards",
+    "models": "AJAZZ AK820 MAX (tested), EPOMAKER EA75 (tested), AULA F108 Pro (05AC:024F), AJAZZ AK980 V2 (0C45:FEFE), AJAZZ AK820 Pro (0C45:FDFD/FEFE), EPOMAKER P75 (342D:E479); untested IDs: EPOMAKER Galaxy100 (342D:E489), RSQ_20055_2.4G (342D:E411), RK R75 (342D:E485), Redragon Arlokks K742B (342D:E4BC), M1 V5 VIA (342D:E4C2), Lucky65V2 (342D:E407), Lofree Flow2 (388D:0002/0003), MSI FORGE TKL W FRIEREN (0DB0:0CA0), Essential75 (36B0:30BD), NUT65 (342D:E51A), RK 2.4G Dongle (342D:E487), WEIKAV MAX102 (342D:E537), NuPhy Air75V2 (19F5:3245), SKN Qinglong (362D:D028), Lemokey Link (362D:D030), Wireless Link (362D:D101), Spade65-QMK (342D:E49F)",
+    "protocol": "Read-only 20 01 report on FF60:0061 (33-byte reports, 2.4 GHz mode only, no charging flag)",
+    "vidPids": ["05AC:024F", "0C45:FEFE", "0C45:FDFD", "342D:E479", "342D:E489", "342D:E411", "342D:E485", "342D:E4BC", "342D:E4C2", "342D:E407", "388D:0002", "388D:0003", "0DB0:0CA0", "36B0:30BD", "342D:E51A", "342D:E487", "342D:E537", "19F5:3245", "362D:D028", "362D:D030", "362D:D101", "342D:E49F"],
+    "tested": true
+  },
+  {
+    "vendor": "Sony",
+    "category": "mixed",
+    "models": "DualShock 4, DualSense, DualSense Edge (USB, BT, wireless adapter); INZONE H9 II, H5, Buds (USB-C dongle)",
+    "protocol": "Gamepad input report & INZONE vendor protocol",
+    "vidPids": [],
+    "tested": false
+  },
+  {
+    "vendor": "Sprime",
+    "category": "mice",
+    "models": "PM1 (1915:AC1C tested, AD8C receiver, cable)",
+    "protocol": "Feature report 0x05 cmd 0x15",
+    "vidPids": ["1915:AC1C", "1915:AD8C"],
+    "tested": true
+  },
+  {
+    "vendor": "SteelSeries",
+    "category": "mixed",
+    "models": "Arctis 1/7/7+/9/Pro/Pro Wireless, Arctis Nova 3P/5/7/7X/7P/Pro (1038:225D tested), Arctis Nova Elite (1038:2244), GameBuds; Aerox 3/5/9 (Destiny 2 185C/185E, Diablo IV 1860, CS2 Dragon Lore 1878/187A tested, Gen 2 1890/1892), Prime Wireless, Rival 3 Gen 2, Rival 650 (tested), Rival Pro",
+    "protocol": "Vendor HID reports; Aerox/Prime & Rival 650 unify cable + receiver (preferring cable when both answer)",
+    "vidPids": ["1038:225D", "1038:2244", "1038:185C", "1038:185E", "1038:1860", "1038:1878", "1038:187A", "1038:1890", "1038:1892"],
+    "tested": true
+  },
+  {
+    "vendor": "Switch Pro-compatible",
+    "category": "controllers",
+    "models": "Controllers presenting as 057E:2009 (tested: GameSir Tarantula Pro in Switch mode)",
+    "protocol": "5-step battery from HID report 0x30 once full reports are active",
+    "vidPids": ["057E:2009"],
+    "tested": true
+  },
+  {
+    "vendor": "Taidu (钛度)",
+    "category": "mice",
+    "models": "TSG808 on Compx 2.4 GHz receiver (3554:F5D5, tested)",
+    "protocol": "Kysona protocol",
+    "vidPids": ["3554:F5D5"],
+    "tested": true
+  },
+  {
+    "vendor": "Turtle Beach",
+    "category": "audio",
+    "models": "Stealth 700 Gen 3 (10F5:2251 tested in HaloBattery, 2262 PC untested, 2253 cable)",
+    "protocol": "RACE 0x9942 + tunnelled CoAP GET /GSI key 240 (no charging flag)",
+    "vidPids": ["10F5:2251", "10F5:2262", "10F5:2253"],
+    "tested": true
+  },
+  {
+    "vendor": "VAXEE",
+    "category": "mice",
+    "models": "4K (3057:1002) & 8K (3057:2002, e.g. NP-01 Ergo 8K) receivers; ZYGEN NP-01S V2 cable (3057:1011)",
+    "protocol": "Read-only feature report 0E on FF05:0001 in 5% steps + charging (protocol notes: docs/vaxee.md)",
+    "vidPids": ["3057:1002", "3057:2002", "3057:1011"],
+    "tested": false
+  },
+  {
+    "vendor": "WLMouse",
+    "category": "mice",
+    "models": "YING Magnesium (36A7:A874 8K, tested), Beast X 8K / Mini / Pro / MAX / V2 (36A7:A856), Sword X 8K, Beast G (36A7:A860/A861 untested; excludes Beast X 4K)",
+    "protocol": "Vendor feature report 0x83 (YING uses Glorious protocol)",
+    "vidPids": ["36A7:A874", "36A7:A856", "36A7:A860", "36A7:A861"],
+    "tested": true
+  },
+  {
+    "vendor": "Wraith",
+    "category": "mice",
+    "models": "W1 / W1 Freestyle (093A:522C receiver, 622C cable — distinguished from Incott by model code)",
+    "protocol": "Read-only 86 button scan + pushed status report 09",
+    "vidPids": ["093A:522C", "093A:622C"],
+    "tested": false
+  },
+  {
+    "vendor": "Xbox",
+    "category": "controllers",
+    "models": "Xbox Wireless Adapter, USB, or Bluetooth controllers & plugged-in headsets",
+    "protocol": "Windows.Gaming.Input real percentage + XInput fallback",
+    "vidPids": [],
+    "tested": false
+  },
+  {
+    "vendor": "Zenith",
+    "category": "mice",
+    "models": "Zenith Pro (260D:1114 receiver tested, 1143 cable untested)",
+    "protocol": "Compx 08 04 output report on FF02:0002 (%, charging, mV)",
+    "vidPids": ["260D:1114", "260D:1143"],
+    "tested": true
+  },
+  {
+    "vendor": "ZOWIE",
+    "category": "mice",
+    "models": "EC1/EC2/EC3-CW, DW series (U2-DW, S2-DW, etc.), U2 on 2.4 GHz receiver",
+    "protocol": "Community-documented read-only vendor commands",
+    "vidPids": [],
+    "tested": false
+  },
+  {
+    "vendor": "Universal Fallbacks",
+    "category": "fallbacks",
+    "models": "Bluetooth & Fast Pair (any device showing battery in Windows Settings + BLE FE2C Fast Pair earbuds like Jabra Elite 8 Active, Pixel Buds, Sony, JBL, Bose); Generic HID (usage 0x06/0x85); HeadsetControl 4.3.0 (headsetcontrol -o json, bundled)",
+    "protocol": "Fallbacks run only for devices not claimed by a dedicated vendor driver",
+    "vidPids": [],
+    "tested": false
+  }
+]

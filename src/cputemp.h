@@ -10,6 +10,7 @@
 // This header holds what both sides agree on, and the pure functions (temperature arithmetic, the task definition)
 // so they can be tested without a driver.
 #include <cstdint>
+#include <cstring>
 #include <string>
 
 namespace cputemp {
@@ -34,9 +35,22 @@ enum class Status : std::uint32_t {
     Ok = 1,
     NoPawnIo = 2,       // the PawnIO driver is not installed
     ModuleFailed = 3,   // the driver refused or could not load the module
-    Unsupported = 4,    // not an Intel x64 CPU, or it reports no package thermal reading
+    Unsupported = 4,    // not a supported Intel or AMD Ryzen CPU, or no package thermal reading
     ReadFailed = 5,
 };
+
+enum class CpuVendor {
+    Unknown = 0,
+    Intel = 1,
+    Amd = 2,
+};
+
+inline CpuVendor DetectCpuVendor(const char* vendor12) {
+    if (!vendor12) return CpuVendor::Unknown;
+    if (std::strcmp(vendor12, "GenuineIntel") == 0) return CpuVendor::Intel;
+    if (std::strcmp(vendor12, "AuthenticAMD") == 0) return CpuVendor::Amd;
+    return CpuVendor::Unknown;
+}
 
 struct Shared {
     std::uint32_t magic = 0;
@@ -52,8 +66,10 @@ struct Shared {
 constexpr std::uint32_t kMsrPackageThermStatus = 0x1B1;  // IA32_PACKAGE_THERM_STATUS
 constexpr std::uint32_t kMsrTemperatureTarget = 0x1A2;   // IA32_TEMPERATURE_TARGET (MSR_TEMPERATURE_TARGET)
 
-// AMD Family 17h-1Ah SMN thermal register (THM_TCON_CUR_TMP).
+// AMD Family 17h-1Ah SMN thermal register (THM_TCON_CUR_TMP) and its range-select bit (per Linux k10temp).
 constexpr std::uint32_t kAmdSmnThmTconCurTmp = 0x00059800;
+constexpr std::uint32_t kAmdSmnCurTemp = kAmdSmnThmTconCurTmp;
+constexpr std::uint32_t kAmdCurTempRangeSelBit = 1u << 19;  // when set, subtract 49.0 °C (49,000 m°C)
 
 // TjMax, the temperature at which the CPU throttles: bits 23:16 of the temperature target. A value outside
 // 60..125 is not believable, and 100 is what nearly every Intel CPU uses.
@@ -71,25 +87,44 @@ inline int PackageTemperature(std::uint64_t thermStatus, int tjMax) {
     return t < 0 || t > 125 ? -1 : t;
 }
 
-// Known Tctl -> Tdie offsets (Celsius) for first-generation Ryzen and Threadripper X SKUs.
-inline int AmdTctlOffset(const std::string& brand) {
-    if (brand.find("Threadripper 19") != std::string::npos ||
-        brand.find("Threadripper 29") != std::string::npos) return -27;
-    if (brand.find("1600X") != std::string::npos ||
-        brand.find("1700X") != std::string::npos ||
-        brand.find("1800X") != std::string::npos) return -20;
-    if (brand.find("2600X") != std::string::npos ||
-        brand.find("2700X") != std::string::npos) return -10;
+// Raw AMD Tctl temperature in millidegrees Celsius from THM_TCON_CUR_TMP (bits 31:21 in 0.125 °C steps).
+inline int AmdTctlMilliC(std::uint32_t curTmpReg) {
+    int tctl = static_cast<int>((curTmpReg >> 21) & 0x7FFu) * 125;
+    if ((curTmpReg & kAmdCurTempRangeSelBit) != 0) tctl -= 49000;
+    return tctl;
+}
+
+// Per-model Tctl -> Tdie offset in degrees Celsius (matching Linux k10temp tctl_offset_table).
+inline int AmdTdieOffsetC(const char* cpuBrand) {
+    if (!cpuBrand) return 0;
+    struct OffsetEntry {
+        const char* needle;
+        int offsetC;
+    };
+    static constexpr OffsetEntry kOffsets[] = {
+        { "1600X", -20 },
+        { "1700X", -20 },
+        { "1800X", -20 },
+        { "2600X", -10 },
+        { "2700X", -10 },
+        { "Threadripper 19", -27 },
+        { "Threadripper 29", -27 },
+    };
+    for (const auto& entry : kOffsets) {
+        if (std::strstr(cpuBrand, entry.needle) != nullptr) return entry.offsetC;
+    }
     return 0;
 }
 
+// Known Tctl -> Tdie offsets (Celsius) for first-generation Ryzen and Threadripper X SKUs.
+inline int AmdTctlOffset(const std::string& brand) { return AmdTdieOffsetC(brand.c_str()); }
+
 // Converts THM_TCON_CUR_TMP (SMN 0x00059800) to Tdie in degrees Celsius: bits 31:21 in 0.125 C steps,
-// minus 49 C when bit 19 (CUR_TEMP_RANGE_SEL) is set, plus SKU Tctl offset. -1 when out of range.
+// minus 49 C when bit 19 (CUR_TEMP_RANGE_SEL) is set, plus SKU Tctl offset. -1 for 0xFFFFFFFF or out of range.
 inline int AmdPackageTemperature(std::uint32_t regVal, int tctlOffset = 0) {
-    double t = ((regVal >> 21) & 0x7FF) * 0.125;
-    if ((regVal >> 19) & 1U) t -= 49.0;
-    t += tctlOffset;
-    int rounded = (int)(t >= 0.0 ? t + 0.5 : t - 0.5);
+    if (regVal == 0xFFFFFFFFu) return -1;
+    const int milliC = AmdTctlMilliC(regVal) + tctlOffset * 1000;
+    const int rounded = (milliC >= 0 ? milliC + 500 : milliC - 500) / 1000;
     return rounded < 0 || rounded > 125 ? -1 : rounded;
 }
 

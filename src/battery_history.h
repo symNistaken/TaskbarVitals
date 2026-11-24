@@ -3,6 +3,7 @@
 #include <set>
 #include <string>
 #include "history_model.h"
+#include "runtime_estimate.h"
 #include <vector>
 
 namespace battery_history {
@@ -34,4 +35,6 @@ void Show(HWND owner, const std::wstring& key, const std::wstring& displayName);
 const Store& GetStore();
 // The viewer's "Estimated time to empty" as text ("~2 d 5 h"), or empty when there is none.
 std::wstring TimeToEmpty(const std::wstring& key);
+// Conservative discharge-time estimate from locally recorded history for `key`.
+RuntimeEstimate EstimateFor(const std::wstring& key);
 } // namespace battery_history

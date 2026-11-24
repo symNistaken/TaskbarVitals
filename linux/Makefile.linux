@@ -35,7 +35,7 @@ DRIVERS := \
 
 SRC := src/linux/hid_linux.cpp src/linux/devices_linux.cpp src/linux/main_linux.cpp $(DRIVERS)
 OBJ := $(patsubst src/%.cpp,build/linux/%.o,$(SRC))
-TARGET := wireless-battery
+TARGET := taskbar-vitals
 
 $(TARGET): $(OBJ)
 	$(CXX) $^ -o $@ $(GTK_LIBS) -pthread
@@ -50,6 +50,8 @@ test:
 	./build/linux/linux_hid_test
 	$(CXX) $(CXXFLAGS) tests/json_output_test.cpp -o build/linux/json_output_test
 	./build/linux/json_output_test
+	$(CXX) $(CXXFLAGS) tests/linux_paths_test.cpp -o build/linux/linux_paths_test
+	./build/linux/linux_paths_test
 
 clean:
 	rm -rf build/linux $(TARGET)

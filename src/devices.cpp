@@ -8,6 +8,7 @@
 
 #include "battery_history.h"
 #include "drivers/drivers.h"
+#include "ignore_devices.h"
 #include "report.h"
 #include "hid.h"
 
@@ -15,25 +16,17 @@ namespace {
 
 // HKCU\Software\WirelessBattery\IgnoreDevices (REG_SZ): "VID:PID" pairs in hex, separated by spaces,
 // commas or semicolons (e.g. "28BD:0947, 046D:C547"). No driver ever opens those devices (issue #232).
-std::vector<std::pair<USHORT, USHORT>> IgnoredDevices() {
-    std::vector<std::pair<USHORT, USHORT>> out;
-    wchar_t buf[1024];
-    DWORD size = sizeof(buf);
-    if (RegGetValueW(HKEY_CURRENT_USER, L"Software\\WirelessBattery", L"IgnoreDevices", RRF_RT_REG_SZ, nullptr, buf, &size) !=
+std::vector<ignore_devices::VidPid> IgnoredDevices() {
+    DWORD size = 0;
+    if (RegGetValueW(HKEY_CURRENT_USER, L"Software\\WirelessBattery", L"IgnoreDevices", RRF_RT_REG_SZ, nullptr, nullptr, &size) !=
+            ERROR_SUCCESS ||
+        size < sizeof(wchar_t) || size > 64 * 1024)
+        return {};
+    std::vector<wchar_t> buf(size / sizeof(wchar_t) + 1, 0);
+    if (RegGetValueW(HKEY_CURRENT_USER, L"Software\\WirelessBattery", L"IgnoreDevices", RRF_RT_REG_SZ, nullptr, buf.data(), &size) !=
         ERROR_SUCCESS)
-        return out;
-    for (const wchar_t* p = buf; *p;) {
-        unsigned vid = 0, pid = 0;
-        int used = 0;
-        if (swscanf(p, L" %x:%x%n", &vid, &pid, &used) == 2 && used > 0) {
-            out.push_back({ (USHORT)vid, (USHORT)pid });
-            p += used;
-        } else {
-            p++;
-        }
-        while (*p == L',' || *p == L';' || *p == L' ') p++;
-    }
-    return out;
+        return {};
+    return ignore_devices::Parse(buf.data());
 }
 
 }  // namespace
@@ -43,11 +36,13 @@ std::vector<DeviceStatus> PollAllDevices() {
     ctx.seenBefore = &battery_history::KeysAtStartup();
     ctx.colls = EnumHid();
     auto ignored = IgnoredDevices();
-    if (!ignored.empty())
+    if (!ignored.empty()) {
         ctx.colls.erase(std::remove_if(ctx.colls.begin(), ctx.colls.end(), [&](const HidColl& c) {
-                            return std::find(ignored.begin(), ignored.end(), std::make_pair(c.vid, c.pid)) != ignored.end();
+                            return ignore_devices::Contains(ignored, c.vid, c.pid);
                         }),
                         ctx.colls.end());
+        for (const auto& vp : ignored) ctx.Claim(vp.vid, vp.pid);
+    }
     PollSinowealthReceiver(ctx);
     PollGlorious(ctx);
     PollAula(ctx);       // before Kysona (shares the 3554 vendor id) and SONiX (shares 05AC:024F)
@@ -164,6 +159,11 @@ std::vector<DeviceStatus> PollAllDevices() {
     PollArmorX(ctx);  // claims 045E:0B12 so the Xbox fallback skips the dongle's fake "Full" (PR #145)
     PollXInput(ctx);
     PollUnsupported(ctx);  // menu only: "No battery info"
+    if (!ignored.empty())
+        ctx.out.erase(std::remove_if(ctx.out.begin(), ctx.out.end(), [&](const DeviceStatus& s) {
+                          return s.vid && s.pid && ignore_devices::Contains(ignored, s.vid, s.pid);
+                      }),
+                      ctx.out.end());
     return ctx.out;
 }
 

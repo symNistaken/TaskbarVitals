@@ -20,6 +20,59 @@ constexpr unsigned long kStartupDelaysMs[] = { 3000, 7000, 15000 };
 constexpr unsigned long kFollowUpDelaysMs[] = { 3000, 5000, 10000, 15000 };
 // Device events end a wait early. After this many in one step the step counts as used anyway.
 constexpr unsigned kMaxEventWakesPerStep = 4;
+// Minimum battery poll interval while the user is in a full-screen game, busy, or presenting.
+constexpr unsigned long kFullscreenMinPollIntervalMs = 5UL * 60 * 1000;
+
+struct Rect {
+    int left = 0;
+    int top = 0;
+    int right = 0;
+    int bottom = 0;
+};
+
+inline bool CoversMonitor(const Rect& wnd, const Rect& mon) {
+    return mon.right > mon.left && mon.bottom > mon.top &&
+           wnd.left <= mon.left && wnd.top <= mon.top &&
+           wnd.right >= mon.right && wnd.bottom >= mon.bottom;
+}
+
+// Mirrors Win32 QUERY_USER_NOTIFICATION_STATE without requiring Windows headers.
+enum class UserNotificationState {
+    Unknown = 0,
+    NotPresent = 1,
+    Busy = 2,
+    RunningD3DFullScreen = 3,
+    PresentationMode = 4,
+    AcceptsNotifications = 5,
+    QuietTime = 6,
+    App = 7,
+};
+
+inline bool IsFullscreenOrBusy(UserNotificationState state) {
+    return state == UserNotificationState::Busy ||
+           state == UserNotificationState::RunningD3DFullScreen ||
+           state == UserNotificationState::PresentationMode;
+}
+
+// True when the active foreground window fills its monitor or exclusive D3D full-screen is active.
+// A full-screen video on a side monitor while working elsewhere does not trigger this.
+inline bool IsActiveFullscreen(bool foregroundCoversMonitor, UserNotificationState qunsState) {
+    return foregroundCoversMonitor || qunsState == UserNotificationState::RunningD3DFullScreen;
+}
+
+inline unsigned long EffectivePollIntervalMs(unsigned long baseIntervalMs, bool pollLessFullscreen,
+                                             UserNotificationState state) {
+    if (pollLessFullscreen && IsFullscreenOrBusy(state))
+        return std::max(baseIntervalMs, kFullscreenMinPollIntervalMs);
+    return baseIntervalMs;
+}
+
+inline unsigned long EffectivePollIntervalMs(unsigned long baseIntervalMs, bool pollLessFullscreen,
+                                             bool foregroundCoversMonitor, UserNotificationState qunsState) {
+    if (pollLessFullscreen && IsActiveFullscreen(foregroundCoversMonitor, qunsState))
+        return std::max(baseIntervalMs, kFullscreenMinPollIntervalMs);
+    return baseIntervalMs;
+}
 
 enum class Mode { Idle, Startup, Resume, Arrival };
 

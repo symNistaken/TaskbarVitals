@@ -149,5 +149,19 @@ int main() {
         assert(!ShouldNotifyCharged(d, 99, warned));              // stale reading
     }
 
+    // Alert sound policy (Task 8)
+    {
+        assert(ClampAlertSound(0) == AlertSound::Off);
+        assert(ClampAlertSound(1) == AlertSound::SystemDefault);
+        assert(ClampAlertSound(-1) == AlertSound::Off);
+        assert(ClampAlertSound(2) == AlertSound::Off);
+        assert(!ShouldPlayAlertSound(AlertSound::Off));
+        assert(ShouldPlayAlertSound(AlertSound::SystemDefault, AlertKind::BatteryLow));
+        assert(ShouldPlayAlertSound(AlertSound::SystemDefault, AlertKind::BatteryCharged));
+        assert(ShouldPlayAlertSound(AlertSound::SystemDefault, AlertKind::BatteryChargeLimit));
+        assert(ShouldPlayAlertSound(AlertSound::SystemDefault, AlertKind::ShortRuntime));
+        assert(!ShouldPlayAlertSound(AlertSound::SystemDefault, AlertKind::Updater));
+    }
+
     std::puts("Smart Battery Alerts policy tests passed");
 }

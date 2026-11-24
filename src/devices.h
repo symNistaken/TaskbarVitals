@@ -30,6 +30,7 @@ struct DeviceStatus {
     int  millivolts = 0;       // battery voltage when reported (0 = unknown)
     int  graceSec   = 0;       // keep showing the last value this long if the device stops answering
     unsigned short vid = 0;    // USB / Bluetooth HID vendor id when known (picks the brand color)
+    unsigned short pid = 0;    // USB / Bluetooth HID product id when known (per-device ignore)
     bool unsupported = false;  // seen but no driver reads its battery: listed in the menu only (PR #2463)
     std::vector<BatteryComponent> batteries;  // each battery, when the device reports several (PR #3946)
     bool hasCapacity = false;               // capacities below are reported by the hardware (PR #3946)

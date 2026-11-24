@@ -131,6 +131,8 @@ void PollSemico(PollContext& ctx) {
         s.kind = DeviceKind::Keyboard;
         s.via = L"2.4 GHz receiver";
         s.connected = false;
+        s.vid = kVid;
+        s.pid = answeredOffline.front();
         ctx.out.push_back(s);
         for (USHORT pid : answeredOffline) ctx.Claim(kVid, pid);
     }

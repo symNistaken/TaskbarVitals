@@ -170,7 +170,12 @@ void PollOmni(PollContext& ctx, std::vector<std::wstring>& seen) {
             for (const HidColl* c : ctx.Find(0x0B05, 0x1ACE, [&](const HidColl& c) { return c.iface == 2 && c.outLen() >= 12 && PathHas(c.path, m.col); })) {
                 HidDev dev;
                 DeviceStatus s;
-                if (dev.Open(*c) && ReadModel(dev, m, s)) { AddOnce(ctx, seen, s); break; }
+                if (dev.Open(*c) && ReadModel(dev, m, s)) {
+                    s.vid = 0x0B05;
+                    s.pid = 0x1ACE;
+                    AddOnce(ctx, seen, s);
+                    break;
+                }
             }
             break;
         }
@@ -203,6 +208,8 @@ void PollAzothDongle(PollContext& ctx, std::vector<std::wstring>& seen) {
         s.name = L"ROG Azoth 96 HE";
         s.kind = DeviceKind::Keyboard;
         s.via = L"2.4 GHz receiver";
+        s.vid = 0x0B05;
+        s.pid = 0x1AD0;
         if (r[6] <= 100) s.percent = r[6];
         s.charging = r[9] == 1;
         AddOnce(ctx, seen, s);
@@ -215,6 +222,8 @@ void PollAzothDongle(PollContext& ctx, std::vector<std::wstring>& seen) {
         s.kind = DeviceKind::Keyboard;
         s.via = L"2.4 GHz receiver";
         s.asleep = true;
+        s.vid = 0x0B05;
+        s.pid = 0x1AD0;
         AddOnce(ctx, seen, s);
     }
 }
@@ -274,6 +283,8 @@ void PollPelta(PollContext& ctx) {
             s.name = hs.name;
             s.kind = DeviceKind::Headset;
             s.via = L"2.4 GHz receiver";
+            s.vid = 0x0B05;
+            s.pid = hs.pid;
             if (res == Reply::Asleep) {
                 s.asleep = true;
             } else {
@@ -314,6 +325,8 @@ void PollCetraOpen(PollContext& ctx) {
         s.name = L"ROG Cetra Open Wireless";
         s.kind = DeviceKind::Headset;
         s.via = L"2.4 GHz receiver";
+        s.vid = 0x0B05;
+        s.pid = pid;
         auto level = [&](int at) { return r.size() > (size_t)at && r[at] > 0 && r[at] <= 100 ? (int)r[at] : -1; };
         int left = res == Reply::Ok ? level(5) : -1;
         int right = res == Reply::Ok ? level(6) : -1;
@@ -363,6 +376,8 @@ void PollRog(PollContext& ctx) {
             static std::set<USHORT> awake;
             if (m.reportId && s.asleep && !awake.count(m.pid)) continue;
             if (m.reportId && !s.asleep) awake.insert(m.pid);
+            s.vid = 0x0B05;
+            s.pid = m.pid;
             AddOnce(ctx, seen, s);
             ctx.Claim(0x0B05, m.pid);
             break;

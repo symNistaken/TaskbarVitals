@@ -28,17 +28,26 @@
 #include "drivers/hidpp_events.h"
 #include "hid_listener.h"
 #include "alert_rules.h"
+#include "command_routing.h"
 #include "devices.h"
 #include "battery_history.h"
 #include "battery_intelligence.h"
 #include "charge_estimate.h"
 #include "dashboard.h"
+#include "evening_reminder.h"
+#include "file_dialog.h"
 #include "i18n.h"
+#include "ignore_devices.h"
 #include "json_output.h"
 #include "labels.h"
+#include "live_api_json.h"
+#include "live_api_pipe.h"
+#include "osd_overlay.h"
+#include "osd_policy.h"
 #include "reading_freshness.h"
 #include "status_json.h"
 #include "refresh_policy.h"
+#include "settings_port.h"
 #include "memory_trim.h"
 #include "panel.h"
 #include "report.h"
@@ -50,6 +59,7 @@
 #include "laptopbat.h"
 #include "netmon.h"
 #include "sysmon.h"
+#include "system_order.h"
 #include "vector_icons.h"
 #include "vitals_strip.h"
 #include "widget.h"
@@ -57,6 +67,8 @@
 #include "update_apply.h"
 
 namespace {
+
+using namespace command_routing;
 
 constexpr UINT WM_TRAY = WM_APP + 1;
 constexpr UINT WM_RESULTS = WM_APP + 2;
@@ -73,50 +85,16 @@ constexpr GUID kConsoleDisplayStateGuid = {
 // so a device only sleeps if its timer is shorter than the interval.
 constexpr DWORD POLL_SECONDS[] = { 30, 60, 120, 300, 600, 900, 1800, 3600 };
 constexpr DWORD SYS_POLL_SECONDS[] = { 1, 2, 5, 10 };
-constexpr int TEMP_ALERT_CELSIUS[] = { 80, 85, 90, 95 };
+constexpr sysmon::TempPreset TEMP_PRESETS[] = {
+    sysmon::TempPreset::Standard,
+    sysmon::TempPreset::Laptop,
+    sysmon::TempPreset::Strict,
+};
+constexpr size_t kSystemItemCount = 7;
 constexpr int LOW_BATTERY = 15;
 constexpr UINT PLACEHOLDER_ID = 1;
 constexpr UINT ALERT_ICON_ID = 2;
 constexpr UINT SYS_TRAY_UID_BASE = 10;
-
-enum MenuId : UINT {
-    ID_REFRESH = 100, ID_AUTOSTART, ID_HIDE_LAST_KNOWN, ID_WIDGET_BACKGROUND, ID_EXIT,
-    ID_MODE_WIDGET, ID_MODE_TRAY, ID_MODE_MYFINDER, ID_SUPPORT, ID_REPORT,
-    ID_BRAND_COLORS, ID_SYSTEM_COLORS, ID_STACKED, ID_TWO_ROWS, ID_CUSTOM_ICONS,
-    ID_SHOW_DISCONNECTED, ID_KEEP_MOUSE_LAST_KNOWN, ID_RECORD_HISTORY, ID_DIM_SLEEPING,
-    ID_TRAY_WHEN_EMPTY, ID_MAKE_ROOM,
-    ID_BAT_LEFT, ID_BAT_BEFORE, ID_BAT_CLOCK,
-    ID_VIT_LEFT, ID_VIT_BEFORE, ID_VIT_CLOCK,
-    ID_BATTERIES_FIRST, ID_VITALS_FIRST,
-    ID_SHOW_CPU, ID_SHOW_RAM, ID_SHOW_GPU, ID_SHOW_GPU_TEMP, ID_SHOW_GPU_CLOCKS, ID_SHOW_VRAM,
-    ID_SHOW_CPU_W, ID_SHOW_GPU_W, ID_SHOW_CPU_TEMP, ID_REMOVE_TEMP,
-    ID_SHOW_DISK_TEMP, ID_SHOW_DISK_USE, ID_SHOW_NET_SPEED, ID_RUN_SPEED_TEST,
-    ID_SHOW_LAPTOP_BAT, ID_SHOW_LAPTOP_BAT_W, ID_SYSTEM_DASHBOARD,
-    ID_DASHBOARD, ID_CHARGED_ALERT, ID_TIERED_ALERTS, ID_SHORT_RUNTIME_ALERT,
-    ID_TRACK_SINCE, ID_TRACK_AWAKE, ID_TRACK_EMPTY, ID_RUNTIME_WIDGET,
-    ID_PERCENT_SIGN, ID_RING_STYLE, ID_ANIMATE_CHARGING, ID_CONNECTION_ICONS,
-    ID_HOVER_CARD, ID_HOVER_CHART, ID_TRAY_DEVICE_ICONS,
-    ID_PLACE_AUTO, ID_PLACE_TOP, ID_PLACE_TRAY, ID_PLACE_BOTTOM,  // "Position on a vertical taskbar"
-    ID_SYS_MOVE_FIRST = 750,  // System strip item order: CPU, RAM, GPU, VRAM, Disk, Network, Laptop battery
-    ID_POSITION_FIRST = 700,  // "Position on the taskbar": ID_POSITION_FIRST + 0..5, then the custom value
-    ID_POLL_FIRST = 500,      // "Check battery every": ID_POLL_FIRST + 0..7
-    ID_SYS_POLL_FIRST = 550,  // "Check system every": ID_SYS_POLL_FIRST + 0..3
-    ID_LIMIT_OFF = 600, ID_LIMIT_FIRST,  // "Notify when charged to": off, then alerts::kChargeLimits
-    ID_TEMP_ALERT_OFF = 650, ID_TEMP_ALERT_FIRST,  // "High temperature alert": off, then TEMP_ALERT_CELSIUS
-    ID_POPUP_CHARGE_LIMIT = 800, ID_POPUP_POLL_BATTERY, ID_POPUP_TEMP_ALERT, ID_POPUP_POLL_SYSTEM,
-    ID_POPUP_BAT_POS, ID_POPUP_VIT_POS, ID_POPUP_STRIP_ORDER, ID_POPUP_TASKBAR_POS,
-    ID_POPUP_VERTICAL_POS, ID_POPUP_MONITORS, ID_POPUP_LANG, ID_POPUP_TRACKING, ID_POPUP_UNSUPPORTED,
-    ID_UPDATE = 200, ID_AUTO_UPDATE,
-    ID_LANG_AUTO = 400, ID_LANG_ADD, ID_LANG_FIRST,  // "Language": ID_LANG_FIRST + 0..63
-    ID_MONITOR_ALL = 300, ID_MONITOR_MAIN, ID_MONITOR_FIRST,  // "Show the widget on": ID_MONITOR_FIRST + 0..31
-    ID_DEVICE_FIRST = 1000
-};
-enum DeviceCmd : UINT {
-    DEV_TOGGLE, DEV_LEFT, DEV_RIGHT, DEV_RENAME, DEV_RESET_NAME, DEV_HISTORY,
-    DEV_ALERT_FIRST = 6, DEV_ALERT_DEFAULT = DEV_ALERT_FIRST + 8, DEV_ALERT_OFF,
-    DEV_MORE_POPUP = 16, DEV_DASHBOARD = 17,
-    DEV_STRIDE = 32
-};
 
 const wchar_t* kAppName = L"Taskbar Vitals";
 const wchar_t* kRunKey = L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
@@ -145,6 +123,10 @@ bool g_showDisconnectedDevices = false;  // opt-in, explicit driver-reported off
 bool g_dimSleeping = true;  // dim a sleeping device's last known value (menu option, on by default)
 bool g_recordHistory = true;  // save readings for "Battery history..." (menu option, on by default)
 int g_chargeLimit = 0;        // "Notify when charged to" 80/85/90%, 0 = off (the default)
+int g_eveningReminderHour = 0;       // "Evening charge reminder": 0 = off, or 20..23
+int g_eveningReminderLastCycle = 0;  // YYYYMMDD of the last evening charge reminder shown
+int g_eveningReminderCheckedCycle = 0;
+ULONGLONG g_eveningReminderCheckedTick = 0;
 bool g_chargedAlert = true;   // "fully charged" notification
 bool g_tieredAlerts = true;   // extra low-battery warnings at 10% and 5%
 bool g_shortRuntimeAlert = true;  // "charge today" notification when the time-to-empty is under 12 h
@@ -189,7 +171,8 @@ netmon::Reading g_net;       // last network sample
 laptopbat::Reading g_laptopBat;
 int g_sysTicks = 0;
 DWORD g_sysPollSeconds = 2;
-int g_tempAlertC = 0;
+sysmon::TempPreset g_tempPreset = sysmon::TempPreset::Standard;
+int g_tempAlertC = 0;  // 0 = off, kTempAlertMatchPreset = active preset's high threshold, or explicit °C
 bool g_cpuTempWarned = false, g_gpuTempWarned = false, g_diskTempWarned = false;
 netmon::TestState g_lastSpeedTestState = netmon::TestState::Idle;
 bool AnyGpuReading() { return g_showGpu || g_showGpuTemp || g_showGpuClocks || g_showVram || g_showGpuW; }
@@ -205,6 +188,12 @@ bool g_trace = false;         // --trace: one line per poll in %TEMP%\wirelessba
 std::atomic<long> g_lastCount{ 0 };
 ULONGLONG g_lastPollTick = 0;
 std::atomic<DWORD> g_pollIntervalMs{ 60 * 1000 };  // set from the menu, read by the worker thread
+std::atomic<bool> g_pollLessFullscreen{ true };
+bool g_localApiPipe = false;
+bool g_settingsDialogOpen = false;
+osd_policy::OsdMode g_osdMode = osd_policy::OsdMode::FullscreenOnly;
+osd_policy::OsdCorner g_osdCorner = osd_policy::OsdCorner::TopRight;
+alerts::AlertSound g_alertSound = alerts::AlertSound::Off;
 
 // Rolling 3-minute live history for Vitals hover cards.
 struct VitalPoint {
@@ -489,20 +478,31 @@ void LoadSystemOrder() {
     DWORD value = 0, size = sizeof(value);
     if (RegGetValueW(HKEY_CURRENT_USER, kSettingsKey, L"SystemOrder", RRF_RT_REG_DWORD, nullptr, &value, &size) != ERROR_SUCCESS)
         return;
-    std::vector<int> order;
-    for (int i = 0; i < 7; ++i) {
-        int item = (value >> (i * 4)) & 0xF;
-        if (item < 7 && std::find(order.begin(), order.end(), item) == order.end()) order.push_back(item);
-    }
-    for (int i = 0; i < 7; ++i)
-        if (std::find(order.begin(), order.end(), i) == order.end()) order.push_back(i);
-    g_systemOrder = std::move(order);
+    g_systemOrder = system_order::DecodeSystemOrder(value, kSystemItemCount);
 }
 
 void SaveSystemOrder() {
-    DWORD value = 0;
-    for (size_t i = 0; i < g_systemOrder.size() && i < 7; ++i) value |= (DWORD(g_systemOrder[i]) & 0xF) << (i * 4);
+    DWORD value = system_order::EncodeSystemOrder(g_systemOrder);
     RegSetKeyValueW(HKEY_CURRENT_USER, kSettingsKey, L"SystemOrder", REG_DWORD, &value, sizeof(value));
+}
+
+std::wstring LoadIgnoreDevicesRaw() {
+    DWORD size = 0;
+    if (RegGetValueW(HKEY_CURRENT_USER, kSettingsKey, L"IgnoreDevices", RRF_RT_REG_SZ, nullptr, nullptr, &size) !=
+            ERROR_SUCCESS ||
+        size < sizeof(wchar_t) || size > 64 * 1024)
+        return L"";
+    std::vector<wchar_t> buf(size / sizeof(wchar_t) + 1, 0);
+    if (RegGetValueW(HKEY_CURRENT_USER, kSettingsKey, L"IgnoreDevices", RRF_RT_REG_SZ, nullptr, buf.data(), &size) !=
+        ERROR_SUCCESS)
+        return L"";
+    return buf.data();
+}
+
+void SaveIgnoreDevicesRaw(const std::wstring& raw) {
+    if (raw.empty()) RegDeleteKeyValueW(HKEY_CURRENT_USER, kSettingsKey, L"IgnoreDevices");
+    else RegSetKeyValueW(HKEY_CURRENT_USER, kSettingsKey, L"IgnoreDevices", REG_SZ, raw.c_str(),
+                         (DWORD)((raw.size() + 1) * sizeof(wchar_t)));
 }
 
 bool IsEntryHidden(const TrayEntry& e) {
@@ -669,16 +669,103 @@ DWORD LoadSystemPollSeconds() {
 void SaveSystemPollSeconds(DWORD seconds) {
     RegSetKeyValueW(HKEY_CURRENT_USER, kSettingsKey, L"SystemPollSeconds", REG_DWORD, &seconds, sizeof(seconds));
 }
+sysmon::TempPreset LoadTempPreset() {
+    DWORD v = 0, sz = sizeof(v);
+    if (RegGetValueW(HKEY_CURRENT_USER, kSettingsKey, L"TempColorPreset", RRF_RT_REG_DWORD, nullptr, &v, &sz) != ERROR_SUCCESS)
+        return sysmon::TempPreset::Standard;
+    return sysmon::ClampTempPreset(v <= 2 ? (int)v : -1);
+}
+void SaveTempPreset(sysmon::TempPreset preset) {
+    DWORD v = (DWORD)preset;
+    RegSetKeyValueW(HKEY_CURRENT_USER, kSettingsKey, L"TempColorPreset", REG_DWORD, &v, sizeof(v));
+}
 int LoadTempAlertCelsius() {
     DWORD v = 0, sz = sizeof(v);
-    RegGetValueW(HKEY_CURRENT_USER, kSettingsKey, L"TempAlertCelsius", RRF_RT_REG_DWORD, nullptr, &v, &sz);
-    for (int t : TEMP_ALERT_CELSIUS)
-        if ((int)v == t) return t;
+    if (RegGetValueW(HKEY_CURRENT_USER, kSettingsKey, L"TempAlertCelsius", RRF_RT_REG_DWORD, nullptr, &v, &sz) != ERROR_SUCCESS)
+        return 0;
+    if (v == (DWORD)sysmon::kTempAlertMatchPreset) return sysmon::kTempAlertMatchPreset;
+    for (int t : sysmon::kTempAlertOptions)
+        if (v == (DWORD)t) return t;
     return 0;
 }
 void SaveTempAlertCelsius(int celsius) {
     DWORD v = (DWORD)celsius;
     RegSetKeyValueW(HKEY_CURRENT_USER, kSettingsKey, L"TempAlertCelsius", REG_DWORD, &v, sizeof(v));
+}
+osd_policy::OsdMode LoadOsdMode() {
+    DWORD v = 1, sz = sizeof(v);
+    if (RegGetValueW(HKEY_CURRENT_USER, kSettingsKey, L"InGameAlerts", RRF_RT_REG_DWORD, nullptr, &v, &sz) != ERROR_SUCCESS)
+        return osd_policy::OsdMode::FullscreenOnly;
+    return osd_policy::ClampOsdMode(v <= 3 ? (int)v : 0);
+}
+void SaveOsdMode(osd_policy::OsdMode mode) {
+    DWORD v = (DWORD)mode;
+    RegSetKeyValueW(HKEY_CURRENT_USER, kSettingsKey, L"InGameAlerts", REG_DWORD, &v, sizeof(v));
+}
+osd_policy::OsdCorner LoadOsdCorner() {
+    DWORD v = 0, sz = sizeof(v);
+    if (RegGetValueW(HKEY_CURRENT_USER, kSettingsKey, L"InGameAlertCorner", RRF_RT_REG_DWORD, nullptr, &v, &sz) != ERROR_SUCCESS)
+        return osd_policy::OsdCorner::TopRight;
+    return osd_policy::ClampOsdCorner(v <= 3 ? (int)v : 0);
+}
+void SaveOsdCorner(osd_policy::OsdCorner corner) {
+    DWORD v = (DWORD)corner;
+    RegSetKeyValueW(HKEY_CURRENT_USER, kSettingsKey, L"InGameAlertCorner", REG_DWORD, &v, sizeof(v));
+}
+alerts::AlertSound LoadAlertSound() {
+    DWORD v = 0, sz = sizeof(v);
+    if (RegGetValueW(HKEY_CURRENT_USER, kSettingsKey, L"AlertSound", RRF_RT_REG_DWORD, nullptr, &v, &sz) != ERROR_SUCCESS)
+        return alerts::AlertSound::Off;
+    return alerts::ClampAlertSound(v == 1 ? 1 : 0);
+}
+void SaveAlertSound(alerts::AlertSound mode) {
+    DWORD v = static_cast<DWORD>(mode);
+    RegSetKeyValueW(HKEY_CURRENT_USER, kSettingsKey, L"AlertSound", REG_DWORD, &v, sizeof(v));
+}
+int LoadEveningReminderHour() {
+    DWORD v = 0, sz = sizeof(v);
+    if (RegGetValueW(HKEY_CURRENT_USER, kSettingsKey, L"EveningReminderHour", RRF_RT_REG_DWORD, nullptr, &v, &sz) != ERROR_SUCCESS)
+        return 0;
+    return evening_reminder::ClampReminderHour(v <= 23 ? static_cast<int>(v) : 0);
+}
+void SaveEveningReminderHour(int hour) {
+    DWORD v = static_cast<DWORD>(evening_reminder::ClampReminderHour(hour));
+    RegSetKeyValueW(HKEY_CURRENT_USER, kSettingsKey, L"EveningReminderHour", REG_DWORD, &v, sizeof(v));
+}
+int LoadEveningReminderLastCycle() {
+    DWORD v = 0, sz = sizeof(v);
+    if (RegGetValueW(HKEY_CURRENT_USER, kSettingsKey, L"EveningReminderLastCycle", RRF_RT_REG_DWORD, nullptr, &v, &sz) != ERROR_SUCCESS)
+        return 0;
+    return v <= 99991231u ? static_cast<int>(v) : 0;
+}
+void SaveEveningReminderLastCycle(int cycleDate) {
+    DWORD v = cycleDate > 0 ? static_cast<DWORD>(cycleDate) : 0u;
+    RegSetKeyValueW(HKEY_CURRENT_USER, kSettingsKey, L"EveningReminderLastCycle", REG_DWORD, &v, sizeof(v));
+}
+void SavePollLessFullscreen(bool on) { SaveBoolSetting(L"PollLessFullscreen", on); }
+void SaveLocalApiPipe(bool on) { SaveBoolSetting(L"LocalApiPipe", on); }
+
+HWND DialogOwner() {
+    HWND active = GetActiveWindow();
+    if (active && IsWindowVisible(active) && IsWindowEnabled(active)) return active;
+    if (IsWindowVisible(g_hwnd) && IsWindowEnabled(g_hwnd)) return g_hwnd;
+    return nullptr;
+}
+
+refresh_policy::UserNotificationState QueryNotificationState() {
+    QUERY_USER_NOTIFICATION_STATE quns = QUNS_ACCEPTS_NOTIFICATIONS;
+    if (FAILED(SHQueryUserNotificationState(&quns)))
+        return refresh_policy::UserNotificationState::Unknown;
+    switch (quns) {
+        case QUNS_NOT_PRESENT:             return refresh_policy::UserNotificationState::NotPresent;
+        case QUNS_BUSY:                    return refresh_policy::UserNotificationState::Busy;
+        case QUNS_RUNNING_D3D_FULL_SCREEN: return refresh_policy::UserNotificationState::RunningD3DFullScreen;
+        case QUNS_PRESENTATION_MODE:       return refresh_policy::UserNotificationState::PresentationMode;
+        case QUNS_ACCEPTS_NOTIFICATIONS:   return refresh_policy::UserNotificationState::AcceptsNotifications;
+        case QUNS_QUIET_TIME:              return refresh_policy::UserNotificationState::QuietTime;
+        case QUNS_APP:                     return refresh_policy::UserNotificationState::App;
+        default:                           return refresh_policy::UserNotificationState::Unknown;
+    }
 }
 
 bool AutostartEnabled() {
@@ -982,6 +1069,38 @@ void ShowNotification(TrayEntry& e, const std::wstring& title, const std::wstrin
     ShowTextNotification(title, message);
 }
 
+using PlaySoundWFn = BOOL(WINAPI*)(LPCWSTR, HMODULE, DWORD);
+HMODULE g_winmm = nullptr;
+PlaySoundWFn g_playSound = nullptr;
+
+void FreeAlertSoundLib() {
+    if (g_playSound) g_playSound(nullptr, nullptr, 0);
+    if (g_winmm) {
+        FreeLibrary(g_winmm);
+        g_winmm = nullptr;
+    }
+    g_playSound = nullptr;
+}
+
+void PlayBatteryAlertSound(alerts::AlertKind kind = alerts::AlertKind::BatteryLow) {
+    if (!alerts::ShouldPlayAlertSound(g_alertSound, kind)) return;
+    if (!g_playSound) {
+        if (!g_winmm) g_winmm = LoadLibraryExW(L"winmm.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+        if (!g_winmm) return;
+        g_playSound = reinterpret_cast<PlaySoundWFn>(
+            reinterpret_cast<void*>(GetProcAddress(g_winmm, "PlaySoundW")));
+        if (!g_playSound) {
+            FreeLibrary(g_winmm);
+            g_winmm = nullptr;
+            return;
+        }
+    }
+    constexpr DWORD kSndAsync = 0x0001u;
+    constexpr DWORD kSndAlias = 0x00010000u;
+    constexpr DWORD kSndNoDefault = 0x0002u;
+    g_playSound(L"SystemExclamation", nullptr, kSndAlias | kSndAsync | kSndNoDefault);
+}
+
 void ShowBatteryAlert(TrayEntry& e, alerts::LowAlert level) {
     const wchar_t* title = level == alerts::LowAlert::Emergency ? L"Battery almost empty"
                          : level == alerts::LowAlert::Critical  ? L"Battery critically low"
@@ -989,21 +1108,39 @@ void ShowBatteryAlert(TrayEntry& e, alerts::LowAlert level) {
     const wchar_t* text = level == alerts::LowAlert::Emergency ? L"{name} is at {percent}%. Charge it now."
                                                                : L"{name} is at {percent}%";
     ShowNotification(e, T(title), TF(text, { { L"name", DisplayName(e) }, { L"percent", std::to_wstring(e.st.percent) } }));
+    PlayBatteryAlertSound(alerts::AlertKind::BatteryLow);
+    if (g_osdMode != osd_policy::OsdMode::Off) {
+        const auto state = QueryNotificationState();
+        const bool activeFs = g_osdMode == osd_policy::OsdMode::Always
+                                  ? false
+                                  : refresh_policy::IsActiveFullscreen(osd_overlay::IsForegroundFullscreen(), state);
+        if (osd_policy::ShouldShowOsd(g_osdMode, activeFs)) {
+            const Accent ac = AccentFor(e.st);
+            const bool hasAccent = ac != Accent::None;
+            const COLORREF accentColor = hasAccent ? AccentColorRef(ac, g_lightTaskbar) : 0;
+            const wchar_t glyph = widget::DeviceGlyph(e.st.kind, e.st.via == L"Bluetooth");
+            osd_overlay::Show(g_inst, glyph, DisplayName(e), e.st.percent, g_osdMode, g_osdCorner,
+                              state, g_lightTaskbar, accentColor, hasAccent);
+        }
+    }
 }
 
 void ShowChargedAlert(TrayEntry& e) {
     ShowNotification(e, T(L"Fully charged"), TF(L"{name} is fully charged.", { { L"name", DisplayName(e) } }));
+    PlayBatteryAlertSound(alerts::AlertKind::BatteryCharged);
 }
 
 void ShowChargeLimitAlert(TrayEntry& e) {
     ShowNotification(e, T(L"You can unplug it"),
                      TF(L"{name} is charged to {percent}%. Stopping around here helps the battery last longer.",
                         { { L"name", DisplayName(e) }, { L"percent", std::to_wstring(e.st.percent) } }));
+    PlayBatteryAlertSound(alerts::AlertKind::BatteryChargeLimit);
 }
 
 // The time-to-empty estimate says the device will not last the next 12 hours: once per discharge.
 void ShowShortRuntimeAlert(TrayEntry& e, const std::wstring& left) {
     ShowNotification(e, T(L"Charge today"), TF(L"{name} may run out in {time}", { { L"name", DisplayName(e) }, { L"time", left } }));
+    PlayBatteryAlertSound(alerts::AlertKind::ShortRuntime);
 }
 
 void UpdatePlaceholder() {
@@ -1086,6 +1223,105 @@ std::vector<TrayEntry*> OrderedEntries(bool shownOnly) {
     return list;
 }
 
+void CheckEveningReminder(bool force = false) {
+    if (g_demo || g_eveningReminderHour == 0 || !g_recordHistory || g_entries.empty()) return;
+    SYSTEMTIME st{};
+    GetLocalTime(&st);
+    const evening_reminder::LocalDateTime now{
+        static_cast<int>(st.wYear),
+        static_cast<int>(st.wMonth),
+        static_cast<int>(st.wDay),
+        static_cast<int>(st.wHour),
+    };
+    const int activeCycle = evening_reminder::ActiveCycleDate(now, g_eveningReminderHour);
+    if (activeCycle == 0 || activeCycle == g_eveningReminderLastCycle) {
+        g_eveningReminderCheckedCycle = 0;
+        return;
+    }
+    const ULONGLONG nowTick = GetTickCount64();
+    if (!force && activeCycle == g_eveningReminderCheckedCycle && nowTick - g_eveningReminderCheckedTick < 60000ULL)
+        return;
+    g_eveningReminderCheckedCycle = activeCycle;
+    g_eveningReminderCheckedTick = nowTick;
+
+    std::vector<evening_reminder::DeviceCandidate> candidates;
+    for (TrayEntry* e : OrderedEntries(true)) {
+        if (!e->st.connected || e->st.asleep || e->st.charging || e->st.full ||
+            e->st.percent < 0 || e->st.percent > 100) {
+            continue;
+        }
+        evening_reminder::DeviceCandidate c;
+        c.name = DisplayName(*e);
+        c.percent = e->st.percent;
+        c.connected = e->st.connected;
+        c.asleep = e->st.asleep;
+        c.charging = e->st.charging || e->st.full;
+        c.hidden = IsHidden(e->st.key);
+        const battery_history::RuntimeEstimate est = battery_history::EstimateFor(e->st.key);
+        if (est.state == battery_history::RuntimeState::Ready) {
+            c.hasEta = true;
+            c.etaHours = est.hoursRemaining;
+        }
+        candidates.push_back(std::move(c));
+    }
+
+    const evening_reminder::ReminderDecision decision = evening_reminder::Evaluate(
+        now, g_eveningReminderHour, g_eveningReminderLastCycle, candidates,
+        evening_reminder::kDefaultThresholdPercent, evening_reminder::kMaxEtaHours,
+        T(L"{name} {percent}%"),
+        T(L"{name} {percent}% (about {hours} h left)"),
+        T(L"Charge tonight: {items}."));
+    if (decision.notify) {
+        g_eveningReminderLastCycle = decision.cycleDate;
+        SaveEveningReminderLastCycle(decision.cycleDate);
+        ShowTextNotification(T(L"Evening charge reminder"), decision.message);
+    }
+}
+
+void RefreshLiveApiSnapshot() {
+    if (!g_localApiPipe) return;
+    std::vector<DeviceStatus> devices;
+    for (TrayEntry* e : OrderedEntries(false)) devices.push_back(e->st);
+    live_api_json::SystemMetricsSnapshot sys;
+    sys.showCpu = g_showCpu;
+    sys.cpuPercent = g_sys.cpu;
+    sys.showCpuTemp = g_showCpuTemp;
+    sys.cpuTempC = g_cpuTemp.tempC;
+    sys.showCpuWatts = g_showCpuW;
+    sys.cpuWatts = g_sys.cpuWatts;
+    sys.showRam = g_showRam;
+    sys.ramPercent = g_sys.ram;
+    sys.ramUsedGb = g_sys.ramUsedGb;
+    sys.ramTotalGb = g_sys.ramTotalGb;
+    sys.gpuAvailable = AnyGpuReading() && g_gpu.available;
+    sys.gpuName = g_gpu.name;
+    sys.showGpu = g_showGpu;
+    sys.gpuPercent = g_gpu.use;
+    sys.showGpuTemp = g_showGpuTemp;
+    sys.gpuTempC = g_gpu.tempC;
+    sys.showGpuWatts = g_showGpuW;
+    sys.gpuWatts = g_gpu.watts;
+    sys.showVram = g_showVram;
+    sys.vramPercent = g_gpu.vram;
+    sys.vramUsedGb = g_gpu.vramUsedGb;
+    sys.vramTotalGb = g_gpu.vramTotalGb;
+    sys.showLaptopBattery = AnyLaptopBatReading() && g_showLaptopBat;
+    sys.laptopBatteryPresent = g_laptopBat.present;
+    sys.laptopBatteryPercent = g_laptopBat.percent;
+    sys.laptopBatteryCharging = g_laptopBat.charging;
+    sys.laptopBatteryFull = g_laptopBat.acOnline && g_laptopBat.percent >= 100 && !g_laptopBat.charging;
+    sys.laptopBatteryRemainingSec = (!g_laptopBat.charging && g_laptopBat.remainingMinutes > 0)
+                                        ? g_laptopBat.remainingMinutes * 60
+                                        : -1;
+    sys.showNetwork = g_showNetSpeed;
+    sys.netValid = g_net.available && g_net.downBytesPerSec >= 0.0 && g_net.upBytesPerSec >= 0.0;
+    if (sys.netValid) {
+        sys.netRxBps = static_cast<std::uint64_t>(g_net.downBytesPerSec + 0.5);
+        sys.netTxBps = static_cast<std::uint64_t>(g_net.upBytesPerSec + 0.5);
+    }
+    live_api_pipe::UpdateSnapshot(live_api_json::BuildLiveSnapshotJson(devices, sys));
+}
+
 // Why there is no CPU temperature on the strip (for the tooltip while it is on).
 std::wstring CpuTempStatusText() {
     if (!g_cpuTemp.running) return T(L"starting the helper...");
@@ -1138,7 +1374,7 @@ void UpdateSystemTrayIcons() {
             else if (cpuTemp >= 0) { text = std::to_wstring(cpuTemp) + L"°"; barPct = std::clamp(cpuTemp, 0, 100); }
             else if (cpuW >= 0) { text = std::to_wstring(cpuW) + L"W"; }
             else { text = L"?"; }
-            heat = sysmon::HeatLevel(cpuTemp);
+            heat = sysmon::HeatLevel(cpuTemp, g_tempPreset);
             std::vector<std::wstring> parts;
             if (cpuUse >= 0) parts.push_back(std::to_wstring(cpuUse) + L"%");
             if (cpuTemp >= 0) parts.push_back(std::to_wstring(cpuTemp) + L" °C");
@@ -1168,7 +1404,7 @@ void UpdateSystemTrayIcons() {
             else if (gpuClk >= 0) { text = std::to_wstring(gpuClk); }
             else if (memClk >= 0) { text = std::to_wstring(memClk); }
             else { text = L"?"; }
-            heat = sysmon::HeatLevel(gpuTemp);
+            heat = sysmon::HeatLevel(gpuTemp, g_tempPreset);
             std::vector<std::wstring> parts;
             if (gpuUse >= 0) parts.push_back(std::to_wstring(gpuUse) + L"%");
             if (gpuTemp >= 0) parts.push_back(std::to_wstring(gpuTemp) + L" °C");
@@ -1502,7 +1738,7 @@ void UpdateWidget() {
         addReading(0, 0xE950, vector_icons::VectorIcon::Cpu, cpuUse,
                    std::wstring(T(L"CPU")) + L": " + joined, extra,
                    T(L"CPU"), JoinParts(parts, L" · "), {});
-        readings.back().heat = sysmon::HeatLevel(cpuTemp);
+        readings.back().heat = sysmon::HeatLevel(cpuTemp, g_tempPreset);
         attachVitalChart(readings.back(), g_cpuHist);
     } else if (g_showCpuTemp) {
         addReading(0, 0xE950, vector_icons::VectorIcon::Cpu, -1,
@@ -1546,7 +1782,7 @@ void UpdateWidget() {
         addReading(2, 0xE7F4, vector_icons::VectorIcon::Gpu, gpuUse,
                    L"GPU (" + g_gpu.name + L"): " + JoinParts(parts, L", "), extra,
                    L"GPU", cardStatus, info);
-        readings.back().heat = sysmon::HeatLevel(gpuTemp);
+        readings.back().heat = sysmon::HeatLevel(gpuTemp, g_tempPreset);
         attachVitalChart(readings.back(), g_gpuHist);
     }
 
@@ -1745,6 +1981,13 @@ void SmoothCharging(DeviceStatus& s) {
 }
 
 void OnResults(std::vector<DeviceStatus>& results) {
+    const auto ignored = ignore_devices::Parse(LoadIgnoreDevicesRaw());
+    if (!ignored.empty()) {
+        results.erase(std::remove_if(results.begin(), results.end(), [&](const DeviceStatus& s) {
+                          return s.vid && s.pid && ignore_devices::Contains(ignored, s.vid, s.pid);
+                      }),
+                      results.end());
+    }
     if (dashboard::IsOpen()) dashboard::UpdateDevices(results, battery_history::GetStore());
     g_unsupported.clear();
     results.erase(std::remove_if(results.begin(), results.end(), [](const DeviceStatus& s) {
@@ -1827,6 +2070,8 @@ void OnResults(std::vector<DeviceStatus>& results) {
     UpdatePlaceholder();
     UpdateWidget();
     if (!g_useWidget) UpdateStatusSnapshot();
+    RefreshLiveApiSnapshot();
+    CheckEveningReminder(true);
     panel::Refresh();
     memory_trim::Soon();
 }
@@ -2241,43 +2486,29 @@ void TickSystemReadings(bool now = false) {
         g_laptopBat = b;
         if (b.present && b.percent >= 0) PushVitalHist(g_batHist, sampleTick, b.percent);
     }
-    if (g_tempAlertC > 0) {
-        if (g_showCpuTemp && g_cpuTemp.tempC >= 0) {
-            if (g_cpuTemp.tempC >= g_tempAlertC && !g_cpuTempWarned) {
-                g_cpuTempWarned = true;
+    const int tempAlertC = sysmon::EffectiveTempAlertCelsius(g_tempAlertC, g_tempPreset);
+    if (tempAlertC > 0) {
+        auto checkTempAlert = [&](int tempC, const std::wstring& name, bool& warned) {
+            if (tempC < 0) return;
+            if (tempC >= tempAlertC && !warned) {
+                warned = true;
                 ShowTextNotification(T(L"High temperature"),
                                      TF(L"{name} reached {temp} °C",
-                                        { { L"name", T(L"CPU") }, { L"temp", std::to_wstring(g_cpuTemp.tempC) } }));
-            } else if (g_cpuTemp.tempC <= g_tempAlertC - 5) {
-                g_cpuTempWarned = false;
+                                        { { L"name", name }, { L"temp", std::to_wstring(tempC) } }));
+            } else if (tempC <= tempAlertC - 5) {
+                warned = false;
             }
-        }
-        if (g_showGpuTemp && g_gpu.available && g_gpu.tempC >= 0) {
-            if (g_gpu.tempC >= g_tempAlertC && !g_gpuTempWarned) {
-                g_gpuTempWarned = true;
-                ShowTextNotification(T(L"High temperature"),
-                                     TF(L"{name} reached {temp} °C",
-                                        { { L"name", L"GPU" }, { L"temp", std::to_wstring(g_gpu.tempC) } }));
-            } else if (g_gpu.tempC <= g_tempAlertC - 5) {
-                g_gpuTempWarned = false;
-            }
-        }
-        if (g_showDiskTemp && g_disk.available && g_disk.tempC >= 0) {
-            if (g_disk.tempC >= g_tempAlertC && !g_diskTempWarned) {
-                g_diskTempWarned = true;
-                ShowTextNotification(T(L"High temperature"),
-                                     TF(L"{name} reached {temp} °C",
-                                        { { L"name", T(L"Storage") }, { L"temp", std::to_wstring(g_disk.tempC) } }));
-            } else if (g_disk.tempC <= g_tempAlertC - 5) {
-                g_diskTempWarned = false;
-            }
-        }
+        };
+        if (g_showCpuTemp) checkTempAlert(g_cpuTemp.tempC, T(L"CPU"), g_cpuTempWarned);
+        if (g_showGpuTemp && g_gpu.available) checkTempAlert(g_gpu.tempC, L"GPU", g_gpuTempWarned);
+        if (g_showDiskTemp && g_disk.available) checkTempAlert(g_disk.tempC, T(L"Storage"), g_diskTempWarned);
     }
     if (wantDash) dashboard::UpdateVitals(BuildDashboardVitals());
     if (changed) {
         UpdateWidget();
         UpdateSystemTrayIcons();
         UpdatePlaceholder();
+        RefreshLiveApiSnapshot();
         panel::Refresh();
     }
 }
@@ -2427,6 +2658,21 @@ void SetTempAlert(int celsius) {
     SaveTempAlertCelsius(celsius);
     g_cpuTempWarned = false;
     g_gpuTempWarned = false;
+    g_diskTempWarned = false;
+    panel::Refresh();
+    TickSystemReadings(true);
+}
+
+void SetTempPreset(sysmon::TempPreset preset) {
+    g_tempPreset = preset;
+    SaveTempPreset(preset);
+    g_cpuTempWarned = false;
+    g_gpuTempWarned = false;
+    g_diskTempWarned = false;
+    UpdateWidget();
+    UpdateSystemTrayIcons();
+    panel::Refresh();
+    TickSystemReadings(true);
 }
 
 void SetChargeLimit(int limit) {
@@ -2434,6 +2680,12 @@ void SetChargeLimit(int limit) {
     DWORD v = (DWORD)limit;
     RegSetKeyValueW(HKEY_CURRENT_USER, kSettingsKey, L"ChargeLimitAlert", REG_DWORD, &v, sizeof(v));
     for (auto& [k, e] : g_entries) e.limitWarned = false;
+}
+
+void SetEveningReminderHour(int hour) {
+    g_eveningReminderHour = evening_reminder::ClampReminderHour(hour);
+    SaveEveningReminderHour(g_eveningReminderHour);
+    if (g_eveningReminderHour != 0) CheckEveningReminder(true);
 }
 
 int LoadChargeLimit() {
@@ -2448,6 +2700,40 @@ void SetPollSeconds(DWORD seconds) {
     g_pollIntervalMs = seconds * 1000;
     SavePollSeconds(seconds);
     SetEvent(g_refreshEvt);  // poll now, so the new interval starts right away
+}
+
+void SetPollLessFullscreen(bool on) {
+    g_pollLessFullscreen = on;
+    SavePollLessFullscreen(on);
+    SetEvent(g_refreshEvt);
+}
+
+void SetOsdMode(osd_policy::OsdMode mode) {
+    g_osdMode = mode;
+    SaveOsdMode(mode);
+    if (mode == osd_policy::OsdMode::Off) osd_overlay::Shutdown();
+}
+
+void SetOsdCorner(osd_policy::OsdCorner corner) {
+    g_osdCorner = corner;
+    SaveOsdCorner(corner);
+}
+
+void SetAlertSound(alerts::AlertSound mode) {
+    g_alertSound = mode;
+    SaveAlertSound(mode);
+    if (mode == alerts::AlertSound::Off) FreeAlertSoundLib();
+}
+
+void SetLocalApiPipe(bool on) {
+    g_localApiPipe = on;
+    SaveLocalApiPipe(on);
+    if (on) {
+        RefreshLiveApiSnapshot();
+        live_api_pipe::StartServer();
+    } else {
+        live_api_pipe::Stop();
+    }
 }
 
 void ToggleHidden(const std::wstring& key) {
@@ -2495,6 +2781,44 @@ void SetAlertOverride(const std::wstring& key, int threshold) {
     SetEvent(g_refreshEvt);  // reconsider with a fresh reading; never alert from stale data
 }
 
+void IgnoreDevice(const std::wstring& key) {
+    auto it = g_entries.find(key);
+    if (it == g_entries.end()) return;
+    const std::uint16_t vid = it->second.st.vid;
+    const std::uint16_t pid = it->second.st.pid;
+    if (!vid || !pid) return;
+    const std::wstring name = DisplayName(it->second);
+    const std::wstring vidPid = ignore_devices::FormatPair(vid, pid);
+    const std::wstring prompt = TF(
+        L"Ignore {name} ({id})?\n\n"
+        L"The device will be hidden from Taskbar Vitals until you unignore it in Settings -> Batteries -> Ignored devices.",
+        { { L"name", name }, { L"id", vidPid } });
+    if (MessageBoxW(DialogOwner(), prompt.c_str(), kAppName, MB_YESNO | MB_ICONQUESTION | MB_SETFOREGROUND) != IDYES)
+        return;
+    SaveIgnoreDevicesRaw(ignore_devices::Add(LoadIgnoreDevicesRaw(), vid, pid));
+    for (auto ei = g_entries.begin(); ei != g_entries.end();) {
+        if (ei->second.st.vid == vid && ei->second.st.pid == pid) {
+            if (ei->second.added) TrayDelete(ei->second.uid);
+            if (ei->second.icon) DestroyIcon(ei->second.icon);
+            ei = g_entries.erase(ei);
+        } else {
+            ++ei;
+        }
+    }
+    Reconcile();
+    UpdatePlaceholder();
+    UpdateWidget();
+    RefreshLiveApiSnapshot();
+    panel::Refresh();
+    SetEvent(g_refreshEvt);
+}
+
+void UnignoreDevice(std::uint16_t vid, std::uint16_t pid) {
+    SaveIgnoreDevicesRaw(ignore_devices::Remove(LoadIgnoreDevicesRaw(), vid, pid));
+    panel::Refresh();
+    SetEvent(g_refreshEvt);
+}
+
 // Swaps a shown device with its neighbour (dir -1 = left, +1 = right) and remembers the new order.
 void MoveEntry(const std::wstring& key, int dir) {
     std::vector<TrayEntry*> list = OrderedEntries(true);
@@ -2513,6 +2837,7 @@ void MoveEntry(const std::wstring& key, int dir) {
 }
 
 void MoveSystemItem(int item, int dir) {
+    if (dir == 0) return;
     auto visible = [](int id) { return id != 6 || g_hasLaptopBat; };
     auto pos = std::find(g_systemOrder.begin(), g_systemOrder.end(), item);
     if (pos == g_systemOrder.end() || !visible(item)) return;
@@ -2524,6 +2849,274 @@ void MoveSystemItem(int item, int dir) {
     UpdateWidget();
 }
 
+struct BoolSettingBinding {
+    bool* flag;
+    const wchar_t* regName;
+    bool settings_port::SettingsSnapshot::* snap;
+    bool settings_port::SettingsPresence::* pres;
+};
+
+const std::vector<BoolSettingBinding>& SettingsBoolBindings() {
+    static const std::vector<BoolSettingBinding> kBindings = {
+        { &g_wantWidget, L"TaskbarWidget", &settings_port::SettingsSnapshot::taskbarWidget, &settings_port::SettingsPresence::taskbarWidget },
+        { &g_myFinder, L"MyFinderWidget", &settings_port::SettingsSnapshot::myFinderWidget, &settings_port::SettingsPresence::myFinderWidget },
+        { &g_hideLastKnown, L"HideLastKnownDevices", &settings_port::SettingsSnapshot::hideLastKnownDevices, &settings_port::SettingsPresence::hideLastKnownDevices },
+        { &g_keepMouseLastKnown, L"KeepMouseLastKnown", &settings_port::SettingsSnapshot::keepMouseLastKnown, &settings_port::SettingsPresence::keepMouseLastKnown },
+        { &g_trayWhenEmpty, L"MoveToTrayWhenEmpty", &settings_port::SettingsSnapshot::moveToTrayWhenEmpty, &settings_port::SettingsPresence::moveToTrayWhenEmpty },
+        { &g_showDisconnectedDevices, L"ShowDisconnectedDevices", &settings_port::SettingsSnapshot::showDisconnectedDevices, &settings_port::SettingsPresence::showDisconnectedDevices },
+        { &g_dimSleeping, L"DimSleepingDevices", &settings_port::SettingsSnapshot::dimSleepingDevices, &settings_port::SettingsPresence::dimSleepingDevices },
+        { &g_recordHistory, L"RecordBatteryHistory", &settings_port::SettingsSnapshot::recordBatteryHistory, &settings_port::SettingsPresence::recordBatteryHistory },
+        { &g_chargedAlert, L"ChargedAlert", &settings_port::SettingsSnapshot::chargedAlert, &settings_port::SettingsPresence::chargedAlert },
+        { &g_tieredAlerts, L"TieredAlerts", &settings_port::SettingsSnapshot::tieredAlerts, &settings_port::SettingsPresence::tieredAlerts },
+        { &g_shortRuntimeAlert, L"ShortRuntimeAlert", &settings_port::SettingsSnapshot::shortRuntimeAlert, &settings_port::SettingsPresence::shortRuntimeAlert },
+        { &g_hoverCard, L"HoverCard", &settings_port::SettingsSnapshot::hoverCard, &settings_port::SettingsPresence::hoverCard },
+        { &g_hoverChart, L"HoverCardChart", &settings_port::SettingsSnapshot::hoverCardChart, &settings_port::SettingsPresence::hoverCardChart },
+        { &g_animateCharging, L"AnimateCharging", &settings_port::SettingsSnapshot::animateCharging, &settings_port::SettingsPresence::animateCharging },
+        { &g_trayDeviceIcons, L"TrayDeviceIcons", &settings_port::SettingsSnapshot::trayDeviceIcons, &settings_port::SettingsPresence::trayDeviceIcons },
+        { &g_runtimeWidget, L"EstimatedRuntimeInWidget", &settings_port::SettingsSnapshot::runtimeWidget, &settings_port::SettingsPresence::runtimeWidget },
+        { &g_twoRows, L"TwoRowsLayout", &settings_port::SettingsSnapshot::twoRowsLayout, &settings_port::SettingsPresence::twoRowsLayout },
+        { &g_customIcons, L"CustomVectorIcons", &settings_port::SettingsSnapshot::customVectorIcons, &settings_port::SettingsPresence::customVectorIcons },
+        { &g_showPercentSign, L"ShowPercentSign", &settings_port::SettingsSnapshot::showPercentSign, &settings_port::SettingsPresence::showPercentSign },
+        { &g_ringStyle, L"RingStyle", &settings_port::SettingsSnapshot::ringStyle, &settings_port::SettingsPresence::ringStyle },
+        { &g_connectionIcons, L"ConnectionIcons", &settings_port::SettingsSnapshot::connectionIcons, &settings_port::SettingsPresence::connectionIcons },
+        { &g_makeRoom, L"MakeRoomForOtherWidgets", &settings_port::SettingsSnapshot::makeRoomForOtherWidgets, &settings_port::SettingsPresence::makeRoomForOtherWidgets },
+        { &g_widgetBackground, L"WidgetBackground", &settings_port::SettingsSnapshot::widgetBackground, &settings_port::SettingsPresence::widgetBackground },
+        { &g_stacked, L"StackedLayout", &settings_port::SettingsSnapshot::stackedLayout, &settings_port::SettingsPresence::stackedLayout },
+        { &g_farLeft, L"WidgetFarLeft", &settings_port::SettingsSnapshot::widgetFarLeft, &settings_port::SettingsPresence::widgetFarLeft },
+        { &g_beforeApps, L"WidgetBeforeApps", &settings_port::SettingsSnapshot::widgetBeforeApps, &settings_port::SettingsPresence::widgetBeforeApps },
+        { &g_vitalsFarLeft, L"VitalsFarLeft", &settings_port::SettingsSnapshot::vitalsFarLeft, &settings_port::SettingsPresence::vitalsFarLeft },
+        { &g_vitalsBeforeApps, L"VitalsBeforeApps", &settings_port::SettingsSnapshot::vitalsBeforeApps, &settings_port::SettingsPresence::vitalsBeforeApps },
+        { &g_vitalsFirst, L"VitalsFirst", &settings_port::SettingsSnapshot::vitalsFirst, &settings_port::SettingsPresence::vitalsFirst },
+        { &g_showCpu, L"ShowCpu", &settings_port::SettingsSnapshot::showCpu, &settings_port::SettingsPresence::showCpu },
+        { &g_showRam, L"ShowRam", &settings_port::SettingsSnapshot::showRam, &settings_port::SettingsPresence::showRam },
+        { &g_showGpu, L"ShowGpu", &settings_port::SettingsSnapshot::showGpu, &settings_port::SettingsPresence::showGpu },
+        { &g_showGpuTemp, L"ShowGpuTemp", &settings_port::SettingsSnapshot::showGpuTemp, &settings_port::SettingsPresence::showGpuTemp },
+        { &g_showGpuClocks, L"ShowGpuClocks", &settings_port::SettingsSnapshot::showGpuClocks, &settings_port::SettingsPresence::showGpuClocks },
+        { &g_showCpuW, L"ShowCpuWatts", &settings_port::SettingsSnapshot::showCpuWatts, &settings_port::SettingsPresence::showCpuWatts },
+        { &g_showGpuW, L"ShowGpuWatts", &settings_port::SettingsSnapshot::showGpuWatts, &settings_port::SettingsPresence::showGpuWatts },
+        { &g_showVram, L"ShowVram", &settings_port::SettingsSnapshot::showVram, &settings_port::SettingsPresence::showVram },
+        { &g_showDiskTemp, L"ShowDiskTemp", &settings_port::SettingsSnapshot::showDiskTemp, &settings_port::SettingsPresence::showDiskTemp },
+        { &g_showDiskUse, L"ShowDiskUse", &settings_port::SettingsSnapshot::showDiskUse, &settings_port::SettingsPresence::showDiskUse },
+        { &g_showLaptopBat, L"ShowLaptopBat", &settings_port::SettingsSnapshot::showLaptopBattery, &settings_port::SettingsPresence::showLaptopBattery },
+        { &g_showLaptopBatW, L"ShowLaptopBatWatts", &settings_port::SettingsSnapshot::showLaptopBatWatts, &settings_port::SettingsPresence::showLaptopBatWatts },
+        { &g_showNetSpeed, L"ShowNetSpeed", &settings_port::SettingsSnapshot::showNetwork, &settings_port::SettingsPresence::showNetwork },
+        { &g_brandColors, L"BrandColors", &settings_port::SettingsSnapshot::brandColors, &settings_port::SettingsPresence::brandColors },
+        { &g_systemColors, L"SystemColors", &settings_port::SettingsSnapshot::systemColors, &settings_port::SettingsPresence::systemColors },
+    };
+    return kBindings;
+}
+
+settings_port::SettingsSnapshot BuildCurrentSettingsSnapshot() {
+    settings_port::SettingsSnapshot s;
+    for (const auto& b : SettingsBoolBindings()) s.*(b.snap) = *b.flag;
+    s.showCpuTemp = g_showCpuTemp;
+    s.autoCheckUpdates = updates::AutomaticSetting();
+    s.pollLessFullscreen = g_pollLessFullscreen.load();
+    s.localApiPipe = g_localApiPipe;
+
+    s.taskbarOffset = LoadTaskbarOffset();
+    s.verticalPlace = static_cast<int>(g_verticalPlace);
+    s.pollIntervalSeconds = static_cast<int>(g_pollIntervalMs.load() / 1000);
+    s.systemPollSeconds = static_cast<int>(g_sysPollSeconds);
+    s.tempColorPreset = static_cast<int>(g_tempPreset);
+    s.tempAlertCelsius = g_tempAlertC;
+    s.chargeLimitAlert = g_chargeLimit;
+    s.inGameAlerts = static_cast<int>(g_osdMode);
+    s.inGameAlertCorner = static_cast<int>(g_osdCorner);
+    s.alertSound = static_cast<int>(g_alertSound);
+    s.eveningReminderHour = g_eveningReminderHour;
+    s.systemOrder = g_systemOrder;
+
+    s.widgetMonitor = g_widgetMonitor;
+    s.language = i18n::Choice();
+    s.ignoreDevices = ignore_devices::FormatList(ignore_devices::Parse(LoadIgnoreDevicesRaw()));
+    s.hiddenDevices = g_hidden;
+    s.deviceOrder = g_order;
+    s.deviceAliases = g_aliases;
+    s.alertThresholds = g_alertOverrides;
+    return s;
+}
+
+void ApplyImportedSettings(const settings_port::ParsedSettings& parsed) {
+    const auto& v = parsed.values;
+    const auto& has = parsed.has;
+
+    for (const auto& b : SettingsBoolBindings()) {
+        if (has.*(b.pres)) {
+            *b.flag = v.*(b.snap);
+            SaveBoolSetting(b.regName, *b.flag);
+        }
+    }
+    if (g_farLeft) g_beforeApps = false;
+    if (g_vitalsFarLeft) g_vitalsBeforeApps = false;
+    if (has.showCpuTemp) {
+        const bool enable = v.showCpuTemp && cputemp::HelperInstalled();
+        g_showCpuTemp = enable;
+        SaveBoolSetting(L"ShowCpuTemp", enable);
+        if (enable) cputemp::StartHelper();
+        else {
+            cputemp::StopHelper();
+            g_cpuTemp = cputemp::Reading();
+            g_cpuTempWarned = false;
+        }
+    }
+    if (has.autoCheckUpdates) updates::SetAutomaticSetting(v.autoCheckUpdates);
+    if (has.pollLessFullscreen) SetPollLessFullscreen(v.pollLessFullscreen);
+    if (has.localApiPipe) SetLocalApiPipe(v.localApiPipe);
+
+    if (has.taskbarOffset) SaveTaskbarOffset(v.taskbarOffset);
+    if (has.verticalPlace) {
+        g_verticalPlace = v.verticalPlace == 1 ? widget::VerticalPlace::Top
+                        : v.verticalPlace == 2 ? widget::VerticalPlace::AboveTray
+                        : v.verticalPlace == 3 ? widget::VerticalPlace::Bottom
+                                               : widget::VerticalPlace::Auto;
+        SaveVerticalPlace(g_verticalPlace);
+        widget::SetVerticalPlace(g_verticalPlace);
+    }
+    if (has.pollIntervalSeconds) {
+        g_pollIntervalMs = static_cast<DWORD>(v.pollIntervalSeconds) * 1000;
+        SavePollSeconds(static_cast<DWORD>(v.pollIntervalSeconds));
+    }
+    if (has.systemPollSeconds) {
+        g_sysPollSeconds = static_cast<DWORD>(v.systemPollSeconds);
+        SaveSystemPollSeconds(g_sysPollSeconds);
+        g_sysTicks = 0;
+    }
+    if (has.tempColorPreset) {
+        g_tempPreset = sysmon::ClampTempPreset(v.tempColorPreset);
+        SaveTempPreset(g_tempPreset);
+        g_cpuTempWarned = false;
+        g_gpuTempWarned = false;
+        g_diskTempWarned = false;
+    }
+    if (has.tempAlertCelsius) {
+        g_tempAlertC = v.tempAlertCelsius;
+        SaveTempAlertCelsius(g_tempAlertC);
+        g_cpuTempWarned = false;
+        g_gpuTempWarned = false;
+        g_diskTempWarned = false;
+    }
+    if (has.chargeLimitAlert) SetChargeLimit(v.chargeLimitAlert);
+    if (has.inGameAlerts) SetOsdMode(osd_policy::ClampOsdMode(v.inGameAlerts));
+    if (has.inGameAlertCorner) SetOsdCorner(osd_policy::ClampOsdCorner(v.inGameAlertCorner));
+    if (has.alertSound) SetAlertSound(alerts::ClampAlertSound(v.alertSound));
+    if (has.eveningReminderHour) SetEveningReminderHour(v.eveningReminderHour);
+    if (has.systemOrder) {
+        g_systemOrder = v.systemOrder;
+        SaveSystemOrder();
+    }
+    if (has.widgetMonitor) SetWidgetMonitor(v.widgetMonitor);
+    if (has.language) i18n::SetChoice(v.language);
+    if (has.ignoreDevices) {
+        SaveIgnoreDevicesRaw(v.ignoreDevices);
+        const auto ignored = ignore_devices::Parse(v.ignoreDevices);
+        for (auto ei = g_entries.begin(); ei != g_entries.end();) {
+            if (ei->second.st.vid && ei->second.st.pid &&
+                ignore_devices::Contains(ignored, ei->second.st.vid, ei->second.st.pid)) {
+                if (ei->second.added) TrayDelete(ei->second.uid);
+                if (ei->second.icon) DestroyIcon(ei->second.icon);
+                ei = g_entries.erase(ei);
+            } else {
+                ++ei;
+            }
+        }
+    }
+    if (has.hiddenDevices) { g_hidden = v.hiddenDevices; SaveHidden(); }
+    if (has.deviceOrder) { g_order = v.deviceOrder; SaveOrder(); }
+    if (has.deviceAliases) { g_aliases = v.deviceAliases; SaveAliases(); }
+    if (has.alertThresholds) {
+        g_alertOverrides = v.alertThresholds;
+        SaveAlertThresholds();
+        g_alertLatches.clear();
+        for (auto& [k, e] : g_entries) e.lowWarned = false;
+    }
+
+    if (!g_showCpuW) sysmon::StopPower();
+    if (!AnyGpuReading() && !dashboard::IsOpen()) {
+        gpumon::Stop();
+        g_gpu = gpumon::Reading();
+        g_gpuTempWarned = false;
+    }
+    if (!AnyDiskReading() && !dashboard::IsOpen()) {
+        diskmon::Stop();
+        g_disk = diskmon::Reading();
+        g_diskTempWarned = false;
+    }
+    if (!g_showNetSpeed && !dashboard::IsOpen()) {
+        netmon::Stop();
+        g_net = netmon::Reading();
+    }
+    if (!AnyLaptopBatReading() && !dashboard::IsOpen()) {
+        laptopbat::Stop();
+        g_laptopBat = laptopbat::Reading();
+    }
+
+    ApplyStripOptions();
+    Reconcile();
+    TickSystemReadings(true);
+    RedrawAll();
+    UpdateWidget();
+    UpdateSystemTrayIcons();
+    UpdatePlaceholder();
+    RefreshLiveApiSnapshot();
+    panel::Refresh();
+    SetEvent(g_refreshEvt);
+}
+
+void ExportSettings() {
+    if (g_settingsDialogOpen) return;
+    g_settingsDialogOpen = true;
+    HWND owner = DialogOwner();
+    const std::string json = settings_port::SettingsToJson(BuildCurrentSettingsSnapshot());
+    const std::wstring filter = file_dialog::BuildFilter(T(L"JSON files (*.json)"), L"*.json", T(L"All files (*.*)"));
+    std::wstring path;
+    if (file_dialog::PickFile(owner, file_dialog::Mode::Save, T(L"Export settings"), filter, L"json",
+                              L"TaskbarVitals-settings.json", path)) {
+        if (file_dialog::WriteUtf8File(path, json)) {
+            MessageBoxW(DialogOwner(), T(L"Settings exported."), T(L"Export settings"),
+                        MB_OK | MB_ICONINFORMATION | MB_SETFOREGROUND);
+        } else {
+            MessageBoxW(DialogOwner(), T(L"Could not export settings."), T(L"Export settings"),
+                        MB_OK | MB_ICONWARNING | MB_SETFOREGROUND);
+        }
+    }
+    g_settingsDialogOpen = false;
+}
+
+void ImportSettings() {
+    if (g_settingsDialogOpen) return;
+    g_settingsDialogOpen = true;
+    HWND owner = DialogOwner();
+    const std::wstring filter = file_dialog::BuildFilter(T(L"JSON files (*.json)"), L"*.json", T(L"All files (*.*)"));
+    std::wstring path;
+    if (file_dialog::PickFile(owner, file_dialog::Mode::Open, T(L"Import settings"), filter, L"json", L"", path)) {
+        std::string data;
+        bool tooLarge = false;
+        if (!file_dialog::ReadBoundedFile(path, settings_port::kMaxSettingsFileBytes, data, tooLarge)) {
+            MessageBoxW(DialogOwner(),
+                        tooLarge ? T(L"The selected settings file is too large.")
+                                 : T(L"Could not read the selected settings file."),
+                        T(L"Import settings"), MB_OK | MB_ICONWARNING | MB_SETFOREGROUND);
+        } else {
+            settings_port::ParsedSettings parsed;
+            if (!settings_port::ParseSettingsJson(data, parsed)) {
+                MessageBoxW(DialogOwner(), T(L"Could not import settings. The selected file is not valid JSON."),
+                            T(L"Import settings"), MB_OK | MB_ICONWARNING | MB_SETFOREGROUND);
+            } else if (parsed.acceptedCount == 0) {
+                MessageBoxW(DialogOwner(), T(L"No valid settings were found in the selected file."),
+                            T(L"Import settings"), MB_OK | MB_ICONINFORMATION | MB_SETFOREGROUND);
+            } else {
+                ApplyImportedSettings(parsed);
+                MessageBoxW(DialogOwner(),
+                            TF(L"Settings imported ({count} updated).",
+                               { { L"count", std::to_wstring(parsed.acceptedCount) } }).c_str(),
+                            T(L"Import settings"), MB_OK | MB_ICONINFORMATION | MB_SETFOREGROUND);
+            }
+        }
+    }
+    g_settingsDialogOpen = false;
+}
+
 // The menu and the lists it was built from. Some menu ids are positions in these lists (devices, monitors,
 // languages), so a command must be run against the same model the menu was built with.
 struct MenuModel {
@@ -2531,6 +3124,7 @@ struct MenuModel {
     std::vector<std::wstring> keys;  // device index -> device key; menu id ID_DEVICE_FIRST + index * DEV_STRIDE + command
     std::vector<i18n::Language> languages;
     std::vector<widget::MonitorOption> monitors;
+    std::vector<ignore_devices::VidPid> ignored;
 };
 
 HMENU BuildDeviceSubmenu(const TrayEntry& e, UINT base, bool canLeft, bool canRight, MenuIcons* icons,
@@ -2574,6 +3168,9 @@ HMENU BuildDeviceSubmenu(const TrayEntry& e, UINT base, bool canLeft, bool canRi
     AppendMenuW(sub, MF_STRING, base + DEV_HISTORY, T(L"Battery history..."));
     if (icons) icons->SetLast(sub, 0xE81C);  // History
     AppendMenuW(sub, MF_STRING, base + DEV_DASHBOARD, T(L"View in dashboard..."));
+    AppendMenuW(sub, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(sub, MF_STRING | ((e.st.vid && e.st.pid) ? 0 : MF_GRAYED), base + DEV_IGNORE,
+                T(L"Ignore this device..."));
     return sub;
 }
 
@@ -2625,15 +3222,165 @@ HMENU BuildPollBatteryMenu() {
     return sub;
 }
 
+HMENU BuildTempAlertMenu();
+
+std::wstring EveningReminderLabel(int hour) {
+    const int clamped = evening_reminder::ClampReminderHour(hour);
+    return clamped == 0 ? std::wstring(T(L"Off")) : (std::to_wstring(clamped) + L":00");
+}
+
+HMENU BuildEveningReminderMenu() {
+    HMENU sub = CreatePopupMenu();
+    AppendMenuW(sub, MF_STRING, ID_EVENING_REMINDER_OFF, T(L"Off"));
+    AppendMenuW(sub, MF_SEPARATOR, 0, nullptr);
+    UINT checked = ID_EVENING_REMINDER_OFF;
+    for (UINT i = 0; i < static_cast<UINT>(evening_reminder::kHourCount); ++i) {
+        const int h = evening_reminder::kHours[i];
+        AppendMenuW(sub, MF_STRING, ID_EVENING_REMINDER_FIRST + i, EveningReminderLabel(h).c_str());
+        if (g_eveningReminderHour == h) checked = ID_EVENING_REMINDER_FIRST + i;
+    }
+    CheckMenuRadioItem(sub, ID_EVENING_REMINDER_OFF,
+                       ID_EVENING_REMINDER_FIRST + evening_reminder::kHourCount - 1, checked, MF_BYCOMMAND);
+    return sub;
+}
+
+const wchar_t* AlertSoundLabelKey(alerts::AlertSound mode) {
+    return mode == alerts::AlertSound::SystemDefault ? L"Windows default" : L"Off";
+}
+
+HMENU BuildAlertSoundMenu() {
+    HMENU sub = CreatePopupMenu();
+    const alerts::AlertSound modes[] = {
+        alerts::AlertSound::Off,
+        alerts::AlertSound::SystemDefault,
+    };
+    UINT checked = ID_ALERT_SOUND_FIRST;
+    for (UINT i = 0; i < ARRAYSIZE(modes); ++i) {
+        AppendMenuW(sub, MF_STRING, ID_ALERT_SOUND_FIRST + i, T(AlertSoundLabelKey(modes[i])));
+        if (g_alertSound == modes[i]) checked = ID_ALERT_SOUND_FIRST + i;
+    }
+    CheckMenuRadioItem(sub, ID_ALERT_SOUND_FIRST, ID_ALERT_SOUND_FIRST + ARRAYSIZE(modes) - 1, checked, MF_BYCOMMAND);
+    return sub;
+}
+
+const osd_policy::OsdMode kOsdMenuModes[] = {
+    osd_policy::OsdMode::Off,
+    osd_policy::OsdMode::FullscreenOnly,
+    osd_policy::OsdMode::FullscreenGame,
+    osd_policy::OsdMode::Always,
+};
+
+const wchar_t* OsdModeLabelKey(osd_policy::OsdMode mode) {
+    switch (mode) {
+        case osd_policy::OsdMode::FullscreenOnly: return L"Only in full screen";
+        case osd_policy::OsdMode::FullscreenGame: return L"Full screen (game monitor)";
+        case osd_policy::OsdMode::Always:         return L"Always";
+        case osd_policy::OsdMode::Off:
+        default:                                  return L"Off";
+    }
+}
+
+const wchar_t* OsdCornerLabelKey(osd_policy::OsdCorner corner) {
+    switch (corner) {
+        case osd_policy::OsdCorner::TopLeft:     return L"Top left";
+        case osd_policy::OsdCorner::BottomRight: return L"Bottom right";
+        case osd_policy::OsdCorner::BottomLeft:  return L"Bottom left";
+        case osd_policy::OsdCorner::TopRight:
+        default:                                 return L"Top right";
+    }
+}
+
+HMENU BuildOsdModeMenu() {
+    HMENU sub = CreatePopupMenu();
+    UINT checked = ID_OSD_MODE_FIRST;
+    for (UINT i = 0; i < ARRAYSIZE(kOsdMenuModes); ++i) {
+        AppendMenuW(sub, MF_STRING, ID_OSD_MODE_FIRST + i, T(OsdModeLabelKey(kOsdMenuModes[i])));
+        if (g_osdMode == kOsdMenuModes[i]) checked = ID_OSD_MODE_FIRST + i;
+    }
+    CheckMenuRadioItem(sub, ID_OSD_MODE_FIRST, ID_OSD_MODE_FIRST + ARRAYSIZE(kOsdMenuModes) - 1, checked, MF_BYCOMMAND);
+    return sub;
+}
+
+HMENU BuildOsdCornerMenu() {
+    HMENU sub = CreatePopupMenu();
+    const osd_policy::OsdCorner corners[] = {
+        osd_policy::OsdCorner::TopRight,
+        osd_policy::OsdCorner::TopLeft,
+        osd_policy::OsdCorner::BottomRight,
+        osd_policy::OsdCorner::BottomLeft,
+    };
+    UINT checked = ID_OSD_CORNER_FIRST;
+    for (UINT i = 0; i < ARRAYSIZE(corners); ++i) {
+        AppendMenuW(sub, MF_STRING, ID_OSD_CORNER_FIRST + i, T(OsdCornerLabelKey(corners[i])));
+        if (g_osdCorner == corners[i]) checked = ID_OSD_CORNER_FIRST + i;
+    }
+    CheckMenuRadioItem(sub, ID_OSD_CORNER_FIRST, ID_OSD_CORNER_FIRST + ARRAYSIZE(corners) - 1, checked, MF_BYCOMMAND);
+    return sub;
+}
+
+std::wstring TempPresetLabel(sysmon::TempPreset preset) {
+    const sysmon::TempThresholds t = sysmon::ThresholdsFor(preset);
+    const wchar_t* key = L"Standard ({elevated} / {high} °C)";
+    switch (preset) {
+        case sysmon::TempPreset::Laptop: key = L"Laptop ({elevated} / {high} °C)"; break;
+        case sysmon::TempPreset::Strict: key = L"Strict ({elevated} / {high} °C)"; break;
+        case sysmon::TempPreset::Standard:
+        default: break;
+    }
+    return TF(key, { { L"elevated", std::to_wstring(t.elevated) }, { L"high", std::to_wstring(t.high) } });
+}
+
+std::wstring TempAlertMatchLabel() {
+    return TF(L"Match colour preset ({temp} °C)",
+              { { L"temp", std::to_wstring(sysmon::ThresholdsFor(g_tempPreset).high) } });
+}
+
+std::wstring TempAlertLabel() {
+    if (g_tempAlertC == sysmon::kTempAlertMatchPreset) return TempAlertMatchLabel();
+    if (g_tempAlertC > 0) return std::to_wstring(g_tempAlertC) + L" °C";
+    return T(L"Off");
+}
+
+HMENU BuildTempPresetMenu() {
+    HMENU sub = CreatePopupMenu();
+    const UINT count = ARRAYSIZE(TEMP_PRESETS);
+    UINT checked = ID_TEMP_PRESET_FIRST;
+    for (UINT i = 0; i < count; i++) {
+        AppendMenuW(sub, MF_STRING, ID_TEMP_PRESET_FIRST + i, TempPresetLabel(TEMP_PRESETS[i]).c_str());
+        if (g_tempPreset == TEMP_PRESETS[i]) checked = ID_TEMP_PRESET_FIRST + i;
+    }
+    CheckMenuRadioItem(sub, ID_TEMP_PRESET_FIRST, ID_TEMP_PRESET_FIRST + count - 1, checked, MF_BYCOMMAND);
+    return sub;
+}
+
+HMENU BuildIgnoredMenu(std::vector<ignore_devices::VidPid>& ignored) {
+    ignored = ignore_devices::Parse(LoadIgnoreDevicesRaw());
+    if (ignored.size() > 64) ignored.resize(64);
+    HMENU sub = CreatePopupMenu();
+    if (ignored.empty()) {
+        AppendMenuW(sub, MF_STRING | MF_GRAYED, 0, T(L"None"));
+        return sub;
+    }
+    for (size_t i = 0; i < ignored.size(); ++i) {
+        std::wstring id = ignore_devices::FormatPair(ignored[i].vid, ignored[i].pid);
+        AppendMenuW(sub, MF_STRING, ID_UNIGNORE_FIRST + (UINT)i,
+                    TF(L"Unignore {id}", { { L"id", id } }).c_str());
+    }
+    return sub;
+}
+
 HMENU BuildTempAlertMenu() {
     HMENU sub = CreatePopupMenu();
     AppendMenuW(sub, MF_STRING, ID_TEMP_ALERT_OFF, T(L"Off"));
+    AppendMenuW(sub, MF_STRING, ID_TEMP_ALERT_MATCH, TempAlertMatchLabel().c_str());
     AppendMenuW(sub, MF_SEPARATOR, 0, nullptr);
     UINT checked = ID_TEMP_ALERT_OFF;
-    const UINT count = ARRAYSIZE(TEMP_ALERT_CELSIUS);
+    if (g_tempAlertC == sysmon::kTempAlertMatchPreset) checked = ID_TEMP_ALERT_MATCH;
+    const UINT count = ARRAYSIZE(sysmon::kTempAlertOptions);
     for (UINT i = 0; i < count; i++) {
-        AppendMenuW(sub, MF_STRING, ID_TEMP_ALERT_FIRST + i, (std::to_wstring(TEMP_ALERT_CELSIUS[i]) + L" °C").c_str());
-        if (g_tempAlertC == TEMP_ALERT_CELSIUS[i]) checked = ID_TEMP_ALERT_FIRST + i;
+        AppendMenuW(sub, MF_STRING, ID_TEMP_ALERT_FIRST + i,
+                    (std::to_wstring(sysmon::kTempAlertOptions[i]) + L" °C").c_str());
+        if (g_tempAlertC == sysmon::kTempAlertOptions[i]) checked = ID_TEMP_ALERT_FIRST + i;
     }
     CheckMenuRadioItem(sub, ID_TEMP_ALERT_OFF, ID_TEMP_ALERT_FIRST + count - 1, checked, MF_BYCOMMAND);
     return sub;
@@ -2794,6 +3541,7 @@ MenuModel BuildMenu(MenuIcons& icons) {
     AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
 
     // Batteries submenu
+    std::vector<ignore_devices::VidPid> ignored;
     {
         HMENU batMenu = CreatePopupMenu();
         AppendMenuW(batMenu, MF_STRING | (g_dimSleeping ? MF_CHECKED : 0), ID_DIM_SLEEPING, T(L"Dim sleeping devices"));
@@ -2810,15 +3558,23 @@ MenuModel BuildMenu(MenuIcons& icons) {
                     T(L"Record battery history"));
         AppendMenuW(batMenu, MF_POPUP, (UINT_PTR)BuildChargeLimitMenu(),
                     T(L"Notify when charged to (saves the battery)"));
+        AppendMenuW(batMenu, MF_POPUP | (g_recordHistory ? 0 : MF_GRAYED), (UINT_PTR)BuildEveningReminderMenu(),
+                    T(L"Evening charge reminder"));
         AppendMenuW(batMenu, MF_STRING | (g_chargedAlert ? MF_CHECKED : 0), ID_CHARGED_ALERT,
                     T(L"Notify when fully charged"));
         AppendMenuW(batMenu, MF_STRING | (g_tieredAlerts ? MF_CHECKED : 0), ID_TIERED_ALERTS,
                     T(L"Warn again at 10% and 5%"));
         AppendMenuW(batMenu, MF_STRING | (g_shortRuntimeAlert ? MF_CHECKED : 0) | (g_recordHistory ? 0 : MF_GRAYED),
                     ID_SHORT_RUNTIME_ALERT, T(L"Warn when a battery won't last the day"));
+        AppendMenuW(batMenu, MF_POPUP, (UINT_PTR)BuildAlertSoundMenu(), T(L"Alert sound"));
+        AppendMenuW(batMenu, MF_POPUP, (UINT_PTR)BuildOsdModeMenu(), T(L"In-game alerts"));
+        AppendMenuW(batMenu, MF_POPUP, (UINT_PTR)BuildOsdCornerMenu(), T(L"In-game alert corner"));
         AppendMenuW(batMenu, MF_POPUP, (UINT_PTR)BuildTrackingMenu(), T(L"Battery tracking"));
         AppendMenuW(batMenu, MF_POPUP, (UINT_PTR)BuildPollBatteryMenu(), T(L"Check battery every"));
         AppendMenuW(batMenu, MF_SEPARATOR, 0, nullptr);
+        HMENU ignoredMenu = BuildIgnoredMenu(ignored);
+        AppendMenuW(batMenu, MF_POPUP | (ignored.empty() ? MF_GRAYED : 0), (UINT_PTR)ignoredMenu,
+                    T(L"Ignored devices..."));
         AppendMenuW(batMenu, MF_STRING, ID_DASHBOARD, T(L"Device dashboard..."));
         AppendMenuW(m, MF_POPUP, (UINT_PTR)batMenu, T(L"Batteries"));
         icons.SetLast(m, 0xE83F);  // Battery
@@ -2883,6 +3639,7 @@ MenuModel BuildMenu(MenuIcons& icons) {
         }
         AppendMenuW(sysMenu, MF_SEPARATOR, 0, nullptr);
         AppendMenuW(sysMenu, MF_STRING, ID_SYSTEM_DASHBOARD, T(L"System vitals dashboard..."));
+        AppendMenuW(sysMenu, MF_POPUP, (UINT_PTR)BuildTempPresetMenu(), T(L"Temperature colours"));
         AppendMenuW(sysMenu, MF_POPUP, (UINT_PTR)BuildTempAlertMenu(), T(L"High temperature alert"));
         AppendMenuW(sysMenu, MF_POPUP, (UINT_PTR)BuildPollSystemMenu(), T(L"Check system every"));
         AppendMenuW(m, MF_POPUP, (UINT_PTR)sysMenu, T(L"System"));
@@ -2953,6 +3710,12 @@ MenuModel BuildMenu(MenuIcons& icons) {
     icons.SetLast(m, 0xE774);  // Globe
     AppendMenuW(m, MF_STRING, ID_DASHBOARD, T(L"Device dashboard..."));
     AppendMenuW(m, MF_STRING | (AutostartEnabled() ? MF_CHECKED : 0), ID_AUTOSTART, T(L"Start with Windows"));
+    AppendMenuW(m, MF_STRING | (g_pollLessFullscreen.load() ? MF_CHECKED : 0), ID_POLL_LESS_FULLSCREEN,
+                T(L"Poll less during full-screen games"));
+    AppendMenuW(m, MF_STRING | (g_localApiPipe ? MF_CHECKED : 0), ID_LOCAL_API_PIPE,
+                T(L"Local JSON pipe (\\\\.\\pipe\\TaskbarVitals)"));
+    AppendMenuW(m, MF_STRING, ID_EXPORT_SETTINGS, T(L"Export settings..."));
+    AppendMenuW(m, MF_STRING, ID_IMPORT_SETTINGS, T(L"Import settings..."));
     AppendMenuW(m, MF_STRING, ID_REPORT, T(L"Request support for a device..."));
     AppendMenuW(m, MF_STRING, ID_SUPPORT, T(L"Support the project..."));
     AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
@@ -2973,6 +3736,7 @@ MenuModel BuildMenu(MenuIcons& icons) {
     model.keys = std::move(keys);
     model.languages = std::move(languages);
     model.monitors = std::move(monitors);
+    model.ignored = std::move(ignored);
     return model;
 }
 
@@ -2991,6 +3755,7 @@ void RunCommand(UINT cmd, const MenuModel& model) {
         case ID_DIM_SLEEPING: SetDimSleeping(!g_dimSleeping); break;
         case ID_RECORD_HISTORY: g_recordHistory = !g_recordHistory; SaveRecordHistory(g_recordHistory); UpdateWidget(); break;
         case ID_LIMIT_OFF: SetChargeLimit(0); break;
+        case ID_EVENING_REMINDER_OFF: SetEveningReminderHour(0); break;
         case ID_DASHBOARD:
         case ID_SYSTEM_DASHBOARD:
             dashboard::Show(g_hwnd, cmd == ID_SYSTEM_DASHBOARD ? 4 : 0);
@@ -3027,6 +3792,7 @@ void RunCommand(UINT cmd, const MenuModel& model) {
             break;
         case ID_RUNTIME_WIDGET: g_runtimeWidget = !g_runtimeWidget; SaveRuntimeWidget(g_runtimeWidget); UpdateWidget(); break;
         case ID_TEMP_ALERT_OFF: SetTempAlert(0); break;
+        case ID_TEMP_ALERT_MATCH: SetTempAlert(sysmon::kTempAlertMatchPreset); break;
         case ID_WIDGET_BACKGROUND: SetWidgetBackground(!g_widgetBackground); break;
         case ID_MONITOR_ALL: SetWidgetMonitor(L"all"); break;
         case ID_LANG_AUTO: SetLanguage(L""); break;
@@ -3086,37 +3852,21 @@ void RunCommand(UINT cmd, const MenuModel& model) {
         case ID_REPORT: report::Show(g_inst, g_hwnd); break;
         case ID_UPDATE: updates::Activate(g_hwnd); break;
         case ID_AUTO_UPDATE: updates::ToggleAutomatic(); break;
+        case ID_EXPORT_SETTINGS: ExportSettings(); break;
+        case ID_IMPORT_SETTINGS: ImportSettings(); break;
+        case ID_POLL_LESS_FULLSCREEN: SetPollLessFullscreen(!g_pollLessFullscreen.load()); break;
+        case ID_LOCAL_API_PIPE: SetLocalApiPipe(!g_localApiPipe); break;
         case ID_EXIT: DestroyWindow(g_hwnd); break;
-        default:
-            if (cmd >= ID_SYS_MOVE_FIRST && cmd < ID_SYS_MOVE_FIRST + 14) {
-                int offset = int(cmd - ID_SYS_MOVE_FIRST);
-                MoveSystemItem(offset / 2, (offset % 2) ? 1 : -1);
+        default: {
+            int sysItem = -1, sysDir = 0;
+            if (command_routing::DecodeSystemMoveCommand(cmd, kSystemItemCount, sysItem, sysDir)) {
+                MoveSystemItem(sysItem, sysDir);
                 break;
             }
-            if (cmd >= ID_POSITION_FIRST && cmd < ID_POSITION_FIRST + ARRAYSIZE(POSITION_OFFSETS)) {
-                SetTaskbarOffset(POSITION_OFFSETS[cmd - ID_POSITION_FIRST]);
-                break;
-            }
-            if (cmd == ID_POSITION_FIRST + ARRAYSIZE(POSITION_OFFSETS)) {
-                int px = 0;
-                if (PromptTaskbarOffset(g_hwnd, LoadTaskbarOffset(), px)) SetTaskbarOffset(px);
-                break;
-            }
-            if (cmd >= ID_LIMIT_FIRST && cmd < ID_LIMIT_FIRST + (UINT)alerts::kChargeLimitCount) {
-                SetChargeLimit(alerts::kChargeLimits[cmd - ID_LIMIT_FIRST]);
-            } else if (cmd >= ID_TEMP_ALERT_FIRST && cmd < ID_TEMP_ALERT_FIRST + ARRAYSIZE(TEMP_ALERT_CELSIUS)) {
-                SetTempAlert(TEMP_ALERT_CELSIUS[cmd - ID_TEMP_ALERT_FIRST]);
-            } else if (cmd >= ID_POLL_FIRST && cmd < ID_POLL_FIRST + ARRAYSIZE(POLL_SECONDS)) {
-                SetPollSeconds(POLL_SECONDS[cmd - ID_POLL_FIRST]);
-            } else if (cmd >= ID_SYS_POLL_FIRST && cmd < ID_SYS_POLL_FIRST + ARRAYSIZE(SYS_POLL_SECONDS)) {
-                SetSystemPollSeconds(SYS_POLL_SECONDS[cmd - ID_SYS_POLL_FIRST]);
-            } else if (cmd >= ID_LANG_FIRST && cmd < ID_LANG_FIRST + languages.size()) {
-                SetLanguage(languages[cmd - ID_LANG_FIRST].code);
-            } else if (cmd >= ID_MONITOR_FIRST && cmd < ID_MONITOR_FIRST + monitors.size()) {
-                SetWidgetMonitor(monitors[cmd - ID_MONITOR_FIRST].id);
-            } else if (cmd >= ID_DEVICE_FIRST && cmd < ID_DEVICE_FIRST + keys.size() * DEV_STRIDE) {
-                std::wstring key = keys[(cmd - ID_DEVICE_FIRST) / DEV_STRIDE];
-                switch ((cmd - ID_DEVICE_FIRST) % DEV_STRIDE) {
+            command_routing::DecodedDeviceCmd devCmd;
+            if (command_routing::DecodeDeviceCommand(cmd, keys.size(), devCmd)) {
+                const std::wstring& key = keys[devCmd.deviceIndex];
+                switch (devCmd.subCmd) {
                     case DEV_TOGGLE: ToggleHidden(key); break;
                     case DEV_LEFT:   MoveEntry(key, -1); break;
                     case DEV_RIGHT:  MoveEntry(key, +1); break;
@@ -3139,14 +3889,73 @@ void RunCommand(UINT cmd, const MenuModel& model) {
                         TickSystemReadings(true);
                         break;
                     }
-                    default: {
-                        UINT slot = (cmd - ID_DEVICE_FIRST) % DEV_STRIDE;
-                        if (slot >= DEV_ALERT_FIRST && slot < DEV_ALERT_FIRST + alerts::kThresholdCount)
-                            SetAlertOverride(key, alerts::kThresholds[slot - DEV_ALERT_FIRST]);
+                    case DEV_IGNORE: IgnoreDevice(key); break;
+                    case DEV_ALERT_FIRST:
+                        if (devCmd.alertSlot >= 0 && devCmd.alertSlot < alerts::kThresholdCount)
+                            SetAlertOverride(key, alerts::kThresholds[devCmd.alertSlot]);
                         break;
-                    }
+                    default: break;
                 }
+                break;
             }
+            const auto indexed = command_routing::DecodeIndexedCommand(
+                cmd, ARRAYSIZE(POSITION_OFFSETS), alerts::kChargeLimitCount, evening_reminder::kHourCount,
+                ARRAYSIZE(kOsdMenuModes), ARRAYSIZE(TEMP_PRESETS), ARRAYSIZE(sysmon::kTempAlertOptions),
+                ARRAYSIZE(POLL_SECONDS), ARRAYSIZE(SYS_POLL_SECONDS), languages.size(), monitors.size(),
+                model.ignored.size());
+            switch (indexed.kind) {
+                case command_routing::IndexedRangeKind::TaskbarOffsetPreset:
+                    SetTaskbarOffset(POSITION_OFFSETS[indexed.index]);
+                    break;
+                case command_routing::IndexedRangeKind::TaskbarOffsetCustom: {
+                    int px = 0;
+                    if (PromptTaskbarOffset(g_hwnd, LoadTaskbarOffset(), px)) SetTaskbarOffset(px);
+                    break;
+                }
+                case command_routing::IndexedRangeKind::ChargeLimit:
+                    SetChargeLimit(alerts::kChargeLimits[indexed.index]);
+                    break;
+                case command_routing::IndexedRangeKind::EveningReminder:
+                    SetEveningReminderHour(evening_reminder::kHours[indexed.index]);
+                    break;
+                case command_routing::IndexedRangeKind::AlertSound:
+                    SetAlertSound(alerts::ClampAlertSound(static_cast<int>(indexed.index)));
+                    break;
+                case command_routing::IndexedRangeKind::OsdMode:
+                    SetOsdMode(kOsdMenuModes[indexed.index]);
+                    break;
+                case command_routing::IndexedRangeKind::OsdCorner:
+                    SetOsdCorner(osd_policy::ClampOsdCorner(static_cast<int>(indexed.index)));
+                    break;
+                case command_routing::IndexedRangeKind::TempPreset:
+                    SetTempPreset(TEMP_PRESETS[indexed.index]);
+                    break;
+                case command_routing::IndexedRangeKind::TempAlert:
+                    SetTempAlert(sysmon::kTempAlertOptions[indexed.index]);
+                    break;
+                case command_routing::IndexedRangeKind::PollBattery:
+                    SetPollSeconds(POLL_SECONDS[indexed.index]);
+                    break;
+                case command_routing::IndexedRangeKind::PollSystem:
+                    SetSystemPollSeconds(SYS_POLL_SECONDS[indexed.index]);
+                    break;
+                case command_routing::IndexedRangeKind::Language:
+                    SetLanguage(languages[indexed.index].code);
+                    break;
+                case command_routing::IndexedRangeKind::Monitor:
+                    SetWidgetMonitor(monitors[indexed.index].id);
+                    break;
+                case command_routing::IndexedRangeKind::Unignore: {
+                    const auto& vp = model.ignored[indexed.index];
+                    UnignoreDevice(vp.vid, vp.pid);
+                    break;
+                }
+                case command_routing::IndexedRangeKind::None:
+                default:
+                    break;
+            }
+            break;
+        }
     }
 }
 
@@ -3322,14 +4131,24 @@ void PanelBuild(panel::Model& out) {
     addToggle(bat, ID_RECORD_HISTORY, T(L"Record battery history"), g_recordHistory, false, false, true);
     addChoice(bat, ID_POPUP_CHARGE_LIMIT, T(L"Notify when charged to (saves the battery)"),
               g_chargeLimit ? std::to_wstring(g_chargeLimit) + L"%" : std::wstring(T(L"Off")));
+    addChoice(bat, ID_POPUP_EVENING_REMINDER, T(L"Evening charge reminder"),
+              EveningReminderLabel(g_eveningReminderHour), !g_recordHistory);
     addToggle(bat, ID_CHARGED_ALERT, T(L"Notify when fully charged"), g_chargedAlert);
     addToggle(bat, ID_TIERED_ALERTS, T(L"Warn again at 10% and 5%"), g_tieredAlerts);
     addToggle(bat, ID_SHORT_RUNTIME_ALERT, T(L"Warn when a battery won't last the day"), g_shortRuntimeAlert,
               !g_recordHistory);
+    addChoice(bat, ID_POPUP_ALERT_SOUND, T(L"Alert sound"), T(AlertSoundLabelKey(g_alertSound)));
+    addChoice(bat, ID_POPUP_OSD_MODE, T(L"In-game alerts"), T(OsdModeLabelKey(g_osdMode)));
+    addChoice(bat, ID_POPUP_OSD_CORNER, T(L"In-game alert corner"), T(OsdCornerLabelKey(g_osdCorner)));
     std::wstring trackVal = (g_trackSince || g_trackAwake || g_trackEmpty) ? T(L"On") : T(L"Off");
     addChoice(bat, ID_POPUP_TRACKING, T(L"Battery tracking"), trackVal);
     addChoice(bat, ID_POPUP_POLL_BATTERY, T(L"Check battery every"),
               FormatDurationLabel((DWORD)(g_pollIntervalMs / 1000)));
+    g_panelModel.ignored = ignore_devices::Parse(LoadIgnoreDevicesRaw());
+    addChoice(bat, ID_POPUP_IGNORED, T(L"Ignored devices..."),
+              g_panelModel.ignored.empty() ? std::wstring(T(L"None"))
+                                           : std::to_wstring(g_panelModel.ignored.size()),
+              g_panelModel.ignored.empty(), true);
 
     // ---- Tab 2: System ----
     auto& sys = out.tabs[(int)panel::Tab::System];
@@ -3494,8 +4313,8 @@ void PanelBuild(panel::Model& out) {
     }
     addAction(sys, ID_SYSTEM_DASHBOARD, T(L"System vitals dashboard..."), false, false, true);
     addHeader(sys, T(L"Options"));
-    addChoice(sys, ID_POPUP_TEMP_ALERT, T(L"High temperature alert"),
-              g_tempAlertC ? std::to_wstring(g_tempAlertC) + L" °C" : std::wstring(T(L"Off")), false, true);
+    addChoice(sys, ID_POPUP_TEMP_COLORS, T(L"Temperature colours"), TempPresetLabel(g_tempPreset), false, true);
+    addChoice(sys, ID_POPUP_TEMP_ALERT, T(L"High temperature alert"), TempAlertLabel());
     addChoice(sys, ID_POPUP_POLL_SYSTEM, T(L"Check system every"), FormatDurationLabel(g_sysPollSeconds));
 
     // ---- Tab 3: Appearance ----
@@ -3555,11 +4374,15 @@ void PanelBuild(panel::Model& out) {
     addHeader(gen, T(L"General"));
     addChoice(gen, ID_POPUP_LANG, T(L"Language"), CurrentLanguageLabel(g_panelModel.languages), false, true);
     addToggle(gen, ID_AUTOSTART, T(L"Start with Windows"), AutostartEnabled());
+    addToggle(gen, ID_POLL_LESS_FULLSCREEN, T(L"Poll less during full-screen games"), g_pollLessFullscreen.load());
+    addToggle(gen, ID_LOCAL_API_PIPE, T(L"Local JSON pipe (\\\\.\\pipe\\TaskbarVitals)"), g_localApiPipe);
     addToggle(gen, ID_AUTO_UPDATE, T(L"Automatically check for updates"), updates::AutomaticEnabled(),
               !updates::Supported());
     addAction(gen, ID_UPDATE, updates::MenuLabel(), updates::Busy(), false, true);
     addAction(gen, ID_REPORT, T(L"Request support for a device..."));
     addAction(gen, ID_SUPPORT, T(L"Support the project..."));
+    addAction(gen, ID_EXPORT_SETTINGS, T(L"Export settings..."), false, false, true);
+    addAction(gen, ID_IMPORT_SETTINGS, T(L"Import settings..."));
 
     // ---- Footer ----
     out.footer.push_back({ T(L"Refresh now"), 0xE72C, ID_REFRESH });
@@ -3579,19 +4402,25 @@ UINT PanelPopup(UINT id, HWND owner, POINT screenPt) {
         }
     } else {
         switch (id) {
-            case ID_POPUP_CHARGE_LIMIT: sub = BuildChargeLimitMenu(); break;
-            case ID_POPUP_TRACKING:     sub = BuildTrackingMenu(); break;
-            case ID_POPUP_UNSUPPORTED:  sub = BuildUnsupportedMenu(); break;
-            case ID_POPUP_POLL_BATTERY: sub = BuildPollBatteryMenu(); break;
-            case ID_POPUP_TEMP_ALERT:   sub = BuildTempAlertMenu(); break;
-            case ID_POPUP_POLL_SYSTEM:  sub = BuildPollSystemMenu(); break;
-            case ID_POPUP_BAT_POS:      sub = BuildStripPlaceMenu(ID_BAT_LEFT, ID_BAT_BEFORE, ID_BAT_CLOCK, g_farLeft, g_beforeApps, g_wantWidget && !g_myFinder); break;
-            case ID_POPUP_VIT_POS:      sub = BuildStripPlaceMenu(ID_VIT_LEFT, ID_VIT_BEFORE, ID_VIT_CLOCK, g_vitalsFarLeft, g_vitalsBeforeApps, g_wantWidget && AnyReading() && !g_myFinder); break;
-            case ID_POPUP_STRIP_ORDER:  sub = BuildStripOrderMenu(); break;
-            case ID_POPUP_TASKBAR_POS:  sub = BuildTaskbarOffsetMenu(false); break;
-            case ID_POPUP_VERTICAL_POS: sub = BuildVerticalPlaceMenu(); break;
-            case ID_POPUP_MONITORS:     sub = BuildMonitorMenu(g_panelModel.monitors); break;
-            case ID_POPUP_LANG:         sub = BuildLanguageMenu(g_panelModel.languages); break;
+            case ID_POPUP_CHARGE_LIMIT:     sub = BuildChargeLimitMenu(); break;
+            case ID_POPUP_EVENING_REMINDER: sub = BuildEveningReminderMenu(); break;
+            case ID_POPUP_ALERT_SOUND:      sub = BuildAlertSoundMenu(); break;
+            case ID_POPUP_OSD_MODE:         sub = BuildOsdModeMenu(); break;
+            case ID_POPUP_OSD_CORNER:       sub = BuildOsdCornerMenu(); break;
+            case ID_POPUP_TRACKING:         sub = BuildTrackingMenu(); break;
+            case ID_POPUP_UNSUPPORTED:      sub = BuildUnsupportedMenu(); break;
+            case ID_POPUP_POLL_BATTERY:     sub = BuildPollBatteryMenu(); break;
+            case ID_POPUP_IGNORED:          sub = BuildIgnoredMenu(g_panelModel.ignored); break;
+            case ID_POPUP_TEMP_COLORS:      sub = BuildTempPresetMenu(); break;
+            case ID_POPUP_TEMP_ALERT:       sub = BuildTempAlertMenu(); break;
+            case ID_POPUP_POLL_SYSTEM:      sub = BuildPollSystemMenu(); break;
+            case ID_POPUP_BAT_POS:          sub = BuildStripPlaceMenu(ID_BAT_LEFT, ID_BAT_BEFORE, ID_BAT_CLOCK, g_farLeft, g_beforeApps, g_wantWidget && !g_myFinder); break;
+            case ID_POPUP_VIT_POS:          sub = BuildStripPlaceMenu(ID_VIT_LEFT, ID_VIT_BEFORE, ID_VIT_CLOCK, g_vitalsFarLeft, g_vitalsBeforeApps, g_wantWidget && AnyReading() && !g_myFinder); break;
+            case ID_POPUP_STRIP_ORDER:      sub = BuildStripOrderMenu(); break;
+            case ID_POPUP_TASKBAR_POS:      sub = BuildTaskbarOffsetMenu(false); break;
+            case ID_POPUP_VERTICAL_POS:     sub = BuildVerticalPlaceMenu(); break;
+            case ID_POPUP_MONITORS:         sub = BuildMonitorMenu(g_panelModel.monitors); break;
+            case ID_POPUP_LANG:             sub = BuildLanguageMenu(g_panelModel.languages); break;
         }
     }
     if (!sub) return 0;
@@ -3795,7 +4624,13 @@ DWORD WINAPI Worker(LPVOID) {
 
         auto* v = new std::vector<DeviceStatus>(g_demo ? DemoDevices() : PollWithRetry());
         TracePoll(*v);
-        DWORD delay = monitor.DelayAfterPoll(*v, g_pollIntervalMs);
+        DWORD baseMs = g_pollIntervalMs.load();
+        bool pollLess = g_pollLessFullscreen.load();
+        bool fgFs = pollLess ? osd_overlay::IsForegroundFullscreen() : false;
+        refresh_policy::UserNotificationState state =
+            pollLess ? QueryNotificationState() : refresh_policy::UserNotificationState::Unknown;
+        DWORD effectiveMs = refresh_policy::EffectivePollIntervalMs(baseMs, pollLess, fgFs, state);
+        DWORD delay = monitor.DelayAfterPoll(*v, effectiveMs);
         if (!PostMessageW(g_hwnd, WM_RESULTS, 0, (LPARAM)v)) delete v;
         DWORD wait = WaitForMultipleObjects(2, events, FALSE, delay);
         if (wait == WAIT_OBJECT_0) return 0;
@@ -3877,6 +4712,19 @@ LRESULT CALLBACK WndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
                 RefreshAfterWake(5000);
                 for (auto& src : g_sources) src->DevicesChanged();
                 TickSystemReadings(true);
+            } else if (wp == PBT_APMPOWERSTATUSCHANGE) {
+                laptopbat::Reading b = laptopbat::Sample();
+                g_laptopBat = b;
+                g_hasLaptopBat = b.present;
+                if (AnyLaptopBatReading() || dashboard::IsOpen()) {
+                    SyncVitalsStrip();
+                    UpdateWidget();
+                    UpdateSystemTrayIcons();
+                    UpdatePlaceholder();
+                    if (dashboard::IsOpen()) dashboard::UpdateVitals(BuildDashboardVitals());
+                }
+                RefreshLiveApiSnapshot();
+                panel::Refresh();
             } else if (wp == PBT_POWERSETTINGCHANGE && lp) {
                 auto* ps = reinterpret_cast<const POWERBROADCAST_SETTING*>(lp);
                 if (ps->PowerSetting == kConsoleDisplayStateGuid && ps->DataLength >= sizeof(DWORD)) {
@@ -3902,7 +4750,7 @@ LRESULT CALLBACK WndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
                 g_awakeBeforeSleep.clear();
                 SetEvent(g_refreshEvt);
             }
-            if (wp == TIMER_WIDGET) { Reconcile(); TickSystemReadings(); updates::Tick(h); }
+            if (wp == TIMER_WIDGET) { Reconcile(); TickSystemReadings(); updates::Tick(h); CheckEveningReminder(); }
             if (wp == TIMER_ALERT_ICON) {
                 KillTimer(h, TIMER_ALERT_ICON);
                 if (g_alertIconAdded) { TrayDelete(ALERT_ICON_ID); g_alertIconAdded = false; }
@@ -3916,12 +4764,15 @@ LRESULT CALLBACK WndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             return 0;
         case WM_DESTROY:
             updates::Shutdown();
+            live_api_pipe::Stop();
             KillTimer(h, TIMER_DEBOUNCE);
             KillTimer(h, TIMER_RESUME);
             KillTimer(h, TIMER_WIDGET);
             KillTimer(h, TIMER_ALERT_ICON);
             if (g_alertIconAdded) { TrayDelete(ALERT_ICON_ID); g_alertIconAdded = false; }
             panel::Close();
+            FreeAlertSoundLib();
+            osd_overlay::Shutdown();
             widget::Destroy();
             vitals_strip::Destroy();
             dashboard::Close();
@@ -4205,6 +5056,8 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR cmdLine, int) {
     g_dimSleeping = LoadDimSleeping();
     g_recordHistory = LoadRecordHistory();
     g_chargeLimit = LoadChargeLimit();
+    g_eveningReminderHour = LoadEveningReminderHour();
+    g_eveningReminderLastCycle = LoadEveningReminderLastCycle();
     g_chargedAlert = LoadBoolSetting(L"ChargedAlert", true);
     g_tieredAlerts = LoadBoolSetting(L"TieredAlerts", true);
     g_shortRuntimeAlert = LoadBoolSetting(L"ShortRuntimeAlert", true);
@@ -4250,8 +5103,14 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR cmdLine, int) {
     g_showLaptopBatW = LoadBoolSetting(L"ShowLaptopBatWatts", false);
     g_systemColors = LoadBoolSetting(L"SystemColors", false);
     g_sysPollSeconds = LoadSystemPollSeconds();
+    g_tempPreset = LoadTempPreset();
     g_tempAlertC = LoadTempAlertCelsius();
     g_pollIntervalMs = LoadPollSeconds() * 1000;
+    g_pollLessFullscreen = LoadBoolSetting(L"PollLessFullscreen", true);
+    g_alertSound = LoadAlertSound();
+    g_osdMode = LoadOsdMode();
+    g_osdCorner = LoadOsdCorner();
+    g_localApiPipe = LoadBoolSetting(L"LocalApiPipe", false);
     i18n::Init();
     g_widgetMonitor = LoadWidgetMonitor();
     ApplyStripOptions();
@@ -4265,6 +5124,10 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR cmdLine, int) {
     dashboard::SetSpeedTestHandler(StartNetSpeedTest);
     Reconcile();
     if (AnyReading()) TickSystemReadings(true);
+    if (g_localApiPipe) {
+        RefreshLiveApiSnapshot();
+        live_api_pipe::StartServer();
+    }
     UpdatePlaceholder();  // something to click on until the first poll finishes
     SetTimer(g_hwnd, TIMER_WIDGET, 1000, nullptr);
     g_worker = CreateThread(nullptr, 0, Worker, nullptr, 0, nullptr);

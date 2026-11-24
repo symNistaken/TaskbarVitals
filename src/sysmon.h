@@ -19,8 +19,50 @@ inline int CpuPercent(const CpuTimes& before, const CpuTimes& after) {
     return (int)(((total - idle) * 100 + total / 2) / total);
 }
 
-// Colour level of a CPU or GPU temperature on the strip: 0 normal, 1 elevated (from 80 °C), 2 high (from 90 °C).
-inline int HeatLevel(int celsius) { return celsius >= 90 ? 2 : celsius >= 80 ? 1 : 0; }
+enum class TempPreset { Standard = 0, Laptop = 1, Strict = 2 };
+
+struct TempThresholds {
+    int elevated;
+    int high;
+};
+
+inline TempThresholds ThresholdsFor(TempPreset preset) {
+    switch (preset) {
+        case TempPreset::Laptop: return { 85, 95 };
+        case TempPreset::Strict: return { 70, 85 };
+        case TempPreset::Standard:
+        default: return { 80, 90 };
+    }
+}
+
+inline TempPreset ClampTempPreset(int raw) {
+    switch (raw) {
+        case 1: return TempPreset::Laptop;
+        case 2: return TempPreset::Strict;
+        default: return TempPreset::Standard;
+    }
+}
+
+// Colour level of a CPU or GPU temperature on the strip: 0 normal, 1 elevated, 2 high.
+inline int HeatLevel(int celsius, int elevated = 80, int high = 90) {
+    if (celsius < 0) return 0;
+    return celsius >= high ? 2 : celsius >= elevated ? 1 : 0;
+}
+
+inline int HeatLevel(int celsius, TempPreset preset) {
+    const TempThresholds t = ThresholdsFor(preset);
+    return HeatLevel(celsius, t.elevated, t.high);
+}
+
+constexpr int kTempAlertMatchPreset = 1;
+constexpr int kTempAlertOptions[] = { 80, 85, 90, 95 };
+
+inline int EffectiveTempAlertCelsius(int configuredAlert, TempPreset preset) {
+    if (configuredAlert == kTempAlertMatchPreset) return ThresholdsFor(preset).high;
+    for (int t : kTempAlertOptions)
+        if (configuredAlert == t) return configuredAlert;
+    return 0;
+}
 
 struct Reading {
     int cpu = -1;               // percent, -1 until two samples exist

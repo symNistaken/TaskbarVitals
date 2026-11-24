@@ -75,6 +75,8 @@ void PollVaxee(PollContext& ctx) {
             s.graceSec = 1800;
             BYTE charging = 0;
             if (Query(d, 0x10, charging)) s.charging = charging != 0;
+            s.vid = kVid;
+            s.pid = pid;
             lastGood[c->path] = s;
             ctx.Add(s, kVid, pid);
             break;

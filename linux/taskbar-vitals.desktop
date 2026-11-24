@@ -1,9 +1,9 @@
 [Desktop Entry]
 Type=Application
-Name=BatteryHub
+Name=Taskbar Vitals
 Comment=Show battery levels of wireless mice, keyboards and headsets in the system tray
-Exec=wireless-battery
-Icon=wireless-battery
+Exec=taskbar-vitals
+Icon=taskbar-vitals
 Terminal=false
 Categories=System;Monitor;Utility;
 StartupNotify=false

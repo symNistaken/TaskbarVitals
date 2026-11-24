@@ -101,4 +101,16 @@ inline bool ShouldNotifyChargeLimit(const DeviceStatus& s, int limit, int previo
     }
     return false;
 }
+
+enum class AlertSound { Off = 0, SystemDefault = 1 };
+
+inline AlertSound ClampAlertSound(int raw) {
+    return raw == 1 ? AlertSound::SystemDefault : AlertSound::Off;
+}
+
+enum class AlertKind { BatteryLow, BatteryCharged, BatteryChargeLimit, ShortRuntime, Updater };
+
+inline bool ShouldPlayAlertSound(AlertSound mode, AlertKind kind = AlertKind::BatteryLow) {
+    return mode == AlertSound::SystemDefault && kind != AlertKind::Updater;
+}
 }  // namespace alerts

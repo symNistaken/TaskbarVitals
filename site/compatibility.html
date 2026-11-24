@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hardware Compatibility Matrix — Taskbar Vitals</title>
+  <meta name="description" content="Searchable A–Z compatibility matrix for wireless mice, keyboards, headsets, earbuds, and controllers supported by Taskbar Vitals by brand, model, protocol, or VID:PID.">
+  <meta property="og:title" content="Taskbar Vitals — Hardware Compatibility Matrix">
+  <meta property="og:description" content="Search supported wireless peripherals, USB receivers, Bluetooth protocols, and VID:PID identifiers.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://symnistaken.github.io/TaskbarVitals/compatibility.html">
+  <link rel="icon" type="image/svg+xml" href="docs/readme/logo-dark.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="index.html" aria-label="Taskbar Vitals home">
+        <svg class="brand-mark" width="28" height="28" viewBox="0 0 512 512" aria-hidden="true">
+          <path d="M84,120 H396 C424.7,120 448,143.3 448,172 V340 C448,368.7 424.7,392 396,392 H84 C55.3,392 32,368.7 32,340 V172 C32,143.3 55.3,120 84,120 Z M84,164 H396 C400.4,164 404,167.6 404,172 V340 C404,344.4 400.4,348 396,348 H84 C79.6,348 76,344.4 76,340 V172 C76,167.6 79.6,164 84,164 Z" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd"/>
+          <path d="M448,216 H470 C481,216 490,225 490,236 V276 C490,287 481,296 470,296 H448 Z" fill="currentColor"/>
+          <path d="M100,272 L174.5,272 L201.5,232.2 L239.5,312.8 L268.6,312.6 L300.7,241.3 L316.1,272 L380,272 L380,240 L335.9,240 L314.3,196.8 L285.4,197.4 L253.7,267.8 L218.5,193.2 L190.8,191 L157.5,240 L100,240 Z" fill="var(--accent)"/>
+        </svg>
+        <span class="brand-name">Taskbar Vitals</span>
+      </a>
+
+      <nav class="main-nav" aria-label="Primary navigation">
+        <a href="index.html#telemetry">Telemetry</a>
+        <a href="index.html#settings">Settings Panel</a>
+        <a href="compatibility.html" class="nav-is-active" aria-current="page">Compatibility</a>
+        <a href="index.html#security">Security &amp; CLI</a>
+      </nav>
+
+      <div class="header-actions">
+        <button id="theme-toggle" class="icon-btn" type="button" aria-label="Toggle light or dark site theme" title="Switch theme">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="4"/>
+            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+          </svg>
+        </button>
+        <a class="nav-link-btn" href="https://github.com/symNistaken/TaskbarVitals" target="_blank" rel="noopener">GitHub</a>
+        <a class="coffee-btn" href="https://buymeacoffee.com/symnistaken" target="_blank" rel="noopener">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M17 8h1a4 4 0 1 1 0 8h-1"/>
+            <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/>
+            <line x1="6" x2="6" y1="2" y2="4"/>
+            <line x1="10" x2="10" y1="2" y2="4"/>
+            <line x1="14" x2="14" y1="2" y2="4"/>
+          </svg>
+          <span>Buy Me a Coffee</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="compat-hero">
+      <div class="container">
+        <a class="compat-back-link" href="index.html">&larr; Back to Taskbar Vitals overview</a>
+        <h1>A&ndash;Z Hardware &amp; Protocol Compatibility Matrix</h1>
+        <p class="compat-lead">
+          Taskbar Vitals communicates strictly in <strong>read-only mode</strong> over HID, USB, Bluetooth, or RFCOMM. A brand name alone does not guarantee every model works &mdash; search by brand, model, protocol, or <code>VID:PID</code> from <code>TaskbarVitals.exe --dump</code>.
+        </p>
+      </div>
+    </section>
+
+    <section class="band compat-band">
+      <div class="container">
+        <div class="hw-toolbar">
+          <label class="hw-search-wrap" for="compat-search">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="8"/>
+              <line x1="21" x2="16.65" y1="21" y2="16.65"/>
+            </svg>
+            <input id="compat-search" type="search" placeholder="Search vendor, model, protocol, or VID:PID (e.g. 046D:C54F, 046dc54f, Keychron, FF1C)..." autocomplete="off">
+            <button id="compat-clear" class="compat-clear-btn" type="button" hidden aria-label="Clear search">Clear</button>
+          </label>
+
+          <label class="check-chip compat-tested-chip">
+            <input id="compat-tested-only" type="checkbox">
+            <span>Hardware-verified only</span>
+          </label>
+        </div>
+
+        <div class="hw-filters compat-filters" role="group" aria-label="Filter hardware by category">
+          <button class="filter-btn is-active" type="button" data-cat="all">All</button>
+          <button class="filter-btn" type="button" data-cat="mice">Mice</button>
+          <button class="filter-btn" type="button" data-cat="keyboards">Keyboards</button>
+          <button class="filter-btn" type="button" data-cat="audio">Headsets &amp; Earbuds</button>
+          <button class="filter-btn" type="button" data-cat="controllers">Controllers &amp; Phones</button>
+          <button class="filter-btn" type="button" data-cat="mixed">Mixed</button>
+          <button class="filter-btn" type="button" data-cat="fallbacks">Fallbacks</button>
+        </div>
+
+        <div class="compat-meta-row">
+          <p id="compat-count" class="hw-count mono" role="status" aria-live="polite">Loading compatibility dataset...</p>
+          <a class="text-link mono compat-json-link" href="devices.json">devices.json</a>
+        </div>
+
+        <div class="hw-table-wrap">
+          <table class="hw-table compat-table">
+            <thead>
+              <tr>
+                <th>Vendor / Family</th>
+                <th>Supported Models &amp; VID:PIDs</th>
+                <th>Protocol &amp; Notes</th>
+              </tr>
+            </thead>
+            <tbody id="compat-tbody"></tbody>
+          </table>
+        </div>
+
+        <div id="compat-empty" class="compat-empty" hidden>
+          <p id="compat-empty-msg">No matching entries found. Try another model keyword, protocol, or VID:PID.</p>
+          <div class="compat-empty-actions">
+            <button id="compat-reset-btn" class="btn btn-secondary" type="button">Reset filters</button>
+            <a class="btn btn-primary" href="https://github.com/symNistaken/TaskbarVitals/issues/new?template=device-request.yml" target="_blank" rel="noopener">Request device support</a>
+          </div>
+        </div>
+
+        <div class="hw-footer-bar">
+          <span class="compat-tip">Tip: Click any <code>VID:PID</code> chip in the table to filter by that identifier.</span>
+          <a class="text-link" href="https://github.com/symNistaken/TaskbarVitals/issues/new?template=device-request.yml" target="_blank" rel="noopener">
+            Missing your device? Run <code>TaskbarVitals.exe --report</code> or submit <code>--dump</code> output
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div class="footer-left">
+        <strong>Taskbar Vitals</strong>
+        <span>GPL-3.0-or-later &middot; Built natively with C++17 &amp; Win32 (plus experimental Linux hidraw/GTK4 support)</span>
+      </div>
+      <div class="footer-links">
+        <a href="index.html">Home</a>
+        <a href="https://github.com/symNistaken/TaskbarVitals/releases" target="_blank" rel="noopener">Releases</a>
+        <a href="https://github.com/symNistaken/TaskbarVitals/discussions" target="_blank" rel="noopener">Discussions</a>
+        <a href="https://github.com/symNistaken/TaskbarVitals/issues/new/choose" target="_blank" rel="noopener">Report Device</a>
+        <a href="https://buymeacoffee.com/symnistaken" target="_blank" rel="noopener">Buy Me a Coffee</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="compatibility.js"></script>
+</body>
+</html>

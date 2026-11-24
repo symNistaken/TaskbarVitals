@@ -290,11 +290,17 @@ void Shutdown() {
 
 bool Busy() { return dialogOpen || operation != Operation::Idle; }
 bool AutomaticEnabled() { return automatic && appversion::official; }
+bool AutomaticSetting() { return automatic; }
 bool Supported() { return appversion::official; }
 void ToggleAutomatic() {
     if (!appversion::official) return;
     automatic = !automatic;
     DWORD value = automatic;
+    RegSetKeyValueW(HKEY_CURRENT_USER, Settings, L"AutoCheckUpdates", REG_DWORD, &value, sizeof(value));
+}
+void SetAutomaticSetting(bool on) {
+    automatic = on;
+    DWORD value = automatic ? 1 : 0;
     RegSetKeyValueW(HKEY_CURRENT_USER, Settings, L"AutoCheckUpdates", REG_DWORD, &value, sizeof(value));
 }
 

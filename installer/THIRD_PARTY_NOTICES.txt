@@ -1,9 +1,11 @@
 Taskbar Vitals bundles the following third-party software.
 
-PawnIO IntelMSR module (TaskbarVitalsTemp.exe)
+PawnIO IntelMSR and AMDFamily17 modules (TaskbarVitalsTemp.exe)
   Copyright (C) 2025 namazso. GNU Lesser General Public License 2.1 or later (license text: res/pawnio/COPYING in the source).
-  Source: https://github.com/namazso/PawnIO.Modules (IntelMSR.p, release 0.2.12). Built into the CPU temperature helper unchanged.
-  It runs inside the PawnIO driver (https://pawnio.eu), which is installed separately by the user and is not part of Taskbar Vitals.
+  Source: https://github.com/namazso/PawnIO.Modules (IntelMSR.p and AMDFamily17.p, release 0.2.12). Built into the CPU temperature helper unchanged.
+  IntelMSR.bin SHA-256: 30a5a302283de1e080dfee99e686eca91d7e53e911095cb91a320fb961f1ce12
+  AMDFamily17.bin SHA-256: dae74615761b78bdf064dfb3e136252ddcc6fc727d88f14738d0e5800d427a91
+  They run inside the PawnIO driver (https://pawnio.eu), which is installed separately by the user and is not part of Taskbar Vitals.
 
 HeadsetControl 4.3.0 (headsetcontrol.exe)
   Copyright (C) the HeadsetControl contributors

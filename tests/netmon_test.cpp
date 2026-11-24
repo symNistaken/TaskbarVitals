@@ -2,8 +2,12 @@
 #include <cassert>
 #include <cmath>
 #include <cstdio>
+#include <limits>
+#include <vector>
 
 #include "../src/netmon.h"
+#include "../src/netmon_math.h"
+#include "../src/system_order.h"
 
 int main() {
     assert(netmon::RateBytesPerSec(100, 100, 0) < 0.0);
@@ -22,6 +26,19 @@ int main() {
     assert(netmon::FormatMbps(8.4) == L"8.4 Mbps");
     assert(netmon::FormatMbps(94.2) == L"94 Mbps");
 
-    std::puts("Network monitor tests passed (rate calculation, compact/full formatting, Mbps formatting).");
+    // Netmon math & interface filtering checks from overnight suite.
+    assert(netmon::IncludeInterface(6, netmon::kIfOperStatusUp, false));
+    assert(!netmon::IncludeInterface(netmon::kIfTypeSoftwareLoopback, netmon::kIfOperStatusUp, false));
+    assert(!netmon::IncludeInterface(netmon::kIfTypeTunnel, netmon::kIfOperStatusUp, false));
+    assert(!netmon::IncludeInterface(6, netmon::kIfOperStatusUp, true));
+    bool reset = true;
+    assert(netmon::CounterDelta(0xFFFFFF00ULL, 0x00000100ULL, &reset) == 0x200ULL && !reset);
+    assert(netmon::CounterDelta(0x100000000ULL, 500ULL, &reset) == 0 && reset);
+    assert(netmon::FormatCompactRate(1.2 * 1024.0 * 1024.0) == L"1.2M");
+    assert(netmon::FormatStripSpeed(1.2 * 1024.0 * 1024.0, 85.0 * 1024.0) == L"\u21931.2M \u219185K");
+    assert((system_order::DecodeSystemOrder(system_order::EncodeSystemOrder({ 4, 2, 0, 3, 1 }), 6) ==
+            std::vector<int>{ 4, 2, 0, 3, 1, 5 }));
+
+    std::puts("Network monitor tests passed (rate calculation, filtering, counters, compact/full formatting).");
     return 0;
 }

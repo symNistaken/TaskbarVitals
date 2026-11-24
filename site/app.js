@@ -272,11 +272,20 @@
   const tbody = document.getElementById("hw-tbody");
   const countEl = document.getElementById("hw-count");
   const expandBtn = document.getElementById("hw-expand-btn");
+  const matrixLink = document.getElementById("hw-matrix-link");
   let activeCat = "all";
   let expanded = false;
 
   function renderHardware() {
-    const q = searchInput.value.trim().toLowerCase();
+    const rawQ = searchInput.value.trim();
+    const q = rawQ.toLowerCase();
+    if (matrixLink) {
+      const params = new URLSearchParams();
+      if (rawQ) params.set("q", rawQ);
+      if (activeCat !== "all") params.set("cat", activeCat);
+      const qs = params.toString();
+      matrixLink.href = qs ? `compatibility.html?${qs}` : "compatibility.html";
+    }
     const filtered = hwData.filter(([brand, cat, notes]) => {
       const catMatch = activeCat === "all" || cat === activeCat;
       if (!catMatch) return false;

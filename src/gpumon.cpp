@@ -6,6 +6,7 @@
 #include <pdhmsg.h>
 
 #include <algorithm>
+#include <cstdlib>
 #include <cwchar>
 #include <map>
 #include <string>
@@ -99,6 +100,8 @@ struct Adapter {
     bool found = false;
     std::uint64_t luid = 0;
     LUID raw{};
+    UINT vendorId = 0;
+    UINT deviceId = 0;
     std::wstring name;
     std::uint64_t vramBytes = 0;
 };
@@ -120,6 +123,8 @@ Adapter FindAdapter() {
                 best.found = true;
                 best.raw = d.AdapterLuid;
                 best.luid = ((std::uint64_t)(DWORD)d.AdapterLuid.HighPart << 32) | d.AdapterLuid.LowPart;
+                best.vendorId = d.VendorId;
+                best.deviceId = d.DeviceId;
                 best.name = d.Description;
                 best.vramBytes = d.DedicatedVideoMemory;
             }
@@ -317,6 +322,417 @@ void QueryAdl(bool wantPower, bool wantClocks, int& watts, int& gpuMhz, int& vra
     }
 }
 
+// ---- AMD ADLX (amdadlx64.dll) ----
+namespace adlx_abi {
+struct System;
+struct GpuList;
+struct Gpu;
+struct PerfServices;
+struct GpuMetricsSupport;
+struct GpuMetrics;
+
+struct SystemVtbl {
+    int(__stdcall* GetHybridGraphicsType)(System*, int*);
+    int(__stdcall* GetGPUs)(System*, GpuList**);
+    int(__stdcall* QueryInterface)(System*, const wchar_t*, void**);
+    int(__stdcall* GetDisplaysServices)(System*, void**);
+    int(__stdcall* GetDesktopsServices)(System*, void**);
+    int(__stdcall* GetGPUsChangedHandling)(System*, void**);
+    int(__stdcall* EnableLog)(System*, int, int, void*, const wchar_t*);
+    int(__stdcall* Get3DSettingsServices)(System*, void**);
+    int(__stdcall* GetGPUTuningServices)(System*, void**);
+    int(__stdcall* GetPerformanceMonitoringServices)(System*, PerfServices**);
+};
+struct System { const SystemVtbl* pVtbl; };
+
+struct GpuListVtbl {
+    long(__stdcall* Acquire)(GpuList*);
+    long(__stdcall* Release)(GpuList*);
+    int(__stdcall* QueryInterface)(GpuList*, const wchar_t*, void**);
+    std::uint32_t(__stdcall* Size)(GpuList*);
+    bool(__stdcall* Empty)(GpuList*);
+    std::uint32_t(__stdcall* Begin)(GpuList*);
+    std::uint32_t(__stdcall* End)(GpuList*);
+    int(__stdcall* At)(GpuList*, std::uint32_t, void**);
+    int(__stdcall* Clear)(GpuList*);
+    int(__stdcall* Remove_Back)(GpuList*);
+    int(__stdcall* Add_Back)(GpuList*, void*);
+    int(__stdcall* At_GPUList)(GpuList*, std::uint32_t, Gpu**);
+};
+struct GpuList { const GpuListVtbl* pVtbl; };
+
+struct GpuVtbl {
+    long(__stdcall* Acquire)(Gpu*);
+    long(__stdcall* Release)(Gpu*);
+    int(__stdcall* QueryInterface)(Gpu*, const wchar_t*, void**);
+    int(__stdcall* VendorId)(Gpu*, const char**);
+    int(__stdcall* ASICFamilyType)(Gpu*, int*);
+    int(__stdcall* Type)(Gpu*, int*);
+    int(__stdcall* IsExternal)(Gpu*, bool*);
+    int(__stdcall* Name)(Gpu*, const char**);
+    int(__stdcall* DriverPath)(Gpu*, const char**);
+    int(__stdcall* PNPString)(Gpu*, const char**);
+    int(__stdcall* HasDesktops)(Gpu*, bool*);
+    int(__stdcall* TotalVRAM)(Gpu*, std::uint32_t*);
+    int(__stdcall* VRAMType)(Gpu*, const char**);
+    int(__stdcall* BIOSInfo)(Gpu*, const char**, const char**, const char**);
+    int(__stdcall* DeviceId)(Gpu*, const char**);
+};
+struct Gpu { const GpuVtbl* pVtbl; };
+
+struct PerfServicesVtbl {
+    long(__stdcall* Acquire)(PerfServices*);
+    long(__stdcall* Release)(PerfServices*);
+    int(__stdcall* QueryInterface)(PerfServices*, const wchar_t*, void**);
+    void* GetSamplingIntervalRange;
+    void* SetSamplingInterval;
+    void* GetSamplingInterval;
+    void* GetMaxPerformanceMetricsHistorySizeRange;
+    void* SetMaxPerformanceMetricsHistorySize;
+    void* GetMaxPerformanceMetricsHistorySize;
+    void* ClearPerformanceMetricsHistory;
+    void* GetCurrentPerformanceMetricsHistorySize;
+    void* StartPerformanceMetricsTracking;
+    void* StopPerformanceMetricsTracking;
+    void* GetAllMetricsHistory;
+    void* GetGPUMetricsHistory;
+    void* GetSystemMetricsHistory;
+    void* GetFPSHistory;
+    void* GetCurrentAllMetrics;
+    int(__stdcall* GetCurrentGPUMetrics)(PerfServices*, Gpu*, GpuMetrics**);
+    void* GetCurrentSystemMetrics;
+    void* GetCurrentFPS;
+    int(__stdcall* GetSupportedGPUMetrics)(PerfServices*, Gpu*, GpuMetricsSupport**);
+};
+struct PerfServices { const PerfServicesVtbl* pVtbl; };
+
+struct GpuMetricsSupportVtbl {
+    long(__stdcall* Acquire)(GpuMetricsSupport*);
+    long(__stdcall* Release)(GpuMetricsSupport*);
+    int(__stdcall* QueryInterface)(GpuMetricsSupport*, const wchar_t*, void**);
+    int(__stdcall* IsSupportedGPUUsage)(GpuMetricsSupport*, bool*);
+    int(__stdcall* IsSupportedGPUClockSpeed)(GpuMetricsSupport*, bool*);
+    int(__stdcall* IsSupportedGPUVRAMClockSpeed)(GpuMetricsSupport*, bool*);
+    int(__stdcall* IsSupportedGPUTemperature)(GpuMetricsSupport*, bool*);
+    int(__stdcall* IsSupportedGPUHotspotTemperature)(GpuMetricsSupport*, bool*);
+    int(__stdcall* IsSupportedGPUPower)(GpuMetricsSupport*, bool*);
+    int(__stdcall* IsSupportedGPUTotalBoardPower)(GpuMetricsSupport*, bool*);
+};
+struct GpuMetricsSupport { const GpuMetricsSupportVtbl* pVtbl; };
+
+struct GpuMetricsVtbl {
+    long(__stdcall* Acquire)(GpuMetrics*);
+    long(__stdcall* Release)(GpuMetrics*);
+    int(__stdcall* QueryInterface)(GpuMetrics*, const wchar_t*, void**);
+    int(__stdcall* TimeStamp)(GpuMetrics*, std::int64_t*);
+    int(__stdcall* GPUUsage)(GpuMetrics*, double*);
+    int(__stdcall* GPUClockSpeed)(GpuMetrics*, int*);
+    int(__stdcall* GPUVRAMClockSpeed)(GpuMetrics*, int*);
+    int(__stdcall* GPUTemperature)(GpuMetrics*, double*);
+    int(__stdcall* GPUHotspotTemperature)(GpuMetrics*, double*);
+    int(__stdcall* GPUPower)(GpuMetrics*, double*);
+    int(__stdcall* GPUTotalBoardPower)(GpuMetrics*, double*);
+};
+struct GpuMetrics { const GpuMetricsVtbl* pVtbl; };
+
+using QueryFullVersionFn = int(__cdecl*)(std::uint64_t*);
+using InitializeFn = int(__cdecl*)(std::uint64_t, System**);
+using TerminateFn = int(__cdecl*)();
+}  // namespace adlx_abi
+
+HMODULE g_adlx = nullptr;
+bool g_adlxTried = false;
+bool g_adlxInitialized = false;
+adlx_abi::TerminateFn g_adlxTerminate = nullptr;
+adlx_abi::PerfServices* g_adlxPerf = nullptr;
+adlx_abi::Gpu* g_adlxGpu = nullptr;
+bool g_adlxHasBoardPower = false;
+bool g_adlxHasGpuPower = false;
+
+std::string NarrowAscii(const std::wstring& w) {
+    std::string s;
+    s.reserve(w.size());
+    for (wchar_t c : w) s += (char)(c < 128 ? c : '?');
+    return s;
+}
+
+void StopAdlx() {
+    if (g_adlxGpu) { g_adlxGpu->pVtbl->Release(g_adlxGpu); g_adlxGpu = nullptr; }
+    if (g_adlxPerf) { g_adlxPerf->pVtbl->Release(g_adlxPerf); g_adlxPerf = nullptr; }
+    if (g_adlxInitialized && g_adlxTerminate) g_adlxTerminate();
+    g_adlxInitialized = false;
+    g_adlxTerminate = nullptr;
+    if (g_adlx) { FreeLibrary(g_adlx); g_adlx = nullptr; }
+    g_adlxHasBoardPower = g_adlxHasGpuPower = false;
+    g_adlxTried = false;
+}
+
+void StartAdlx() {
+    if (g_adlxTried) return;
+    g_adlxTried = true;
+    g_adlx = LoadLibraryExW(L"amdadlx64.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+    if (!g_adlx) return;
+    auto queryVer = Proc<adlx_abi::QueryFullVersionFn>(g_adlx, "ADLXQueryFullVersion");
+    auto init = Proc<adlx_abi::InitializeFn>(g_adlx, "ADLXInitialize");
+    g_adlxTerminate = Proc<adlx_abi::TerminateFn>(g_adlx, "ADLXTerminate");
+    if (!queryVer || !init || !g_adlxTerminate) { StopAdlx(); g_adlxTried = true; return; }
+    std::uint64_t fullVer = 0;
+    adlx_abi::System* sys = nullptr;
+    if (queryVer(&fullVer) != 0 || init(fullVer, &sys) != 0 || !sys) {
+        StopAdlx();
+        g_adlxTried = true;
+        return;
+    }
+    g_adlxInitialized = true;
+    adlx_abi::GpuList* list = nullptr;
+    if (sys->pVtbl->GetPerformanceMonitoringServices(sys, &g_adlxPerf) != 0 || !g_adlxPerf ||
+        sys->pVtbl->GetGPUs(sys, &list) != 0 || !list) {
+        StopAdlx();
+        g_adlxTried = true;
+        return;
+    }
+    const std::uint32_t count = list->pVtbl->Size(list);
+    const std::string wantName = NarrowAscii(g_adapter.name);
+    for (std::uint32_t i = 0; i < count; ++i) {
+        adlx_abi::Gpu* g = nullptr;
+        if (list->pVtbl->At_GPUList(list, i, &g) != 0 || !g) continue;
+        bool match = (count == 1);
+        const char* devId = nullptr;
+        if (!match && g_adapter.deviceId && g->pVtbl->DeviceId(g, &devId) == 0 && devId) {
+            unsigned long parsed = std::strtoul(devId, nullptr, 16);
+            if (parsed == g_adapter.deviceId) match = true;
+        }
+        const char* gpuName = nullptr;
+        if (!match && g->pVtbl->Name(g, &gpuName) == 0 && gpuName) {
+            if (wantName.find(gpuName) != std::string::npos || std::string(gpuName).find(wantName) != std::string::npos)
+                match = true;
+        }
+        if (match && !g_adlxGpu) g_adlxGpu = g;
+        else g->pVtbl->Release(g);
+    }
+    list->pVtbl->Release(list);
+    if (!g_adlxGpu) { StopAdlx(); g_adlxTried = true; return; }
+    adlx_abi::GpuMetricsSupport* sup = nullptr;
+    if (g_adlxPerf->pVtbl->GetSupportedGPUMetrics(g_adlxPerf, g_adlxGpu, &sup) == 0 && sup) {
+        sup->pVtbl->IsSupportedGPUTotalBoardPower(sup, &g_adlxHasBoardPower);
+        sup->pVtbl->IsSupportedGPUPower(sup, &g_adlxHasGpuPower);
+        sup->pVtbl->Release(sup);
+    } else {
+        g_adlxHasBoardPower = g_adlxHasGpuPower = true;
+    }
+}
+
+int AdlxWatts() {
+    StartAdlx();
+    if (!g_adlxPerf || !g_adlxGpu || (!g_adlxHasBoardPower && !g_adlxHasGpuPower)) return -1;
+    adlx_abi::GpuMetrics* m = nullptr;
+    if (g_adlxPerf->pVtbl->GetCurrentGPUMetrics(g_adlxPerf, g_adlxGpu, &m) != 0 || !m) return -1;
+    int watts = -1;
+    double val = 0.0;
+    if (g_adlxHasBoardPower && m->pVtbl->GPUTotalBoardPower(m, &val) == 0) watts = RoundGpuWatts(val);
+    if (watts < 0 && g_adlxHasGpuPower && m->pVtbl->GPUPower(m, &val) == 0) watts = RoundGpuWatts(val);
+    m->pVtbl->Release(m);
+    return watts;
+}
+
+// ---- Intel IGCL (ControlLib.dll) ----
+namespace igcl_abi {
+struct InitArgs {
+    std::uint32_t Size;
+    std::uint8_t Version;
+    std::uint32_t AppVersion;
+    std::uint32_t flags;
+    std::uint32_t SupportedVersion;
+    std::uint8_t ApplicationUID[16];
+};
+struct FirmwareVersion { std::uint64_t major, minor, build; };
+struct Bdf { std::uint8_t bus, device, function; };
+struct AdapterProperties {
+    std::uint32_t Size;
+    std::uint8_t Version;
+    void* pDeviceID;
+    std::uint32_t device_id_size;
+    std::uint32_t device_type;
+    std::uint32_t supported_subfunction_flags;
+    std::uint64_t driver_version;
+    FirmwareVersion firmware_version;
+    std::uint32_t pci_vendor_id;
+    std::uint32_t pci_device_id;
+    std::uint32_t rev_id;
+    std::uint32_t num_eus_per_sub_slice;
+    std::uint32_t num_sub_slices_per_slice;
+    std::uint32_t num_slices;
+    char name[100];
+    std::uint32_t graphics_adapter_properties;
+    std::uint32_t Frequency;
+    std::uint16_t pci_subsys_id;
+    std::uint16_t pci_subsys_vendor_id;
+    Bdf adapter_bdf;
+    std::uint32_t num_xe_cores;
+    char reserved[108];
+};
+struct EnergyCounter {
+    std::uint32_t Size;
+    std::uint8_t Version;
+    std::uint64_t energy;
+    std::uint64_t timestamp;
+};
+using InitFn = int(__cdecl*)(InitArgs*, void**);
+using CloseFn = int(__cdecl*)(void*);
+using EnumDevicesFn = int(__cdecl*)(void*, std::uint32_t*, void**);
+using GetPropsFn = int(__cdecl*)(void*, AdapterProperties*);
+using EnumPowerDomainsFn = int(__cdecl*)(void*, std::uint32_t*, void**);
+using GetEnergyFn = int(__cdecl*)(void*, EnergyCounter*);
+}  // namespace igcl_abi
+
+HMODULE g_igcl = nullptr;
+bool g_igclTried = false;
+void* g_igclApi = nullptr;
+void* g_igclPowerDomain = nullptr;
+igcl_abi::CloseFn g_ctlClose = nullptr;
+igcl_abi::GetEnergyFn g_ctlGetEnergy = nullptr;
+std::uint64_t g_igclPrevEnergy = 0;
+std::uint64_t g_igclPrevTs = 0;
+
+void StopIgcl() {
+    if (g_igclApi && g_ctlClose) g_ctlClose(g_igclApi);
+    g_igclApi = nullptr;
+    g_igclPowerDomain = nullptr;
+    g_ctlClose = nullptr;
+    g_ctlGetEnergy = nullptr;
+    g_igclPrevEnergy = 0;
+    g_igclPrevTs = 0;
+    if (g_igcl) { FreeLibrary(g_igcl); g_igcl = nullptr; }
+    g_igclTried = false;
+}
+
+void StartIgcl() {
+    if (g_igclTried) return;
+    g_igclTried = true;
+    g_igcl = LoadLibraryExW(L"ControlLib.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+    if (!g_igcl) return;
+    auto init = Proc<igcl_abi::InitFn>(g_igcl, "ctlInit");
+    g_ctlClose = Proc<igcl_abi::CloseFn>(g_igcl, "ctlClose");
+    auto enumDevs = Proc<igcl_abi::EnumDevicesFn>(g_igcl, "ctlEnumerateDevices");
+    auto getProps = Proc<igcl_abi::GetPropsFn>(g_igcl, "ctlGetDeviceProperties");
+    auto enumPwr = Proc<igcl_abi::EnumPowerDomainsFn>(g_igcl, "ctlEnumPowerDomains");
+    g_ctlGetEnergy = Proc<igcl_abi::GetEnergyFn>(g_igcl, "ctlPowerGetEnergyCounter");
+    if (!init || !g_ctlClose || !enumDevs || !getProps || !enumPwr || !g_ctlGetEnergy) {
+        StopIgcl();
+        g_igclTried = true;
+        return;
+    }
+    igcl_abi::InitArgs args{};
+    args.Size = sizeof(args);
+    args.Version = 0;
+    args.AppVersion = (1u << 16) | 1u;
+    args.flags = 1u;
+    if (init(&args, &g_igclApi) != 0 || !g_igclApi) {
+        StopIgcl();
+        g_igclTried = true;
+        return;
+    }
+    std::uint32_t devCount = 0;
+    if (enumDevs(g_igclApi, &devCount, nullptr) != 0 || devCount == 0) {
+        StopIgcl();
+        g_igclTried = true;
+        return;
+    }
+    std::vector<void*> devs(devCount, nullptr);
+    if (enumDevs(g_igclApi, &devCount, devs.data()) != 0) {
+        StopIgcl();
+        g_igclTried = true;
+        return;
+    }
+    void* chosen = nullptr;
+    const std::string wantName = NarrowAscii(g_adapter.name);
+    for (std::uint32_t i = 0; i < devCount; ++i) {
+        if (!devs[i]) continue;
+        LUID devLuid{};
+        igcl_abi::AdapterProperties props{};
+        props.Size = sizeof(props);
+        props.Version = 0;
+        props.pDeviceID = &devLuid;
+        props.device_id_size = sizeof(devLuid);
+        if (getProps(devs[i], &props) != 0 || props.device_type != 1) continue;
+        const bool luidMatch = (devLuid.LowPart || devLuid.HighPart) &&
+                               devLuid.LowPart == g_adapter.raw.LowPart &&
+                               devLuid.HighPart == g_adapter.raw.HighPart;
+        const bool pciMatch = g_adapter.deviceId && props.pci_device_id == g_adapter.deviceId;
+        const bool nameMatch = props.name[0] &&
+                               (wantName.find(props.name) != std::string::npos ||
+                                std::string(props.name).find(wantName) != std::string::npos);
+        if (luidMatch || pciMatch || nameMatch || devCount == 1) {
+            chosen = devs[i];
+            break;
+        }
+    }
+    if (!chosen) { StopIgcl(); g_igclTried = true; return; }
+    std::uint32_t domCount = 0;
+    if (enumPwr(chosen, &domCount, nullptr) != 0 || domCount == 0) {
+        StopIgcl();
+        g_igclTried = true;
+        return;
+    }
+    std::vector<void*> domains(domCount, nullptr);
+    if (enumPwr(chosen, &domCount, domains.data()) != 0) {
+        StopIgcl();
+        g_igclTried = true;
+        return;
+    }
+    for (std::uint32_t i = 0; i < domCount; ++i) {
+        if (!domains[i]) continue;
+        igcl_abi::EnergyCounter ec{};
+        ec.Size = sizeof(ec);
+        ec.Version = 0;
+        if (g_ctlGetEnergy(domains[i], &ec) == 0 && ec.timestamp != 0) {
+            g_igclPowerDomain = domains[i];
+            g_igclPrevEnergy = ec.energy;
+            g_igclPrevTs = ec.timestamp;
+            break;
+        }
+    }
+    if (!g_igclPowerDomain) { StopIgcl(); g_igclTried = true; }
+}
+
+int IgclWatts() {
+    StartIgcl();
+    if (!g_igclPowerDomain || !g_ctlGetEnergy) return -1;
+    igcl_abi::EnergyCounter ec{};
+    ec.Size = sizeof(ec);
+    ec.Version = 0;
+    if (g_ctlGetEnergy(g_igclPowerDomain, &ec) != 0) return -1;
+    const int watts = IgclWattsFromEnergyDelta(g_igclPrevEnergy, g_igclPrevTs, ec.energy, ec.timestamp);
+    if (ec.timestamp > g_igclPrevTs) {
+        g_igclPrevEnergy = ec.energy;
+        g_igclPrevTs = ec.timestamp;
+    }
+    return watts;
+}
+
+int SampleVendorWatts() {
+    switch (g_adapter.vendorId) {
+        case 0x10DE: return NvmlWatts();
+        case 0x1002: return AdlxWatts();
+        case 0x8086: return IgclWatts();
+        default:     return -1;
+    }
+}
+
+void StopVendorLibs() {
+    if (g_nvml) {
+        if (g_nvmlDevice && g_nvmlShutdown) g_nvmlShutdown();
+        FreeLibrary(g_nvml);
+    }
+    g_nvml = nullptr;
+    g_nvmlDevice = nullptr;
+    g_nvmlPower = nullptr;
+    g_nvmlClock = nullptr;
+    g_nvmlTried = false;
+    StopAdlx();
+    StopIgcl();
+}
+
 }  // namespace
 
 Reading Sample(bool wantTemperature, bool wantPower, bool wantClocks) {
@@ -357,6 +773,10 @@ Reading Sample(bool wantTemperature, bool wantPower, bool wantClocks) {
             r.vram = (int)std::min(100.0, used * 100.0 / (double)g_adapter.vramBytes + 0.5);
         }
     }
+    if (!wantPower) {
+        StopAdlx();
+        StopIgcl();
+    }
     if (wantTemperature || wantPower || wantClocks) {
         int temp = -1, pct = -1;
         std::uint64_t memFreqHz = 0;
@@ -364,7 +784,7 @@ Reading Sample(bool wantTemperature, bool wantPower, bool wantClocks) {
         if (wantTemperature) r.tempC = temp;
         if (wantPower) {
             r.powerPct = pct;
-            r.watts = NvmlWatts();
+            r.watts = SampleVendorWatts();
         }
         if (wantClocks) {
             NvmlClocks(r.gpuClockMhz, r.vramClockMhz);
@@ -388,15 +808,7 @@ void Stop() {
         g_closeAdapter(&c);
     }
     g_kmtAdapter = 0;
-    if (g_nvml) {
-        if (g_nvmlDevice && g_nvmlShutdown) g_nvmlShutdown();
-        FreeLibrary(g_nvml);
-    }
-    g_nvml = nullptr;
-    g_nvmlDevice = nullptr;
-    g_nvmlPower = nullptr;
-    g_nvmlClock = nullptr;
-    g_nvmlTried = false;
+    StopVendorLibs();
     if (g_adl) {
         if (g_adlCtx && g_adlDestroy) g_adlDestroy(g_adlCtx);
         FreeLibrary(g_adl);
