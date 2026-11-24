@@ -32,13 +32,14 @@ static Result HitTest(HWND h){
   HWND got=WindowFromPoint(p);
   if(got==h) continue;
   std::printf("  point (%ld,%ld) not ours:\n",p.x,p.y);Describe(got);
-  if(got && IsAbove(got,h)) result=Result::Covered; else return Result::Fail;
+  HWND root=got?GetAncestor(got,GA_ROOT):nullptr; // WindowFromPoint may return a child window
+  if(root && IsAbove(root,h)) result=Result::Covered; else return Result::Fail;
  }
  return result;
 }
 int main(){
  WNDCLASSW cls{};cls.lpfnWndProc=Proc;cls.hInstance=GetModuleHandleW(nullptr);cls.lpszClassName=L"CompositionHitFixture";RegisterClassW(&cls);
- HWND h=CreateWindowExW(WS_EX_TOOLWINDOW|WS_EX_NOACTIVATE|WS_EX_NOREDIRECTIONBITMAP,cls.lpszClassName,L"Composition hit fixture",WS_POPUP,200,200,180,24,nullptr,nullptr,cls.hInstance,nullptr);
+ HWND h=CreateWindowExW(WS_EX_TOPMOST|WS_EX_TOOLWINDOW|WS_EX_NOACTIVATE|WS_EX_NOREDIRECTIONBITMAP,cls.lpszClassName,L"Composition hit fixture",WS_POPUP,200,200,180,24,nullptr,nullptr,cls.hInstance,nullptr);
  CompositionSurface renderer;std::vector<unsigned> transparent(180*24,0);
  bool ok=h && renderer.Initialize(h) && renderer.Paint(transparent.data(),180,24,180*4);
  if(!ok){std::printf("FAIL: fixture window or composition surface could not be created\n");return 1;}
