@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "alert_rules.h"
+#include "app_commands.h"
 #include "app_state.h"
 #include "cputemp_client.h"
 #include "dashboard.h"

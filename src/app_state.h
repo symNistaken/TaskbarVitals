@@ -14,6 +14,7 @@
 #include "brands.h"
 #include "charge_estimate.h"
 #include "command_routing.h"
+#include "dashboard.h"
 #include "cputemp_client.h"
 #include "device_aliases.h"
 #include "devices.h"
@@ -219,15 +220,18 @@ void TickSystemReadings(bool now = false);
 bool AnyGpuReading();
 bool AnyDiskReading();
 bool AnyLaptopBatReading();
-
-// Command setters defined in main.cpp
-void SetWidgetMonitor(const std::wstring& v);
-void SetChargeLimit(int limit);
-void SetEveningReminderHour(int hour);
-void SetPollLessFullscreen(bool on);
-void SetOsdMode(osd_policy::OsdMode mode);
-void SetOsdCorner(osd_policy::OsdCorner corner);
-void SetAlertSound(alerts::AlertSound mode);
-void SetLocalApiPipe(bool on);
+bool AnyCpuReading();
+bool AnyReading();
+void ApplyMenuTheme(bool light);
+void ApplyEntry(TrayEntry& e);
+Accent SystemAccentFor(int item);
+std::wstring CpuTempStatusText();
+std::wstring JoinParts(const std::vector<std::wstring>& parts, const wchar_t* sep);
+std::wstring FormatGbPair(int pct, double usedGb, double totalGb);
+void UpdateStatusSnapshot();
+bool SplitStrips();
+void SyncVitalsStrip();
+dashboard::VitalsSnapshot BuildDashboardVitals();
+void StartNetSpeedTest();
 
 }  // namespace app
