@@ -205,6 +205,8 @@ test: test-update-core test-update-win test-update-signature
 	./build/g435_estimate_test.exe
 	$(CXX) -std=c++17 -O2 -Wall tests/battery_intelligence_test.cpp src/battery_intelligence.cpp src/i18n.cpp -o build/battery_intelligence_test.exe
 	./build/battery_intelligence_test.exe
+	$(CXX) -std=c++17 -O2 -Wall tests/i18n_edge_space_test.cpp -o build/i18n_edge_space_test.exe
+	./build/i18n_edge_space_test.exe
 	$(CXX) -std=c++17 -O2 -Wall tests/dashboard_model_test.cpp src/battery_intelligence.cpp src/i18n.cpp -o build/dashboard_model_test.exe
 	./build/dashboard_model_test.exe
 	$(CXX) -std=c++17 -O2 -Wall tests/multi_battery_test.cpp -o build/multi_battery_test.exe

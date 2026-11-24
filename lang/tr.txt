@@ -360,8 +360,7 @@ Show battery power (watts) = Pil gücünü (watt) göster
 Plugged in = Prize takılı
 On battery = Pilde
 Remaining: {time} = Kalan: {time}
-Estimated full-charge runtime:  = Tahmini tam şarj kullanım süresi: 
- ({full}/{design} mWh) =  ({full}/{design} mWh)
+({full}/{design} mWh) = ({full}/{design} mWh)
 
 # Overnight improvements (2.0.0)
 Temperature colours = Sıcaklık renkleri

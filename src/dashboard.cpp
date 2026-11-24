@@ -371,7 +371,7 @@ void PaintDetails(HWND w, HDC dc, const RECT& area, int64_t now) {
     Text(dc, T(L"Full-Charge Runtime & Battery Health"), RECT{ runtimeCard.left + Ui(w, 14), leftY + Ui(w, 10), runtimeCard.right - Ui(w, 14), leftY + Ui(w, 32) }, P().muted);
 
     SelectObject(dc, g_fontRegular);
-    std::wstring runStr = fullRun.hasEstimate ? fullRun.displayLabel : (std::wstring(T(L"Estimated full-charge runtime: ")) + T(L"Collecting data"));
+    std::wstring runStr = fullRun.hasEstimate ? fullRun.displayLabel : TF(L"Estimated full-charge runtime: {runtime}", { { L"runtime", T(L"Collecting data") } });
     Text(dc, runStr, RECT{ runtimeCard.left + Ui(w, 14), leftY + Ui(w, 36), runtimeCard.right - Ui(w, 14), leftY + Ui(w, 58) }, P().text);
 
     if (fullRun.hasEstimate) {
@@ -384,7 +384,7 @@ void PaintDetails(HWND w, HDC dc, const RECT& area, int64_t now) {
     SelectObject(dc, g_fontRegular);
     std::wstring healthStr = TF(L"Battery Health: {status}", { { L"status", health.displayText } });
     if (health.supported && health.designCapacityMwh > 0) {
-        healthStr += TF(L" ({full}/{design} mWh)", {
+        healthStr += L" " + TF(L"({full}/{design} mWh)", {
             { L"full", std::to_wstring(health.fullChargeCapacityMwh) },
             { L"design", std::to_wstring(health.designCapacityMwh) }
         });
