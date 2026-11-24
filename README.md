@@ -263,6 +263,8 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 
 Taskbar Vitals ships **21 built-in languages**: `English`, `العربية`, `Deutsch`, `Español`, `فارسی`, `Français`, `עברית`, `Magyar`, `Italiano`, `日本語`, `한국어`, `Polski`, `Português (Brasil)`, `Русский`, `Svenska`, `ภาษาไทย`, `Türkçe`, `Українська`, `Tiếng Việt`, `简体中文`, `繁體中文`.
 
+> **Help wanted.** Taskbar Vitals is maintained by one person. Phrases added in 2.1 were machine-translated for every language except English and Turkish; they sit at the end of each file in [`lang/`](lang/) under a "please review" comment. If you speak one of these languages, corrections are very welcome as a pull request or an [issue](https://github.com/symNistaken/TaskbarVitals/issues). The same goes for bugs and devices that show a wrong or missing battery level: open an issue and attach the output of `TaskbarVitals.exe --report`.
+
 - **Customize locally:** Open **Settings → General → Language → Add your own language...** to copy `_template.txt` in `%APPDATA%\WirelessBattery\lang\` to `<code>.txt`.
 - **Contribute:** See [`CONTRIBUTING.md`](CONTRIBUTING.md) for driver architecture, test registration, and security rules, and [`SECURITY.md`](SECURITY.md) for vulnerability disclosure &amp; signing notes.
 
