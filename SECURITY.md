@@ -9,6 +9,17 @@ Taskbar Vitals is built to read telemetry safely without changing device setting
 - **Isolated CPU temperature helper (`TaskbarVitalsTemp.exe`):** Reading Intel CPU package temperature requires MSR access through the external [PawnIO](https://pawnio.eu) driver. When enabled by the user, `TaskbarVitalsTemp.exe` runs as an isolated elevated helper (under a Windows-protected `Program Files` path), embeds the unmodified PawnIO `IntelMSR` module, reads only `IA32_TEMPERATURE_TARGET` (`0x1A2`) and `IA32_PACKAGE_THERM_STATUS` (`0x1B1`), and shares the numeric result over read-only shared memory (`Local\TaskbarVitalsCpuTemp`). It never writes MSRs or accepts external commands beyond shutdown signaling.
 - **100% local data:** Device readings, custom aliases, alert thresholds, and 30-day battery history stay on your PC. Nothing is transmitted externally.
 
+### Network connections
+
+Apart from the Bluetooth/HID device queries above, the only outbound connections are:
+
+| What | Host | When | How to avoid |
+|---|---|---|---|
+| Update check (official stable builds only; `src/update_win.cpp`) | `api.github.com` | About 30 seconds after startup, then at most once every 24 hours; also on **Check for updates**. An update is downloaded from `github.com` hosts only after you click **Download and install**. | Turn off **Automatically check for updates**; development builds never check. |
+| Speed test (`src/netmon.cpp`) | `speed.cloudflare.com` | Only when you click **Run speed test**. Downloads about 10 MB and uploads 2 MB of filler data. | Don't click it. |
+
+Both are plain HTTPS requests with no account or token, so the host sees your IP address (and, for the update check, the app version in the user agent). No device readings, battery history, or usage data are sent.
+
 ## Cryptographically Signed Windows Updates
 
 Official stable Windows builds verify release integrity before offering **Download and install**:
