@@ -151,9 +151,10 @@ UINT g_kmtAdapter;
 QueryInfoFn g_queryInfo;
 CloseAdapterFn g_closeAdapter;
 
-// Temperature (-1 if unknown) and power share (-1 if unknown) from one ADAPTERPERFDATA query.
-void PerfData(int& tempC, int& powerPct) {
+// Temperature (-1 if unknown), power share (-1 if unknown), and memory clock Hz (0 if unknown) from ADAPTERPERFDATA.
+void PerfData(int& tempC, int& powerPct, std::uint64_t& memFreqHz) {
     tempC = powerPct = -1;
+    memFreqHz = 0;
     if (!g_kmtAdapter) {
         HMODULE gdi = GetModuleHandleW(L"gdi32.dll");
         auto open = Proc<OpenAdapterFn>(gdi, "D3DKMTOpenAdapterFromLuid");
@@ -168,17 +169,20 @@ void PerfData(int& tempC, int& powerPct) {
     if (g_queryInfo(&q) != 0) return;
     if (perf.Temperature != 0 && perf.Temperature <= 1500) tempC = (int)((perf.Temperature + 5) / 10);
     if (perf.Power != 0 && perf.Power <= 3000) powerPct = (int)((perf.Power + 5) / 10);
+    if (perf.MemoryFrequency > 0) memFreqHz = perf.MemoryFrequency;
 }
 
-// ---- board power in watts (nvml.dll, NVIDIA's management library; ships with the display driver) ----
+// ---- NVIDIA management library (nvml.dll; ships with the display driver) ----
 using NvmlInitFn = int(*)();
 using NvmlCountFn = int(*)(unsigned*);
 using NvmlHandleFn = int(*)(unsigned, void**);
 using NvmlNameFn = int(*)(void*, char*, unsigned);
 using NvmlPowerFn = int(*)(void*, unsigned*);
+using NvmlClockFn = int(*)(void*, int, unsigned*);
 HMODULE g_nvml;
 NvmlInitFn g_nvmlShutdown;
 NvmlPowerFn g_nvmlPower;
+NvmlClockFn g_nvmlClock;
 void* g_nvmlDevice;
 bool g_nvmlTried;
 
@@ -192,9 +196,10 @@ void StartNvml() {
     auto handle = Proc<NvmlHandleFn>(g_nvml, "nvmlDeviceGetHandleByIndex_v2");
     auto name = Proc<NvmlNameFn>(g_nvml, "nvmlDeviceGetName");
     g_nvmlPower = Proc<NvmlPowerFn>(g_nvml, "nvmlDeviceGetPowerUsage");
+    g_nvmlClock = Proc<NvmlClockFn>(g_nvml, "nvmlDeviceGetClockInfo");
     g_nvmlShutdown = Proc<NvmlInitFn>(g_nvml, "nvmlShutdown");
     unsigned n = 0;
-    if (!init || !count || !handle || !name || !g_nvmlPower || init() != 0 || count(&n) != 0) return;
+    if (!init || !count || !handle || !name || init() != 0 || count(&n) != 0) return;
     std::string want;
     for (wchar_t c : g_adapter.name) want += (char)(c < 128 ? c : '?');
     for (unsigned i = 0; i < n; i++) {
@@ -211,13 +216,110 @@ void StartNvml() {
 int NvmlWatts() {
     StartNvml();
     unsigned mw = 0;
-    if (!g_nvmlDevice || g_nvmlPower(g_nvmlDevice, &mw) != 0) return -1;
+    if (!g_nvmlDevice || !g_nvmlPower || g_nvmlPower(g_nvmlDevice, &mw) != 0) return -1;
     return (int)((mw + 500) / 1000);
+}
+
+void NvmlClocks(int& gpuMhz, int& vramMhz) {
+    StartNvml();
+    if (!g_nvmlDevice || !g_nvmlClock) return;
+    unsigned gfx = 0, mem = 0;
+    if (g_nvmlClock(g_nvmlDevice, 0 /* NVML_CLOCK_GRAPHICS */, &gfx) == 0 && gfx > 0) gpuMhz = (int)gfx;
+    if (g_nvmlClock(g_nvmlDevice, 2 /* NVML_CLOCK_MEM */, &mem) == 0 && mem > 0) vramMhz = (int)mem;
+}
+
+// ---- AMD Display Library (atiadlxx.dll, ADL2 PMLog; ships with AMD Radeon drivers) ----
+using AdlMallocFn = void*(CALLBACK*)(int);
+using Adl2CreateFn = int(*)(AdlMallocFn, int, void**);
+using Adl2DestroyFn = int(*)(void*);
+using Adl2CountFn = int(*)(void*, int*);
+using Adl2ActiveFn = int(*)(void*, int, int*);
+using Adl2PmLogFn = int(*)(void*, int, void*);
+
+struct AdlSensorData {
+    int supported;
+    int value;
+};
+struct AdlPmLogOutput {
+    int size;
+    AdlSensorData sensors[256];
+};
+constexpr int kAdlClkGfxClk = 1;
+constexpr int kAdlClkMemClk = 2;
+constexpr int kAdlSocPower = 17;
+constexpr int kAdlAsicPower = 23;
+constexpr int kAdlGfxPower = 30;
+constexpr int kAdlBoardPower = 73;
+
+HMODULE g_adl;
+void* g_adlCtx;
+Adl2DestroyFn g_adlDestroy;
+Adl2PmLogFn g_adlPmLog;
+int g_adlAdapterIndex = -1;
+bool g_adlTried;
+
+void* CALLBACK AdlAlloc(int bytes) { return std::malloc((size_t)std::max(1, bytes)); }
+
+bool IsAmdAdapter() {
+    std::wstring low = g_adapter.name;
+    for (wchar_t& c : low) c = (wchar_t)towlower(c);
+    return low.find(L"amd") != std::wstring::npos || low.find(L"radeon") != std::wstring::npos;
+}
+
+void StartAdl() {
+    if (g_adlTried) return;
+    g_adlTried = true;
+    if (!IsAmdAdapter()) return;
+    g_adl = LoadLibraryExW(L"atiadlxx.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+    if (!g_adl) return;
+    auto create = Proc<Adl2CreateFn>(g_adl, "ADL2_Main_Control_Create");
+    g_adlDestroy = Proc<Adl2DestroyFn>(g_adl, "ADL2_Main_Control_Destroy");
+    auto count = Proc<Adl2CountFn>(g_adl, "ADL2_Adapter_NumberOfAdapters_Get");
+    auto active = Proc<Adl2ActiveFn>(g_adl, "ADL2_Adapter_Active_Get");
+    g_adlPmLog = Proc<Adl2PmLogFn>(g_adl, "ADL2_New_QueryPMLogData_Get");
+    if (!create || !g_adlDestroy || !count || !g_adlPmLog) return;
+    if (create(AdlAlloc, 1, &g_adlCtx) != 0 || !g_adlCtx) { g_adlCtx = nullptr; return; }
+    int n = 0;
+    if (count(g_adlCtx, &n) != 0 || n <= 0) return;
+    for (int i = 0; i < n; ++i) {
+        int isActive = 1;
+        if (active && active(g_adlCtx, i, &isActive) == 0 && !isActive) continue;
+        AdlPmLogOutput out{};
+        out.size = sizeof(out);
+        if (g_adlPmLog(g_adlCtx, i, &out) == 0 &&
+            (out.sensors[kAdlClkGfxClk].supported || out.sensors[kAdlAsicPower].supported ||
+             out.sensors[kAdlBoardPower].supported || out.sensors[kAdlGfxPower].supported)) {
+            g_adlAdapterIndex = i;
+            return;
+        }
+    }
+}
+
+void QueryAdl(bool wantPower, bool wantClocks, int& watts, int& gpuMhz, int& vramMhz) {
+    StartAdl();
+    if (!g_adlCtx || !g_adlPmLog || g_adlAdapterIndex < 0) return;
+    AdlPmLogOutput out{};
+    out.size = sizeof(out);
+    if (g_adlPmLog(g_adlCtx, g_adlAdapterIndex, &out) != 0) return;
+    if (wantPower && watts < 0) {
+        for (int idx : { kAdlBoardPower, kAdlAsicPower, kAdlGfxPower, kAdlSocPower }) {
+            if (out.sensors[idx].supported && out.sensors[idx].value > 0 && out.sensors[idx].value < 2000) {
+                watts = out.sensors[idx].value;
+                break;
+            }
+        }
+    }
+    if (wantClocks) {
+        if (gpuMhz < 0 && out.sensors[kAdlClkGfxClk].supported && out.sensors[kAdlClkGfxClk].value > 0)
+            gpuMhz = out.sensors[kAdlClkGfxClk].value;
+        if (vramMhz < 0 && out.sensors[kAdlClkMemClk].supported && out.sensors[kAdlClkMemClk].value > 0)
+            vramMhz = out.sensors[kAdlClkMemClk].value;
+    }
 }
 
 }  // namespace
 
-Reading Sample(bool wantTemperature, bool wantPower) {
+Reading Sample(bool wantTemperature, bool wantPower, bool wantClocks) {
     Reading r;
     if (!g_adapterLooked) {
         g_adapter = FindAdapter();
@@ -255,13 +357,22 @@ Reading Sample(bool wantTemperature, bool wantPower) {
             r.vram = (int)std::min(100.0, used * 100.0 / (double)g_adapter.vramBytes + 0.5);
         }
     }
-    if (wantTemperature || wantPower) {
+    if (wantTemperature || wantPower || wantClocks) {
         int temp = -1, pct = -1;
-        PerfData(temp, pct);
+        std::uint64_t memFreqHz = 0;
+        PerfData(temp, pct, memFreqHz);
         if (wantTemperature) r.tempC = temp;
         if (wantPower) {
             r.powerPct = pct;
             r.watts = NvmlWatts();
+        }
+        if (wantClocks) {
+            NvmlClocks(r.gpuClockMhz, r.vramClockMhz);
+            if (r.vramClockMhz < 0 && memFreqHz >= 1000000ULL)
+                r.vramClockMhz = (int)(memFreqHz / 1000000ULL);
+        }
+        if ((wantPower && r.watts < 0) || (wantClocks && (r.gpuClockMhz < 0 || r.vramClockMhz < 0))) {
+            QueryAdl(wantPower, wantClocks, r.watts, r.gpuClockMhz, r.vramClockMhz);
         }
     }
     return r;
@@ -283,7 +394,19 @@ void Stop() {
     }
     g_nvml = nullptr;
     g_nvmlDevice = nullptr;
+    g_nvmlPower = nullptr;
+    g_nvmlClock = nullptr;
     g_nvmlTried = false;
+    if (g_adl) {
+        if (g_adlCtx && g_adlDestroy) g_adlDestroy(g_adlCtx);
+        FreeLibrary(g_adl);
+    }
+    g_adl = nullptr;
+    g_adlCtx = nullptr;
+    g_adlDestroy = nullptr;
+    g_adlPmLog = nullptr;
+    g_adlAdapterIndex = -1;
+    g_adlTried = false;
     g_adapterLooked = false;  // look again next time: a GPU may have been added or switched
 }
 

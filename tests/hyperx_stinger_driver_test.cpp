@@ -65,6 +65,7 @@ bool HidDev::GetFeature(BYTE id, std::vector<BYTE>& out) {
     pending.erase(pending.begin());
     return true;
 }
+bool HidDev::GetInputReport(BYTE, std::vector<BYTE>&) { return false; }
 std::wstring Hex4(USHORT v) {
     wchar_t text[8];
     swprintf(text, 8, L"%04X", v);
@@ -121,13 +122,29 @@ int main() {
     PollContext claimed; claimed.colls = { dts }; claimed.Claim(dts.vid, dts.pid);
     opens = 0; PollHyperX(claimed); assert(opens == 0 && claimed.out.empty());
 
-    // Original Kingston keeps its single-read/non-validated behavior; PlayStation still validates the header.
-    ctx = Poll(Collection(0x0951, 0x170B), { Link(true) }, { Reply(0, 0, 3, 3954) });
-    assert(ctx.out.size() == 1 && ctx.out[0].percent == 80 && reads == 2);
+    // Original Kingston receiver (0951:170B) also returns stale FF 01 00 replies before FF 12 05 arrives.
+    const auto kingston = Collection(0x0951, 0x170B);
+    auto staleConnDischarge = Reply(1, 0, 3, 0x0E01);  // stale connection buffer with residual 0x0E high byte (3585 mV / 5%)
+    auto staleConnCharging = Reply(1, 0, 1, 0x0E01);   // stale connection buffer with non-battery code 0x01
+    auto connOn = Reply(0x0C, 5, 3, 0x0E01);
+    auto connOff = Reply(0x0C, 5, 3, 0x0E03);
+    ctx = Poll(kingston, { Battery(3, 3954), connOn }, { staleConnDischarge, Battery(3, 3838) });
+    assert(ctx.out.size() == 1 && ctx.out[0].connected && !ctx.out[0].charging);
+    assert(ctx.out[0].percent == 60 && ctx.out[0].millivolts == 3838 && reads == 4);
+    ctx = Poll(kingston, { connOn }, { staleConnCharging, Battery(5, 4000) });
+    assert(ctx.out.size() == 1 && ctx.out[0].connected && ctx.out[0].charging);
+    assert(ctx.out[0].percent == 70 && ctx.out[0].millivolts == 4000 && reads == 3);
+    ctx = Poll(kingston, { connOff }, { Battery() });
+    assert(ctx.out.size() == 1 && !ctx.out[0].connected && ctx.out[0].percent == -1 && writes.size() == 1);
+    ctx = Poll(kingston, { connOn }, Reports(10, staleConnDischarge));
+    assert(ctx.out.size() == 1 && ctx.out[0].connected && ctx.out[0].percent == -1 && ctx.out[0].millivolts == 0);
+    ctx = Poll(kingston, { connOn }, Reports(10, Reply(0, 0, 3, 3954)));
+    assert(ctx.out.size() == 1 && ctx.out[0].connected && ctx.out[0].percent == -1 && ctx.out[0].millivolts == 0);
+
     for (const auto& ps : { Collection(0x03F0, 0x0A93), Collection(0x0951, 0x1713) }) {
         ctx = Poll(ps, { Link(true) }, { Link(true), Battery() });
         assert(ctx.out.size() == 1 && ctx.out[0].percent == 80);
         assert(ctx.out[0].name == L"HyperX Cloud Stinger Core Wireless");
     }
-    std::puts("HyperX Stinger Core tests passed (DTS, charging, stale/invalid replies, filtering, legacy variants).");
+    std::puts("HyperX Stinger Core tests passed (DTS, Kingston 170B, charging, stale/invalid replies, filtering).");
 }

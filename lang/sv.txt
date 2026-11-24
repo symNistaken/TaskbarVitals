@@ -196,3 +196,14 @@ Taskbar Vitals could not reopen. Please start it manually or repair the installa
 Taskbar Vitals is up to date. = Taskbar Vitals är uppdaterat.
 Taskbar Vitals update = Taskbar Vitals-uppdatering
 Taskbar Vitals will close briefly while the update is installed. = Taskbar Vitals stängs en kort stund medan uppdateringen installeras.
+
+Thank you! Your request was sent. You can follow it at {page}. = Tack! Din begäran har skickats. Du kan följa den på {page}.
+You already sent this device in the last 24 hours, so it's on the list. Thank you! = Du har redan skickat den här enheten under de senaste 24 timmarna, så den finns redan på listan. Tack!
+The request was not accepted: {reason} = Begäran godkändes inte: {reason}
+please check the fields. = kontrollera fälten.
+Too many requests from your network. Please try again in an hour. = För många förfrågningar från ditt nätverk. Försök igen om en timme.
+The site answered with an error ({code}). Please try again later. = Webbplatsen svarade med ett fel ({code}). Försök igen senare.
+(kept private) = (hålls privat)
+Your name (optional, kept private and never shown) = Ditt namn (valfritt, hålls privat och visas aldrig)
+This is exactly what will be sent: = Det här är exakt vad som skickas:
+Sending... = Skickar...

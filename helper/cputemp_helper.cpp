@@ -4,14 +4,17 @@
 //   TaskbarVitalsTemp.exe --install [--user SID]   copy itself into Program Files and register the sign-in task
 //   TaskbarVitalsTemp.exe --remove        stop, delete the task and the copy
 //
-// It always runs elevated (see the manifest). It reads two MSRs through the PawnIO driver and writes none; it takes
+// It always runs elevated (see the manifest). On Intel CPUs it reads two MSRs through PawnIO IntelMSR; on AMD
+// Ryzen (Family 17h-1Ah) it reads SMN THM_TCON_CUR_TMP (0x00059800) through PawnIO AMDFamily17. It takes
 // no input except the stop event; the app (not elevated) only reads its shared memory block.
 #include <windows.h>
 #include <sddl.h>
 #include <shellapi.h>
 #include <shlobj.h>
+#include <cpuid.h>
 
 #include <cstdio>
+#include <cstring>
 #include <string>
 
 #include "../src/cputemp.h"
@@ -36,10 +39,40 @@ void Log(const wchar_t* what, long long a = 0, long long b = 0) {
 inline void Log(const wchar_t*, long long = 0, long long = 0) {}
 #endif
 
-constexpr int kModuleResource = 200;  // IntelMSR.bin, RCDATA (res/pawnio/IntelMSR.bin)
+constexpr int kIntelModuleResource = 200;  // IntelMSR.bin, RCDATA (res/pawnio/IntelMSR.bin)
+constexpr int kAmdModuleResource = 201;    // AMDFamily17.bin, RCDATA (res/pawnio/AMDFamily17.bin)
 constexpr DWORD kPollMs = 2000;
 constexpr ULONGLONG kAppGoneMs = 30000;     // quit this long after the app's window disappeared
 constexpr ULONGLONG kRetryOpenMs = 10000;   // try the driver again this often while it is missing
+
+enum class CpuVendor { Unknown, Intel, Amd };
+
+void DetectCpu(CpuVendor& vendor, std::string& brand) {
+    vendor = CpuVendor::Unknown;
+    brand.clear();
+    unsigned int eax = 0, ebx = 0, ecx = 0, edx = 0;
+    if (__get_cpuid(0, &eax, &ebx, &ecx, &edx)) {
+        char v[13]{};
+        memcpy(v + 0, &ebx, 4);
+        memcpy(v + 4, &edx, 4);
+        memcpy(v + 8, &ecx, 4);
+        if (strcmp(v, "GenuineIntel") == 0) vendor = CpuVendor::Intel;
+        else if (strcmp(v, "AuthenticAMD") == 0) vendor = CpuVendor::Amd;
+    }
+    unsigned int maxExt = __get_cpuid_max(0x80000000, nullptr);
+    if (maxExt >= 0x80000004) {
+        char b[49]{};
+        for (int i = 0; i < 3; ++i) {
+            if (__get_cpuid(0x80000002u + i, &eax, &ebx, &ecx, &edx)) {
+                memcpy(b + i * 16 + 0, &eax, 4);
+                memcpy(b + i * 16 + 4, &ebx, 4);
+                memcpy(b + i * 16 + 8, &ecx, 4);
+                memcpy(b + i * 16 + 12, &edx, 4);
+            }
+        }
+        brand = b;
+    }
+}
 
 // ---- small helpers --------------------------------------------------------------------------------
 
@@ -132,9 +165,11 @@ class PawnIo {
   public:
     ~PawnIo() { Close(); }
 
-    // Loads PawnIOLib from where PawnIO is installed, opens a handle and loads the IntelMSR module.
-    Status Open() {
+    // Loads PawnIOLib from where PawnIO is installed, opens a handle and loads the CPU vendor module.
+    Status Open(CpuVendor vendor) {
         Close();
+        if (vendor == CpuVendor::Unknown) return Status::Unsupported;
+        vendor_ = vendor;
         lib_ = LoadLibraryExW((PawnIoDir() + L"\\PawnIOLib.dll").c_str(), nullptr,
                               LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);
         if (!lib_) return Status::NoPawnIo;
@@ -144,18 +179,24 @@ class PawnIo {
         close_ = Fn<CloseFn>("pawnio_close");
         if (!open || !load || !execute_ || !close_) return Fail(Status::NoPawnIo);
         if (FAILED(open(&handle_))) return Fail(Status::NoPawnIo);
-        HRSRC r = FindResourceW(nullptr, MAKEINTRESOURCEW(kModuleResource), RT_RCDATA);
+        int resId = vendor == CpuVendor::Amd ? kAmdModuleResource : kIntelModuleResource;
+        HRSRC r = FindResourceW(nullptr, MAKEINTRESOURCEW(resId), RT_RCDATA);
         HGLOBAL g = r ? LoadResource(nullptr, r) : nullptr;
         const UCHAR* blob = g ? (const UCHAR*)LockResource(g) : nullptr;
         if (!blob) return Fail(Status::ModuleFailed);
         HRESULT hr = load(handle_, blob, SizeofResource(nullptr, r));
         if (FAILED(hr)) return Fail(hr == HRESULT_FROM_NT(0xC00000BB) ? Status::Unsupported : Status::ModuleFailed);
+        if (vendor == CpuVendor::Amd) {
+            pciMutex_ = CreateMutexW(nullptr, FALSE, L"Global\\Access_PCI");
+            if (!pciMutex_) pciMutex_ = OpenMutexW(SYNCHRONIZE | MUTEX_MODIFY_STATE, FALSE, L"Global\\Access_PCI");
+        }
         return Status::Ok;
     }
 
     bool ReadMsr(std::uint32_t msr, std::uint64_t& value) {
         // Only the two registers the helper exists for; the module would refuse anything outside its own list anyway.
-        if (!handle_ || (msr != kMsrPackageThermStatus && msr != kMsrTemperatureTarget)) return false;
+        if (!handle_ || vendor_ != CpuVendor::Intel ||
+            (msr != kMsrPackageThermStatus && msr != kMsrTemperatureTarget)) return false;
         ULONG64 in = msr, out = 0;
         SIZE_T returned = 0;
         if (FAILED(execute_(handle_, "ioctl_read_msr", &in, 1, &out, 1, &returned))) return false;
@@ -163,7 +204,25 @@ class PawnIo {
         return true;
     }
 
+    bool ReadAmdSmn(std::uint32_t offset, std::uint32_t& value) {
+        if (!handle_ || vendor_ != CpuVendor::Amd || offset != kAmdSmnThmTconCurTmp) return false;
+        bool locked = false;
+        if (pciMutex_) {
+            DWORD w = WaitForSingleObject(pciMutex_, 100);
+            if (w == WAIT_OBJECT_0 || w == WAIT_ABANDONED) locked = true;
+            else if (w == WAIT_TIMEOUT) return false;
+        }
+        ULONG64 in = offset, out = 0;
+        SIZE_T returned = 0;
+        HRESULT hr = execute_(handle_, "ioctl_read_smn", &in, 1, &out, 1, &returned);
+        if (locked) ReleaseMutex(pciMutex_);
+        if (FAILED(hr) || returned < 1) return false;
+        value = static_cast<std::uint32_t>(out);
+        return true;
+    }
+
     void Close() {
+        if (pciMutex_) { CloseHandle(pciMutex_); pciMutex_ = nullptr; }
         if (handle_ && close_) close_(handle_);
         handle_ = nullptr;
         if (lib_) FreeLibrary(lib_);
@@ -187,8 +246,10 @@ class PawnIo {
         return s;
     }
 
+    CpuVendor vendor_ = CpuVendor::Unknown;
     HMODULE lib_ = nullptr;
     HANDLE handle_ = nullptr;
+    HANDLE pciMutex_ = nullptr;
     ExecuteFn execute_ = nullptr;
     CloseFn close_ = nullptr;
 };
@@ -239,6 +300,11 @@ int RunReader() {
     };
     publish(Status::Starting, -1, 0);
 
+    CpuVendor vendor = CpuVendor::Unknown;
+    std::string brand;
+    DetectCpu(vendor, brand);
+    const int tctlOffset = vendor == CpuVendor::Amd ? AmdTctlOffset(brand) : 0;
+
     PawnIo io;
     int tjMax = 100;
     bool haveTarget = false;
@@ -251,21 +317,34 @@ int RunReader() {
 
         if (!io.IsOpen() && (lastOpen == 0 || now - lastOpen >= kRetryOpenMs)) {
             lastOpen = now;
-            Status s = io.Open();
-            Log(L"driver open", (long long)s);
+            Status s = io.Open(vendor);
+            Log(L"driver open", (long long)s, (long long)vendor);
             if (s != Status::Ok) publish(s, -1, 0);
             haveTarget = false;
         }
         if (io.IsOpen()) {
-            std::uint64_t target = 0, therm = 0;
-            if (!haveTarget && io.ReadMsr(kMsrTemperatureTarget, target)) {
-                tjMax = TjMax(target);
-                haveTarget = true;
+            if (vendor == CpuVendor::Intel) {
+                std::uint64_t target = 0, therm = 0;
+                if (!haveTarget && io.ReadMsr(kMsrTemperatureTarget, target)) {
+                    tjMax = TjMax(target);
+                    haveTarget = true;
+                }
+                int t = haveTarget && io.ReadMsr(kMsrPackageThermStatus, therm) ? PackageTemperature(therm, tjMax) : -1;
+                Log(L"reading intel", t, tjMax);
+                if (t >= 0) publish(Status::Ok, t, tjMax);
+                else publish(haveTarget ? Status::Unsupported : Status::ReadFailed, -1, tjMax);
+            } else if (vendor == CpuVendor::Amd) {
+                std::uint32_t regVal = 0;
+                if (io.ReadAmdSmn(kAmdSmnThmTconCurTmp, regVal)) {
+                    int t = AmdPackageTemperature(regVal, tctlOffset);
+                    Log(L"reading amd", t, regVal);
+                    if (t >= 0) publish(Status::Ok, t, 95);
+                    else publish(Status::Unsupported, -1, 0);
+                } else {
+                    Log(L"reading amd failed");
+                    publish(Status::ReadFailed, -1, 0);
+                }
             }
-            int t = haveTarget && io.ReadMsr(kMsrPackageThermStatus, therm) ? PackageTemperature(therm, tjMax) : -1;
-            Log(L"reading", t, tjMax);
-            if (t >= 0) publish(Status::Ok, t, tjMax);
-            else publish(haveTarget ? Status::Unsupported : Status::ReadFailed, -1, tjMax);
         }
     } while ([&] { DWORD w = WaitForSingleObject(stop, kPollMs); if (w != WAIT_TIMEOUT) Log(L"quit: wait ended", w, GetLastError()); return w == WAIT_TIMEOUT; }());
     Log(L"exit");

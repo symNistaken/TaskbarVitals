@@ -143,10 +143,26 @@ DeviceKind KindFromCategory(const std::wstring& c) {
 //  * 0C45:FEFE AJAZZ V83 Pro over Bluetooth (issue #3993). The BT HID link exposes a boot keyboard
 //    collection next to a 6-byte mouse collection, and the model reuses the 2.4 GHz dongle's ids, so
 //    KindFromCollections sees the mouse collection and the keyboard is drawn as a mouse.
+//  * 0C45:FEFE MINI60HE MAX-1 (Sonix firmware) over Bluetooth LE, from the reporter's PnP nodes:
+//    six collections, COL01/COL05 keyboard, COL03 mouse, COL02 system control, COL04 consumer,
+//    COL06 vendor-defined. USB cable mode uses 0C45:80A1 instead.
 DeviceKind KindFromBleIds(USHORT vid, USHORT pid) {
     if (vid == 0x3151 && pid == 0x4013) return DeviceKind::Keyboard;
     if (vid == 0x19F5 && pid == 0x324A) return DeviceKind::Keyboard;
-    if (vid == 0x0C45 && pid == 0xFEFE) return DeviceKind::Keyboard;
+    if (vid == 0x0C45 && pid == 0xFEFE) return DeviceKind::Keyboard;  // both models above
+    return DeviceKind::Other;
+}
+
+// Same trap as above, but keyed off the collection layout instead of a fixed vid/pid list: a keyboard
+// with a knob or macro keys exposes one extra mouse collection, and KindFromCollections sees the
+// mouse first. A real mouse that emulates a few keyboard keys still has a single keyboard collection,
+// so two or more keyboard collections (usage page 0x01 / usage 0x06) mean this is a keyboard.
+DeviceKind KindFromDuplicateKeyboardCollections(const std::vector<HidColl>& all, USHORT vid, USHORT pid) {
+    int keyboards = 0;
+    for (const auto& c : all) {
+        if (c.vid != vid || c.pid != pid || c.page() != 0x01) continue;
+        if (c.usage() == 0x06 && ++keyboards >= 2) return DeviceKind::Keyboard;
+    }
     return DeviceKind::Other;
 }
 
@@ -180,7 +196,51 @@ std::wstring ContainerOf(const std::wstring& path) {
     SetupDiDestroyDeviceInfoList(di);
     return result;
 }
+}  // namespace
+
 std::wstring HidContainer(const std::wstring& path) { return ContainerOf(path); }
+
+namespace {
+
+// Charging state from the USB HID Battery System page (0x85) in the report that carried the level
+// (PR #632): 0x44 Charging, 0x45 Discharging, 0x46 Fully Charged, 0xD0 AC Present, declared either as
+// buttons or as 1-bit / 8-bit values. Devices without these usages are left as not charging.
+void ReadHidCharge(HIDP_REPORT_TYPE type, PHIDP_PREPARSED_DATA pp, std::vector<BYTE>& report, DeviceStatus& s) {
+    bool charging = false, full = false, ac = false, discharging = false;
+    PCHAR buf = (PCHAR)report.data();
+    ULONG len = (ULONG)report.size();
+    ULONG max = HidP_MaxUsageListLength(type, 0x85, pp);
+    if (max) {
+        std::vector<USAGE> on(max);
+        ULONG count = max;
+        if (HidP_GetUsages(type, 0x85, 0, on.data(), &count, pp, buf, len) == HIDP_STATUS_SUCCESS) {
+            for (ULONG i = 0; i < count; i++) {
+                charging |= on[i] == 0x44;
+                discharging |= on[i] == 0x45;
+                full |= on[i] == 0x46;
+                ac |= on[i] == 0xD0;
+            }
+        }
+    }
+    USHORT n = 0;
+    if (HidP_GetValueCaps(type, nullptr, &n, pp) == HIDP_STATUS_BUFFER_TOO_SMALL && n) {
+        std::vector<HIDP_VALUE_CAPS> vc(n);
+        if (HidP_GetValueCaps(type, vc.data(), &n, pp) == HIDP_STATUS_SUCCESS) {
+            for (const auto& v : vc) {
+                USAGE u = v.IsRange ? v.Range.UsageMin : v.NotRange.Usage;
+                if (v.UsagePage != 0x85 || (u != 0x44 && u != 0x45 && u != 0x46 && u != 0xD0)) continue;
+                ULONG val = 0;
+                if (HidP_GetUsageValue(type, 0x85, v.LinkCollection, u, &val, pp, buf, len) != HIDP_STATUS_SUCCESS || !val) continue;
+                charging |= u == 0x44;
+                discharging |= u == 0x45;
+                full |= u == 0x46;
+                ac |= u == 0xD0;
+            }
+        }
+    }
+    s.full = full;
+    s.charging = charging || full || (ac && !discharging);
+}
 
 }  // namespace
 
@@ -203,6 +263,7 @@ void PollGenericHid(PollContext& ctx) {
         if (!HidD_GetPreparsedData(h, &pp)) { CloseHandle(h); continue; }
 
         int pct = -1;
+        DeviceStatus s;
         for (HIDP_REPORT_TYPE type : { HidP_Feature, HidP_Input }) {
             USHORT n = type == HidP_Feature ? c.caps.NumberFeatureValueCaps : c.caps.NumberInputValueCaps;
             USHORT len = type == HidP_Feature ? c.featLen() : c.inLen();
@@ -226,13 +287,13 @@ void PollGenericHid(PollContext& ctx) {
                 if (percentQuirk) pct = (int)val;
                 else if (v.LogicalMax > v.LogicalMin) pct = Clamp100((int)(((LONG)val - v.LogicalMin) * 100 / (v.LogicalMax - v.LogicalMin)));
                 else if (val <= 100) pct = (int)val;
+                if (pct >= 0) ReadHidCharge(type, pp, buf, s);
             }
             if (pct >= 0) break;
         }
         HidD_FreePreparsedData(pp);
         CloseHandle(h);
         if (pct < 0) continue;
-        DeviceStatus s;
         s.name = HidProduct(c);
         if (s.name.empty()) s.name = L"Wireless device";
         s.key = L"hid:" + Hex4(c.vid) + L":" + Hex4(c.pid);
@@ -344,6 +405,11 @@ void PollBluetooth(PollContext& ctx) {
         if (ids != hidIds.end()) s.vid = ids->second.first;
         if (s.kind == DeviceKind::Other && ids != hidIds.end()) s.kind = KindFromBleIds(ids->second.first, ids->second.second);
         if (s.kind == DeviceKind::Other && ids != hidIds.end()) s.kind = KindFromCollections(ctx.colls, ids->second.first, ids->second.second);
+        if (s.kind == DeviceKind::Mouse && ids != hidIds.end()) {
+            // A mouse collection next to two keyboard collections is a keyboard, not a mouse.
+            DeviceKind strong = KindFromDuplicateKeyboardCollections(ctx.colls, ids->second.first, ids->second.second);
+            if (strong != DeviceKind::Other) s.kind = strong;
+        }
         if (s.kind == DeviceKind::Other) s.kind = GuessKind(s.name);
         auto addr = containerAddr.find(cid);
         if (s.kind == DeviceKind::Headset && addr != containerAddr.end()) {
@@ -362,6 +428,15 @@ void PollBluetooth(PollContext& ctx) {
             }
             waited |= justStarted;
             if (got) ApplyFastPair(s, b);
+        }
+        {
+            // Marshall Major IV announces itself as "MAJOR IV" (PR #3297): a proper name and a headset icon.
+            std::wstring n = s.name;
+            for (auto& ch : n) ch = (wchar_t)towlower(ch);
+            if (n == L"major iv" || n == L"marshall major iv" || n == L"major 4" || n == L"marshall major 4") {
+                s.name = L"Marshall Major IV";
+                s.kind = DeviceKind::Headset;
+            }
         }
         ctx.out.push_back(s);
         ctx.btContainers.insert(cid);

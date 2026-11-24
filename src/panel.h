@@ -7,6 +7,8 @@
 #include <string>
 #include <vector>
 
+#include "vector_icons.h"
+
 namespace panel {
 
 enum class Tab { Batteries = 0, System = 1, Appearance = 2, General = 3, Count = 4 };
@@ -29,6 +31,7 @@ struct Row {
     std::wstring sublabel;     // secondary text under label (or right segment label for Segmented)
     std::wstring value;        // right-side badge or current choice text
     wchar_t glyph = 0;         // Segoe Fluent Icons glyph
+    vector_icons::VectorIcon vectorIcon = vector_icons::VectorIcon::None;  // crisp custom vector icon
     COLORREF accentColor = 0;  // icon accent colour when hasAccent is true
     bool hasAccent = false;
     bool on = false;           // switch state (or true = left segment active for Segmented)

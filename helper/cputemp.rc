@@ -1,10 +1,11 @@
 #include <winver.h>
 #include "../build/version.h"
 
-// The helper's icon (the app's), its manifest (administrator rights) and the PawnIO IntelMSR module it loads.
+// The helper's icon (the app's), its manifest (administrator rights) and the PawnIO CPU temperature modules.
 1 ICON "../res/app.ico"
 1 24 "cputemp.manifest"
 200 RCDATA "../res/pawnio/IntelMSR.bin"
+201 RCDATA "../res/pawnio/AMDFamily17.bin"
 
 VS_VERSION_INFO VERSIONINFO
 FILEVERSION WB_VERSION_RESOURCE

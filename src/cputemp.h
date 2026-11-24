@@ -48,9 +48,12 @@ struct Shared {
     std::uint64_t tick = 0;        // GetTickCount64 at the last update
 };
 
-// MSR numbers the helper reads (and nothing else).
+// MSR numbers the helper reads (and nothing else) on Intel CPUs.
 constexpr std::uint32_t kMsrPackageThermStatus = 0x1B1;  // IA32_PACKAGE_THERM_STATUS
 constexpr std::uint32_t kMsrTemperatureTarget = 0x1A2;   // IA32_TEMPERATURE_TARGET (MSR_TEMPERATURE_TARGET)
+
+// AMD Family 17h-1Ah SMN thermal register (THM_TCON_CUR_TMP).
+constexpr std::uint32_t kAmdSmnThmTconCurTmp = 0x00059800;
 
 // TjMax, the temperature at which the CPU throttles: bits 23:16 of the temperature target. A value outside
 // 60..125 is not believable, and 100 is what nearly every Intel CPU uses.
@@ -66,6 +69,28 @@ inline int PackageTemperature(std::uint64_t thermStatus, int tjMax) {
     int below = (int)((thermStatus >> 16) & 0x7F);
     int t = tjMax - below;
     return t < 0 || t > 125 ? -1 : t;
+}
+
+// Known Tctl -> Tdie offsets (Celsius) for first-generation Ryzen and Threadripper X SKUs.
+inline int AmdTctlOffset(const std::string& brand) {
+    if (brand.find("Threadripper 19") != std::string::npos ||
+        brand.find("Threadripper 29") != std::string::npos) return -27;
+    if (brand.find("1600X") != std::string::npos ||
+        brand.find("1700X") != std::string::npos ||
+        brand.find("1800X") != std::string::npos) return -20;
+    if (brand.find("2600X") != std::string::npos ||
+        brand.find("2700X") != std::string::npos) return -10;
+    return 0;
+}
+
+// Converts THM_TCON_CUR_TMP (SMN 0x00059800) to Tdie in degrees Celsius: bits 31:21 in 0.125 C steps,
+// minus 49 C when bit 19 (CUR_TEMP_RANGE_SEL) is set, plus SKU Tctl offset. -1 when out of range.
+inline int AmdPackageTemperature(std::uint32_t regVal, int tctlOffset = 0) {
+    double t = ((regVal >> 21) & 0x7FF) * 0.125;
+    if ((regVal >> 19) & 1U) t -= 49.0;
+    t += tctlOffset;
+    int rounded = (int)(t >= 0.0 ? t + 0.5 : t - 0.5);
+    return rounded < 0 || rounded > 125 ? -1 : rounded;
 }
 
 // Whether a block read by the app is one the helper wrote, and not too old to show.

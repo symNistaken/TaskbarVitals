@@ -8,8 +8,9 @@
 
 namespace {
 std::deque<std::vector<BYTE>> responses;
-int opens = 0, requests = 0, reads = 0;
+int opens = 0, requests = 0, reads = 0, batteryRequests = 0;
 bool openOk = true, writeOk = true;
+bool sticky = false;  // the last queued reply stays in the buffer, as on the device
 
 HidColl Coll(USHORT pid = 0x5404, int iface = 3) {
     HidColl c;
@@ -37,7 +38,7 @@ std::vector<BYTE> Answer(BYTE status, BYTE percent, BYTE category = 0x08,
 }
 
 PollContext Poll(const HidColl& c, std::deque<std::vector<BYTE>> replies) {
-    opens = requests = reads = 0;
+    opens = requests = reads = batteryRequests = 0;
     responses = std::move(replies);
     PollContext ctx;
     ctx.colls = { c };
@@ -53,12 +54,22 @@ bool HidDev::OpenFeatureOnly(const HidColl& c) {
     return true;
 }
 void HidDev::Close() {}
+// The PRO Dongle / ZYWOO path (input/output reports) is not exercised here: these collections never match it.
+bool HidDev::Open(const HidColl&) { assert(false && "unexpected input/output open"); return false; }
+int HidDev::WriteAndRead(const std::vector<BYTE>&, std::vector<BYTE>&, int, bool*) { return -1; }
+int HidDev::Read(std::vector<BYTE>&, int) { return -1; }
 bool HidDev::SetFeature(const std::vector<BYTE>& q) {
     ++requests;
     assert(q.size() == 65 && q[0] == 0);
-    assert(q[1] == 0x00 && q[2] == 0x08 && q[3] == 0x81 && q[4] == 0x01);
+    // Only the three reads are ever sent: battery 08 81 01, and on the 1K dongle charging 08 83 01 and the
+    // paired mouse 01 84 04 (PR #164).
+    const bool battery = q[2] == 0x08 && q[3] == 0x81 && q[4] == 0x01;
+    const bool charge = q[2] == 0x08 && q[3] == 0x83 && q[4] == 0x01;
+    const bool paired = q[2] == 0x01 && q[3] == 0x84 && q[4] == 0x04;
+    assert(q[1] == 0x00 && (battery || charge || paired));
     for (size_t i = 5; i < 63; ++i) assert(q[i] == 0);
-    assert(q[63] == 0x8A && q[64] == 0);
+    assert(q[63] == (BYTE)(q[2] + q[3] + q[4]) && q[64] == 0);
+    if (battery) ++batteryRequests;
     return writeOk;
 }
 bool HidDev::GetFeature(BYTE id, std::vector<BYTE>& out) {
@@ -66,7 +77,7 @@ bool HidDev::GetFeature(BYTE id, std::vector<BYTE>& out) {
     assert(id == 0x00);
     if (responses.empty()) return false;
     out = responses.front();
-    responses.pop_front();
+    if (!sticky || responses.size() > 1) responses.pop_front();
     return true;
 }
 std::wstring HidProduct(const HidColl&) { return L"Pulsar 8K Dongle"; }
@@ -124,9 +135,58 @@ int main() {
     PollPulsar(ctx);
     assert(ctx.out.size() == 1 && ctx.out[0].percent == 90 && opens == 1);
 
-    // Other supported Pulsar dongles retain their existing generic naming/selection.
-    ctx = Poll(Coll(0x5402, 3), { Answer(0x01, 53) });
+    // 1K dongle 5402. The first poll reads the buffer before sending: `idle` is an earlier, final answer.
+    const auto idle = Answer(0x01, 0x10, 0x01, 0x84, 0x04);
+    ctx = Poll(Coll(0x5402, 3), { idle, Answer(0x01, 53) });
     assert(ctx.out.size() == 1 && ctx.out[0].percent == 53 && ctx.out[0].name == L"Pulsar wireless mouse");
+    assert(!ctx.out[0].charging && ctx.out[0].connected && !ctx.out[0].asleep);
+    // The charging read failed, so the paired-mouse read checks the buffer first and fails there too.
+    assert(requests == 2 && ctx.IsClaimed(0x3710, 0x5402));
+    // The charging register and the paired mouse's id (an X3, 3710:3409) name and flag it.
+    auto paired = Answer(0x01, 0x10, 0x01, 0x84, 0x04);
+    paired[8] = 0x37;  // VID 3710 little endian in payload bytes 6..7
+    paired[9] = 0x09;
+    paired[10] = 0x34;  // PID 3409 in payload bytes 8..9
+    ctx = Poll(Coll(0x5402, 3), { idle, Answer(0x01, 41), Answer(0x01, 0x01, 0x08, 0x83, 0x01), paired });
+    assert(ctx.out.size() == 1 && ctx.out[0].percent == 41 && ctx.out[0].charging);
+    assert(ctx.out[0].name == L"Pulsar X3");
+    // 05 ends the read at once: asleep, last value kept, named by the dongle; no charging read.
+    ctx = Poll(Coll(0x5402, 3), { idle, Answer(0x02, 0), Answer(0x05, 0), paired });
+    assert(ctx.out.size() == 1 && ctx.out[0].asleep && ctx.out[0].connected && ctx.out[0].percent == -1);
+    assert(ctx.out[0].name == L"Pulsar X3" && requests == 2 && batteryRequests == 1);
+    // A pending battery read is waited for, never re-sent.
+    {
+        std::deque<std::vector<BYTE>> q = { idle };
+        for (int i = 0; i < 20; ++i) q.push_back(Answer(0x02, 0));
+        q.push_back(Answer(0x01, 77));
+        ctx = Poll(Coll(0x5402, 3), q);
+        assert(ctx.out.size() == 1 && ctx.out[0].percent == 77 && batteryRequests == 1);
+    }
+    // 0 and FF: nothing paired or in range.
+    for (BYTE pct : { BYTE(0), BYTE(255) }) {
+        ctx = Poll(Coll(0x5402, 3), { idle, Answer(0x01, pct) });
+        assert(ctx.out.size() == 1 && !ctx.out[0].connected && ctx.out[0].percent == -1);
+    }
+    // A dongle left pending on 02 by someone else gets nothing more: no request, asleep, still claimed.
+    sticky = true;
+    ctx = Poll(Coll(0x5402, 3), { Answer(0x02, 0, 0x08, 0x83, 0x01) });
+    assert(requests == 0 && ctx.out.size() == 1 && ctx.out[0].asleep && ctx.IsClaimed(0x3710, 0x5402));
+    // Our own pending read never answered: one request in the 1 s deadline, then asleep.
+    ctx = Poll(Coll(0x5402, 3), { idle, Answer(0x02, 0) });
+    assert(batteryRequests == 1 && requests == 1 && ctx.out.size() == 1 && ctx.out[0].asleep);
+    // The buffer went back to the earlier answer after showing ours pending: the request was lost, so it is
+    // re-sent, at most twice.
+    ctx = Poll(Coll(0x5402, 3), { idle, Answer(0x02, 0), idle });
+    assert(batteryRequests == 3 && ctx.out.size() == 1 && ctx.out[0].asleep);
+    sticky = false;
+    // Claimed even when it cannot be opened or no collection matches, so kysona.cpp never probes it.
+    openOk = false;
+    ctx = Poll(Coll(0x5402, 3), { idle, Answer(0x01, 53) });
+    assert(ctx.out.empty() && requests == 0 && ctx.IsClaimed(0x3710, 0x5402));
+    openOk = true;
+    ctx = Poll(Coll(0x5402, 2), { idle, Answer(0x01, 53) });
+    assert(ctx.out.empty() && opens == 0 && ctx.IsClaimed(0x3710, 0x5402));
+    // Other supported Pulsar dongles retain their existing generic naming/selection.
     ctx = Poll(Coll(0x5403, 3), { Answer(0x01, 59) });
     assert(ctx.out.size() == 1 && ctx.out[0].percent == 59 && ctx.out[0].name == L"Pulsar wireless mouse");
 

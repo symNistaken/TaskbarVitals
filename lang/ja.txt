@@ -188,3 +188,14 @@ Taskbar Vitals could not reopen. Please start it manually or repair the installa
 Taskbar Vitals is up to date. = Taskbar Vitals は最新です。
 Taskbar Vitals update = Taskbar Vitals アップデート
 Taskbar Vitals will close briefly while the update is installed. = アップデートのインストール中、Taskbar Vitals は一時的に終了します。
+
+Thank you! Your request was sent. You can follow it at {page}. = ありがとうございます！リクエストを送信しました。進捗は {page} で確認できます。
+You already sent this device in the last 24 hours, so it's on the list. Thank you! = このデバイスは過去 24 時間以内に送信済みのため、すでにリストにあります。ありがとうございます！
+The request was not accepted: {reason} = リクエストは受け付けられませんでした: {reason}
+please check the fields. = 入力内容を確認してください。
+Too many requests from your network. Please try again in an hour. = お使いのネットワークからのリクエストが多すぎます。1 時間後にもう一度お試しください。
+The site answered with an error ({code}). Please try again later. = サイトがエラーを返しました（{code}）。しばらくしてからもう一度お試しください。
+(kept private) = （非公開）
+Your name (optional, kept private and never shown) = お名前（任意、非公開で表示されることはありません）
+This is exactly what will be sent: = 送信される内容は次のとおりです:
+Sending... = 送信中...

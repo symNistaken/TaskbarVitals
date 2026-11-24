@@ -113,6 +113,45 @@ std::vector<BYTE> UltraSlots(int slot, BYTE status) {
 }
 const std::vector<BYTE> kUltraAskSlots = { 0xB5, 0x03 };
 const std::vector<BYTE> kUltraAskBase = { 0xB3, 0x06 };
+
+// Raw HID collection FF60:0061 (unnumbered 32-byte reports) of a receiver or of a keyboard on its cable.
+HidColl RawCollection(USHORT pid) {
+    HidColl c;
+    c.path = L"keychron-raw";
+    c.vid = 0x3434;
+    c.pid = pid;
+    c.caps.UsagePage = 0xFF60;
+    c.caps.Usage = 0x61;
+    c.caps.InputReportByteLength = 33;
+    c.caps.OutputReportByteLength = 33;
+    return c;
+}
+// 32-byte input report as Read() hands it over; the script key is its first two request bytes.
+std::vector<BYTE> RawReply(std::initializer_list<BYTE> bytes) {
+    std::vector<BYTE> r(bytes);
+    r.resize(32, 0);
+    return r;
+}
+// The exact output report the driver must send: report id 0, the command bytes, zeros.
+std::vector<BYTE> RawRequest(std::initializer_list<BYTE> bytes) {
+    std::vector<BYTE> w(1, 0);
+    w.insert(w.end(), bytes.begin(), bytes.end());
+    w.resize(33, 0);
+    return w;
+}
+const std::vector<BYTE> kRawAskSlots = RawRequest({ 0xB2 });
+const std::vector<BYTE> kRawAskUltra = RawRequest({ 0xA7, 0x31 });  // Ultra 8K (ZMK) keyboards
+const std::vector<BYTE> kRawAskQmk = RawRequest({ 0xA4 });          // QMK keyboards with KC_GET_BATTERY
+
+PollContext PollAll(std::vector<HidColl> colls, std::map<std::pair<BYTE, BYTE>, std::vector<BYTE>> replies) {
+    script = std::move(replies);
+    pending.clear();
+    writes.clear();
+    PollContext ctx;
+    ctx.colls = std::move(colls);
+    PollKeychron(ctx);
+    return ctx;
+}
 }  // namespace
 
 // Stand-ins for the Win32 HID transport. The production driver is linked unchanged.
@@ -130,6 +169,12 @@ bool HidDev::Write(const std::vector<BYTE>& data, int) {
     if (c_.page() == 0xFFC1) {  // Ultra-Link 8K: numbered report [id][cmd], keyed by (id, cmd)
         assert(data.size() == 2 && (data[0] == 0xB5 || data[0] == 0xB3));
         auto it = script.find({ data[0], data[1] });
+        if (it != script.end()) pending.push_back(it->second);
+        return true;
+    }
+    if (c_.page() == 0xFF60) {  // raw HID: report id 0 + 32 bytes, keyed by the first two request bytes
+        assert(data.size() == 33 && data[0] == 0);
+        auto it = script.find({ data[1], data[2] });
         if (it != script.end()) pending.push_back(it->second);
         return true;
     }
@@ -316,9 +361,86 @@ int main() {
     ctx = Poll(ultra, { { { 0xB5, 0x03 }, UltraSlots(0, 1) } });
     assert(ctx.out.empty() && ctx.claimed.empty());
 
+    // Link-KM (D029) with a Keychron M6 (slot pid D064) answers the same B5 03 / B3 06 queries.
+    auto linkKm = UltraCollection();
+    linkKm.pid = 0xD029;
+    ctx = Poll(linkKm, { { { 0xB5, 0x03 }, UltraReply(0xB5, 0x03, { { 2, 0x34 }, { 3, 0x34 }, { 4, 0x64 }, { 5, 0xD0 }, { 6, 1 } }) },
+                         { { 0xB3, 0x06 }, UltraReply(0xB3, 0x06, { { 19, 66 } }) } });
+    assert((writes == std::vector<std::vector<BYTE>>{ kUltraAskSlots, kUltraAskBase }));
+    assert(ctx.out.size() == 1 && ctx.out[0].key == L"keychron:D029" && ctx.out[0].name == L"Keychron M6");
+    assert(ctx.out[0].percent == 66 && !ctx.out[0].charging && ctx.out[0].kind == DeviceKind::Mouse);
+
     // Other collections on D028 (e.g. FF0B:0104) are not opened by the Ultra-Link path.
     opens = 0;
     ctx = Poll(UltraCollection(0xFF0B), { { { 0xB5, 0x03 }, UltraSlots(0, 1) } });
     assert(ctx.out.empty() && writes.empty() && opens == 0);
-    std::puts("Keychron driver tests passed (4K Link, 8K Nordic, 1K receiver, Ultra-Link 8K, no battery, filtering).");
+
+    // Q6 Ultra 8K (3434:1260) behind the Ultra-Link 8K: B2 lists the slots (vid LE16, pid LE16, status
+    // at bytes 2/7/12), A7 31 is answered with [battery %][charging]. The receiver is not claimed, and
+    // the QMK keyboard path, which then sees the same slot, never sends A4 to an Ultra keyboard.
+    const auto ultraRaw = RawCollection(0xD028);
+    const auto slotsQ6 = RawReply({ 0xB2, 0x03, 0x34, 0x34, 0x60, 0x12, 0x01 });
+    ctx = PollAll({ ultraRaw }, { { { 0xB2, 0x00 }, slotsQ6 }, { { 0xA7, 0x31 }, RawReply({ 0xA7, 0x31, 47, 1 }) } });
+    assert((writes == std::vector<std::vector<BYTE>>{ kRawAskSlots, kRawAskUltra, kRawAskSlots }));
+    assert(ctx.out.size() == 1 && ctx.out[0].key == L"keychron-kb:1260" && ctx.out[0].name == L"Keychron Q6 Ultra 8K");
+    assert(ctx.out[0].percent == 47 && ctx.out[0].charging && ctx.out[0].graceSec == 1800);
+    assert(ctx.out[0].kind == DeviceKind::Keyboard && ctx.out[0].via == L"2.4 GHz receiver");
+    assert(ctx.claimed.empty());
+
+    // Stock firmware echoes A7 31 with an empty payload; a level or charging flag out of range, or a
+    // reply to another sub-command, is not a battery reply either. Nothing listed, no A4.
+    for (auto reply : { RawReply({ 0xA7, 0x31, 0, 0 }), RawReply({ 0xA7, 0x31, 101, 0 }), RawReply({ 0xA7, 0x31, 50, 2 }),
+                        RawReply({ 0xA7, 0x0D, 47, 1 }) }) {
+        ctx = PollAll({ ultraRaw }, { { { 0xB2, 0x00 }, slotsQ6 }, { { 0xA7, 0x31 }, reply } });
+        assert((writes == std::vector<std::vector<BYTE>>{ kRawAskSlots, kRawAskUltra, kRawAskSlots }));
+        assert(ctx.out.empty() && ctx.claimed.empty());
+    }
+
+    // Keyboard asleep (slot status 0) or no slot in use: the keyboard is not queried at all.
+    for (auto slots : { RawReply({ 0xB2, 0x03, 0x34, 0x34, 0x60, 0x12, 0x00 }), RawReply({ 0xB2, 0x03 }) }) {
+        ctx = PollAll({ ultraRaw }, { { { 0xB2, 0x00 }, slots }, { { 0xA7, 0x31 }, RawReply({ 0xA7, 0x31, 47, 1 }) } });
+        assert((writes == std::vector<std::vector<BYTE>>{ kRawAskSlots, kRawAskSlots }));
+        assert(ctx.out.empty() && ctx.claimed.empty());
+    }
+    // A product that is not a known Ultra keyboard is never sent A7 31 (the QMK path asks it A4 as before).
+    ctx = PollAll({ ultraRaw }, { { { 0xB2, 0x00 }, RawReply({ 0xB2, 0x03, 0x34, 0x34, 0x99, 0x09, 0x01 }) },
+                                  { { 0xA7, 0x31 }, RawReply({ 0xA7, 0x31, 47, 1 }) } });
+    assert((writes == std::vector<std::vector<BYTE>>{ kRawAskSlots, kRawAskSlots, kRawAskQmk, kRawAskQmk }));
+    assert(ctx.out.empty() && ctx.claimed.empty());
+
+    // On FFC1 a keyboard in a slot is not taken for a mouse: B3 06, which it never answers, is not sent.
+    const auto ffc1Q6 = UltraReply(0xB5, 0x03, { { 2, 0x34 }, { 3, 0x34 }, { 4, 0x60 }, { 5, 0x12 }, { 6, 1 } });
+    ctx = PollAll({ ultra }, { { { 0xB5, 0x03 }, ffc1Q6 }, { { 0xB3, 0x06 }, UltraReply(0xB3, 0x06, { { 19, 50 } }) } });
+    assert((writes == std::vector<std::vector<BYTE>>{ kUltraAskSlots }));
+    assert(ctx.out.empty() && ctx.claimed.empty());
+
+    // A mouse in the first slot (read on FFC1, which claims the receiver) and the keyboard in the second:
+    // both are listed.
+    ctx = PollAll({ ultra, ultraRaw },
+                  { { { 0xB5, 0x03 }, UltraReply(0xB5, 0x03, { { 2, 0x34 }, { 3, 0x34 }, { 4, 0x49 }, { 5, 0xD0 }, { 6, 1 },
+                                                               { 7, 0x34 }, { 8, 0x34 }, { 9, 0x60 }, { 10, 0x12 }, { 11, 1 } }) },
+                    { { 0xB3, 0x06 }, UltraReply(0xB3, 0x06, { { 19, 0x37 } }) },
+                    { { 0xB2, 0x00 }, RawReply({ 0xB2, 0x03, 0x34, 0x34, 0x49, 0xD0, 0x01, 0x34, 0x34, 0x60, 0x12, 0x01 }) },
+                    { { 0xA7, 0x31 }, RawReply({ 0xA7, 0x31, 100, 0 }) } });
+    assert((writes == std::vector<std::vector<BYTE>>{ kUltraAskSlots, kUltraAskBase, kRawAskSlots, kRawAskUltra }));
+    assert(ctx.out.size() == 2 && ctx.out[0].key == L"keychron:D028" && ctx.out[0].percent == 55);
+    assert(ctx.out[1].key == L"keychron-kb:1260" && ctx.out[1].percent == 100 && !ctx.out[1].charging);
+
+    // The same keyboard on its USB cable: asked directly (no B2, no A4), same key, claimed.
+    const auto q6Cable = RawCollection(0x1260);
+    ctx = PollAll({ q6Cable }, { { { 0xA7, 0x31 }, RawReply({ 0xA7, 0x31, 51, 1 }) } });
+    assert((writes == std::vector<std::vector<BYTE>>{ kRawAskUltra }));
+    assert(ctx.out.size() == 1 && ctx.out[0].key == L"keychron-kb:1260" && ctx.out[0].via == L"USB cable");
+    assert(ctx.out[0].percent == 51 && ctx.out[0].charging && ctx.IsClaimed(0x3434, 0x1260));
+    ctx = PollAll({ q6Cable }, { { { 0xA7, 0x31 }, RawReply({ 0xA7, 0x31, 0, 0 }) } });  // stock firmware
+    assert((writes == std::vector<std::vector<BYTE>>{ kRawAskUltra }));
+    assert(ctx.out.empty() && ctx.claimed.empty());
+
+    // A QMK keyboard on its cable is not asked A7 31; it still goes through B2 / A4.
+    ctx = PollAll({ RawCollection(0x0A50) }, { { { 0xA7, 0x31 }, RawReply({ 0xA7, 0x31, 51, 1 }) },
+                                               { { 0xA4, 0x00 }, RawReply({ 0xA4, 52, 0x9F, 0x0E, 1 }) } });
+    assert((writes == std::vector<std::vector<BYTE>>{ kRawAskSlots, kRawAskQmk }));
+    assert(ctx.out.size() == 1 && ctx.out[0].key == L"keychron-kb:0A50" && ctx.out[0].name == L"Keychron K5 Max");
+    assert(ctx.out[0].percent == 52 && ctx.out[0].millivolts == 3743 && ctx.out[0].charging);
+    std::puts("Keychron driver tests passed (4K Link, 8K Nordic, 1K receiver, Ultra-Link 8K, Ultra 8K keyboard, no battery, filtering).");
 }

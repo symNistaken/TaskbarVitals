@@ -33,5 +33,25 @@ int main() {
     assert(EstimateRuntime({sample(15,48),sample(12,89),sample(9,87),sample(6,85),sample(3,83),sample(0,81)},now).sampleCount==5);
     // Same reported battery level should not make a green 'charging' line.
     assert(EstimateRuntime({sample(7,50),sample(6,50),sample(5,50),sample(0,50)},now).state==RuntimeState::Insufficient);
+    // The optional taskbar readout must remain explicitly approximate and fail closed.
+    const auto ready = EstimateRuntime({sample(8,80),sample(6,77),sample(4,74),sample(2,71),sample(0,68)},now);
+    assert(CompactRuntimeText(ready) == L"~45h");
+    RuntimeEstimate forecast;
+    forecast.state = RuntimeState::Ready;
+    forecast.hoursRemaining = 0.4;
+    assert(CompactRuntimeText(forecast) == L"<1h");
+    forecast.hoursRemaining = 0.0;
+    assert(CompactRuntimeText(forecast) == L"~0h");
+    forecast.hoursRemaining = -2.0;
+    assert(CompactRuntimeText(forecast).empty());
+    forecast.hoursRemaining = 18;
+    for (const auto state : {RuntimeState::Charging, RuntimeState::Stale, RuntimeState::Flat,
+                             RuntimeState::Insufficient}) {
+        forecast.state = state;
+        assert(CompactRuntimeText(forecast).empty());
+    }
+    forecast.state = RuntimeState::Ready;
+    forecast.hoursRemaining = 139;
+    assert(CompactRuntimeText(forecast) == L"~6d");
     puts("Battery runtime estimation tests passed");
 }

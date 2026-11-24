@@ -1,111 +1,43 @@
-"""Writes res/app.svg, the Taskbar Vitals app icon: a battery outline with a pulse line inside.
+"""Writes res/app.svg: Taskbar Vitals modern Fluent squircle emblem (battery + vitals pulse).
 
-One flat shape in the simple SVG subset res/make_icon.py understands (M L C Z paths, filled even-odd), so
-make_icon.py can turn it into app.ico (white) and app_light.ico (black). The pulse is a stroked polyline,
-expanded here into a filled polygon because make_icon.py has no strokes.
-
+Run alongside res/make_icon.py to regenerate app.svg, app.ico and app_light.ico:
     py -3 res/make_app_svg.py && py -3 res/make_icon.py
 """
-import math
 import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-BODY = (32, 120, 448, 392)  # left, top, right, bottom of the battery body
-WALL = 44                   # thickness of the outline
-NUB = (448, 216, 490, 296)  # the battery's terminal, on the right
-RADIUS = 52                 # corner radius of the body's outer edge
-PULSE_WIDTH = 32
-PULSE = [(100, 256), (166, 256), (204, 200), (254, 306), (300, 204), (326, 256), (380, 256)]
-K = 0.5523  # cubic Bezier circle constant
-
-
-def fmt(v):
-    return f"{v:.1f}".rstrip("0").rstrip(".")
-
-
-def rounded_rect(l, t, r, b, rad):
-    k = rad * K
-    pts = [
-        f"M{fmt(l + rad)},{fmt(t)}",
-        f"H{fmt(r - rad)}",
-        f"C{fmt(r - rad + k)},{fmt(t)} {fmt(r)},{fmt(t + rad - k)} {fmt(r)},{fmt(t + rad)}",
-        f"V{fmt(b - rad)}",
-        f"C{fmt(r)},{fmt(b - rad + k)} {fmt(r - rad + k)},{fmt(b)} {fmt(r - rad)},{fmt(b)}",
-        f"H{fmt(l + rad)}",
-        f"C{fmt(l + rad - k)},{fmt(b)} {fmt(l)},{fmt(b - rad + k)} {fmt(l)},{fmt(b - rad)}",
-        f"V{fmt(t + rad)}",
-        f"C{fmt(l)},{fmt(t + rad - k)} {fmt(l + rad - k)},{fmt(t)} {fmt(l + rad)},{fmt(t)}",
-        "Z",
-    ]
-    return " ".join(pts)
-
-
-def terminal(l, t, r, b, rad):
-    """The battery's terminal: flat on the left (it touches the body's edge, never overlaps it), rounded on the right."""
-    k = rad * K
-    return " ".join([
-        f"M{fmt(l)},{fmt(t)}",
-        f"H{fmt(r - rad)}",
-        f"C{fmt(r - rad + k)},{fmt(t)} {fmt(r)},{fmt(t + rad - k)} {fmt(r)},{fmt(t + rad)}",
-        f"V{fmt(b - rad)}",
-        f"C{fmt(r)},{fmt(b - rad + k)} {fmt(r - rad + k)},{fmt(b)} {fmt(r - rad)},{fmt(b)}",
-        f"H{fmt(l)}",
-        "Z",
-    ])
-
-
-def stroke(points, width, miter_limit=1.3):
-    """Outline polygon of a polyline: butt ends, mitered joins that fall back to a bevel on a sharp outer turn."""
-    half = width / 2
-    dirs = []
-    for (x0, y0), (x1, y1) in zip(points, points[1:]):
-        n = math.hypot(x1 - x0, y1 - y0)
-        dirs.append(((x1 - x0) / n, (y1 - y0) / n))
-    normals = [(-dy, dx) for dx, dy in dirs]  # to the left of the direction
-    sides = {}
-    for side in (1, -1):
-        out = [(points[0][0] + side * normals[0][0] * half, points[0][1] + side * normals[0][1] * half)]
-        for i in range(1, len(points) - 1):
-            n0, n1 = normals[i - 1], normals[i]
-            cross = dirs[i - 1][0] * dirs[i][1] - dirs[i - 1][1] * dirs[i][0]
-            outer = side * cross < 0
-            dot = n0[0] * n1[0] + n0[1] * n1[1]
-            mx, my = (n0[0] + n1[0]) / (1 + dot), (n0[1] + n1[1]) / (1 + dot)
-            px, py = points[i]
-            if outer and math.hypot(mx, my) > miter_limit:
-                out.append((px + side * n0[0] * half, py + side * n0[1] * half))
-                out.append((px + side * n1[0] * half, py + side * n1[1] * half))
-            else:
-                out.append((px + side * mx * half, py + side * my * half))
-        out.append((points[-1][0] + side * normals[-1][0] * half, points[-1][1] + side * normals[-1][1] * half))
-        sides[side] = out
-    return sides[1] + list(reversed(sides[-1]))
-
-
-def polygon(pts):
-    return "M" + " L".join(f"{fmt(x)},{fmt(y)}" for x, y in pts) + " Z"
+SVG = """<?xml version="1.0" encoding="utf-8"?>
+<!-- Taskbar Vitals app icon: Fluent dark-slate squircle with battery outline and glowing vitals pulse. -->
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="tvTile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#222E42"/>
+      <stop offset="100%" stop-color="#0E141F"/>
+    </linearGradient>
+    <linearGradient id="tvPulse" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="55%" stop-color="#2DD4BF"/>
+      <stop offset="100%" stop-color="#34D399"/>
+    </linearGradient>
+    <linearGradient id="tvFill" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#34D399" stop-opacity="0.06"/>
+    </linearGradient>
+  </defs>
+  <rect x="32" y="32" width="448" height="448" rx="108" fill="url(#tvTile)" stroke="#334155" stroke-width="10"/>
+  <rect x="86" y="152" width="316" height="208" rx="42" fill="url(#tvFill)" stroke="#F8FAFC" stroke-width="26"/>
+  <path d="M402,216 H422 C434,216 444,226 444,238 V274 C444,286 434,296 422,296 H402 Z" fill="#F8FAFC"/>
+  <path d="M126,262 H178 L207,200 L246,316 L284,194 L314,262 H362"
+        fill="none" stroke="url(#tvPulse)" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+"""
 
 
 def main():
-    l, t, r, b = BODY
-    paths = [
-        rounded_rect(l, t, r, b, RADIUS),
-        rounded_rect(l + WALL, t + WALL, r - WALL, b - WALL, max(RADIUS - WALL, 8)),
-        terminal(NUB[0], NUB[1], NUB[2], NUB[3], 20),
-        polygon(stroke(PULSE, PULSE_WIDTH)),
-    ]
-    svg = (
-        '<?xml version="1.0" encoding="utf-8"?>\n'
-        "<!-- Taskbar Vitals app icon: a battery with a pulse line. Made by res/make_app_svg.py; "
-        "res/make_icon.py turns it into app.ico. -->\n"
-        '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">\n'
-        '<g fill-rule="evenodd" clip-rule="evenodd">\n'
-        + "".join(f'\t<path d="{p}"/>\n' for p in paths)
-        + "</g>\n</svg>\n"
-    )
-    with open(os.path.join(HERE, "app.svg"), "w", encoding="utf-8", newline="\n") as f:
-        f.write(svg)
+    out = os.path.join(HERE, "app.svg")
+    with open(out, "w", encoding="utf-8", newline="\n") as f:
+        f.write(SVG)
     print("wrote res/app.svg")
 
 

@@ -15,6 +15,13 @@
 // collection, only the 350's layout of a Generic Desktop usage 0 collection (interface 5, 64-byte
 // feature = the 63-byte HIDV1 reports) next to a telephony one. Same read-only GET 68 / GET 49.
 //
+// Quantum 810 Wireless (0ECB:2069 2.4 GHz dongle, HID product string "JBL Quantum810 Wireless Chat"):
+// github.com/sidmax7/QuantumEngine (MIT / Apache-2.0), tested on this dongle, reads the battery with GET 49 and the
+// link with GET 68 (quantum-linux/crates/jbl-quantum/src/protocol.rs), the same HIDV1 reports as the 610.
+// A Windows `--dump` of a real 810 dongle (2026-11-20) shows a single HID collection on interface 5, FF13:0001
+// (input 2, output 62, feature 64 bytes), and no FF12 collection; the level read there (75%) matched JBL
+// QuantumENGINE.
+//
 // JBL Quantum 520 / 650 / 850 / 950 (and X variants) headsets, vendor 0ECB, "HIDV3" protocol on the
 // vendor collection with usage page FF12 (64-byte reports: input 86, output 87, feature 88).
 //   request (feature 88): [88][00 DD][01 00][01][00][02 00][feature lo][feature hi]
@@ -72,6 +79,7 @@ constexpr Hidv1Model kHidv1Models[] = {
     { 0x206B, 3, 0x0001, L"JBL Quantum 350 Wireless" },
     { 0x205C, 5, 0, L"JBL Quantum 610 Wireless" },
     { 0x2115, 5, 0x0001, L"JBL Quantum 360 Wireless" },
+    { 0x2069, 5, 0, L"JBL Quantum 810 Wireless" },  // its interface 5 collection is FF13:0001
 };
 
 void PollHidv1(PollContext& ctx) {

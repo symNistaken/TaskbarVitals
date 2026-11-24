@@ -41,6 +41,10 @@ const Model kModels[] = {
     { L"VXE V87 2.4G Dongle", true },       { L"VXE V87", true },
     { L"VXE V87 RGB", true },
     { L"Wireless Gaming Keyboard", false },  // generic receiver name (Feker Alice80 and others)
+    // Wobkey Rainy 75, first hardware: the same Evision controller under Wobkey's name, on the
+    // cable id (320F:5055) rather than the 36B0 ids the Rainy75 V2 driver expects. It answered
+    // 0x1A with the level in r[8] on hardware while plugged in.
+    { L"Rainy 75", false },
 };
 
 const Model* FindModel(std::wstring& name) {

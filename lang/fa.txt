@@ -198,3 +198,14 @@ Taskbar Vitals could not reopen. Please start it manually or repair the installa
 Taskbar Vitals is up to date. = Taskbar Vitals به‌روز است.
 Taskbar Vitals update = به‌روزرسانی Taskbar Vitals
 Taskbar Vitals will close briefly while the update is installed. = هنگام نصب به‌روزرسانی، Taskbar Vitals برای مدت کوتاهی بسته می‌شود.
+
+Thank you! Your request was sent. You can follow it at {page}. = ممنون! درخواست شما ارسال شد. می‌توانید آن را از اینجا پیگیری کنید: {page}.
+You already sent this device in the last 24 hours, so it's on the list. Thank you! = این دستگاه را در ۲۴ ساعت گذشته فرستاده‌اید و در فهرست قرار دارد. ممنون!
+The request was not accepted: {reason} = درخواست پذیرفته نشد: {reason}
+please check the fields. = لطفاً فیلدها را بررسی کنید.
+Too many requests from your network. Please try again in an hour. = تعداد درخواست‌ها از شبکه شما بیش از حد مجاز است. لطفاً یک ساعت دیگر دوباره تلاش کنید.
+The site answered with an error ({code}). Please try again later. = سایت با خطا پاسخ داد ({code}). لطفاً بعداً دوباره تلاش کنید.
+(kept private) = (محرمانه می‌ماند)
+Your name (optional, kept private and never shown) = نام شما (اختیاری؛ محرمانه می‌ماند و نمایش داده نمی‌شود)
+This is exactly what will be sent: = این دقیقاً اطلاعاتی است که ارسال می‌شود:
+Sending... = در حال ارسال...

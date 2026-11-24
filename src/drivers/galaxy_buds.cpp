@@ -144,6 +144,9 @@ void PollGalaxyBuds(PollContext& ctx) {
         else s.percent = st.left >= 0 ? st.left : st.right;
         s.detail = L"L " + Pct(st.left) + L", R " + Pct(st.right);
         if (st.caseLevel >= 0) s.detail += L", case " + Pct(st.caseLevel);
+        if (st.left >= 0) s.batteries.push_back({ L"Left", st.left, false, false });  // PR #3946
+        if (st.right >= 0) s.batteries.push_back({ L"Right", st.right, false, false });
+        if (st.caseLevel >= 0) s.batteries.push_back({ L"Case", st.caseLevel, false, false });
         s.graceSec = 180;  // a busy link (Galaxy Buds app open) should not make them flicker
         ctx.out.push_back(s);
     }

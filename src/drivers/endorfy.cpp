@@ -1,4 +1,5 @@
-// ENDORFY Viro Wireless headset on its 2.4 GHz dongle (3738:0072), issue #1398.
+// ENDORFY Viro Wireless headset (3738:0072), LIV Plus Wireless mouse (Compx 3299:00A7)
+// and Celeris 1800 keyboard (3738:00BB), all on their 2.4 GHz receivers.
 // No ENDORFY source documents this dongle. Its HID layout is the stock Airoha USB dongle one: a single
 // vendor collection FF13:0001 on interface 3 with 62-byte input and output reports (report 06 out,
 // report 07 in), next to the telephony and consumer collections. That is the layout the Audeze Maxwell,
@@ -24,11 +25,64 @@
 namespace {
 
 constexpr USHORT kVid = 0x3738, kViroDongle = 0x0072;
+constexpr USHORT kLivVid = 0x3299, kLivDongle = 0x00A7;
+constexpr USHORT kCelerisDongle = 0x00BB;
 constexpr BYTE kOutId = 0x06, kInId = 0x07;
 constexpr size_t kReportLen = 62;
 constexpr BYTE kRaceHead = 0x05, kRaceIndication = 0x5D;
 constexpr USHORT kOpBattery = 0x0CD6;
 constexpr int kReads = 12, kReadDelayMs = 60;  // the answer arrives within ~40 ms on other Airoha dongles
+
+BYTE CompxChecksum(const BYTE* b) {
+    unsigned sum = 0;
+    for (int i = 0; i < 16; i++) sum += b[i];
+    return (BYTE)(0x55 - sum);
+}
+
+bool CompxQuery(HidDev& d, BYTE cmd, std::vector<BYTE>& r) {
+    std::vector<BYTE> req(17, 0);
+    req[0] = 0x08;
+    req[1] = cmd;
+    req[16] = CompxChecksum(req.data());
+    d.Flush();
+    if (!d.Write(req)) return false;
+    ULONGLONG end = GetTickCount64() + 500;
+    for (;;) {
+        int left = (int)((LONGLONG)end - (LONGLONG)GetTickCount64());
+        if (left <= 0 || d.Read(r, left) < 17) return false;
+        if (r[0] == 0x08 && r[1] == cmd && r[16] == CompxChecksum(r.data())) return true;
+    }
+}
+
+// Celeris 1800's 2.4 GHz receiver uses the read-only EVision keyboard battery request.
+// Report 04 echoes the 16-bit request id and command 1A; bytes 8 and 9 are level and charge state.
+bool ReadCelerisBattery(HidDev& d, DeviceStatus& s) {
+    static USHORT nextId = (USHORT)GetTickCount64();
+    if (!nextId) nextId = 1;
+    for (int attempt = 0; attempt < 2; ++attempt) {
+        USHORT id = nextId++;
+        if (!nextId) nextId = 1;
+        std::vector<BYTE> req(64, 0);
+        req[0] = 0x04;
+        req[1] = (BYTE)id;
+        req[2] = (BYTE)(id >> 8);
+        req[3] = 0x1A;
+        d.Flush();
+        if (!d.Write(req)) continue;
+        ULONGLONG end = GetTickCount64() + 500;
+        std::vector<BYTE> r;
+        while (true) {
+            int left = (int)((LONGLONG)end - (LONGLONG)GetTickCount64());
+            if (left <= 0 || d.Read(r, left) < 10) break;
+            if (r[0] != 0x04 || r[1] != (BYTE)id || r[2] != (BYTE)(id >> 8) || r[3] != 0x1A) continue;
+            if (r[4] || r[5] || r[6] || r[7] || r[8] > 100 || r[9] > 2) continue;
+            s.percent = r[8];
+            s.charging = r[9] != 0;
+            return true;
+        }
+    }
+    return false;
+}
 
 bool IsVendorCollection(const HidColl& c) {
     return c.page() == 0xFF13 && c.usage() == 0x0001 && c.inLen() == kReportLen && c.outLen() == kReportLen;
@@ -75,6 +129,60 @@ int ReadLevel(const HidColl& c) {
 }  // namespace
 
 void PollEndorfy(PollContext& ctx) {
+    // LIV Plus Wireless on its Compx 2.4 GHz receiver (the USB cable and Bluetooth use
+    // different identities and are left to the generic HID / Windows battery paths).
+    if (!ctx.IsClaimed(kLivVid, kLivDongle)) {
+        for (const HidColl* c : ctx.Find(kLivVid, kLivDongle, [](const HidColl& c) {
+                 return c.page() == 0xFF02 && c.usage() == 0x0002 && c.inLen() >= 17 && c.outLen() >= 17;
+             })) {
+            HidDev d;
+            if (!d.Open(*c)) continue;
+            DeviceStatus s;
+            std::vector<BYTE> r;
+            bool answered = CompxQuery(d, 0x03, r);
+            if (answered) s.connected = r[6] != 0;
+            if (!answered || s.connected) {
+                if (CompxQuery(d, 0x04, r)) {
+                    answered = true;
+                    s.connected = true;
+                    if (r[6] <= 100) s.percent = r[6];
+                    s.charging = r[7] != 0;
+                    s.millivolts = (r[8] << 8) | r[9];
+                } else if (answered && s.connected) {
+                    s.asleep = true;
+                }
+            }
+            if (!answered) continue;
+            if (!s.connected) { ctx.Claim(kLivVid, kLivDongle); break; }
+            s.key = L"endorfy:liv-plus";
+            s.name = L"ENDORFY LIV Plus Wireless";
+            s.kind = DeviceKind::Mouse;
+            s.via = L"2.4 GHz receiver";
+            s.graceSec = 1800;
+            ctx.Add(s, kLivVid, kLivDongle);
+            break;
+        }
+    }
+
+    // Celeris 1800 2.4 GHz receiver (3738:00BB), FF1C:0092 vendor collection.
+    if (!ctx.IsClaimed(kVid, kCelerisDongle)) {
+        for (const HidColl* c : ctx.Find(kVid, kCelerisDongle, [](const HidColl& c) {
+                 return c.page() == 0xFF1C && c.usage() == 0x0092 && c.inLen() == 64 && c.outLen() == 64;
+             })) {
+            HidDev d;
+            if (!d.Open(*c)) continue;
+            DeviceStatus s;
+            if (!ReadCelerisBattery(d, s)) continue;
+            s.key = L"endorfy:celeris-1800";
+            s.name = L"ENDORFY Celeris 1800";
+            s.kind = DeviceKind::Keyboard;
+            s.via = L"2.4 GHz receiver";
+            s.graceSec = 1800;
+            ctx.Add(s, kVid, kCelerisDongle);
+            break;
+        }
+    }
+
     if (ctx.IsClaimed(kVid, kViroDongle)) return;
     for (const HidColl* c : ctx.Find(kVid, kViroDongle, IsVendorCollection)) {
         int level = ReadLevel(*c);

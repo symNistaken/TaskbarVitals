@@ -201,3 +201,15 @@ Taskbar Vitals could not reopen. Please start it manually or repair the installa
 Taskbar Vitals is up to date. = Taskbar Vitals đã là phiên bản mới nhất.
 Taskbar Vitals update = Cập nhật Taskbar Vitals
 Taskbar Vitals will close briefly while the update is installed. = Taskbar Vitals sẽ tạm đóng trong chốc lát để cài đặt bản cập nhật.
+
+Show percent sign (%) = Hiện dấu phần trăm (%)
+Thank you! Your request was sent. You can follow it at {page}. = Cảm ơn bạn! Yêu cầu đã được gửi. Bạn có thể theo dõi tiến độ tại {page}.
+You already sent this device in the last 24 hours, so it's on the list. Thank you! = Thiết bị này đã được gửi trong 24 giờ qua và đang có trong danh sách. Cảm ơn bạn!
+The request was not accepted: {reason} = Yêu cầu không được chấp nhận: {reason}
+please check the fields. = vui lòng kiểm tra lại các trường thông tin.
+Too many requests from your network. Please try again in an hour. = Mạng của bạn đang gửi quá nhiều yêu cầu. Vui lòng thử lại sau 1 giờ.
+The site answered with an error ({code}). Please try again later. = Máy chủ phản hồi lỗi ({code}). Vui lòng thử lại sau.
+(kept private) = (bảo mật riêng tư)
+Your name (optional, kept private and never shown) = Tên của bạn (không bắt buộc, luôn bảo mật và không hiển thị công khai)
+This is exactly what will be sent: = Đây là nội dung chính xác sẽ được gửi:
+Sending... = Đang gửi...

@@ -28,6 +28,7 @@ namespace {
 
 const USHORT kVid = 0x373B;
 const USHORT kNanoDongle = 0x1216;
+const USHORT kNkCable = 0x124C;  // VXE R1 NK on its USB-C cable (PR #100)
 const USHORT kNano8kDongle = 0x1178;
 const USHORT kZeroCable = 0x1154;
 
@@ -146,23 +147,33 @@ void PollNano8k(PollContext& ctx) {
 void PollAtkBitmouse(PollContext& ctx) {
     PollZero(ctx);
     PollNano8k(ctx);
-    if (ctx.IsClaimed(kVid, kNanoDongle)) return;
-    for (const HidColl* c : ctx.Find(kVid, kNanoDongle, [](const HidColl& c) {
-             return c.page() == 0xFF05 && c.usage() == 0x0001 && c.outLen() >= 64 && c.inLen() >= 8;
-         })) {
-        HidDev d;
-        if (!d.Open(*c)) continue;
-        int level = Query(d, 0x07);
-        if (level < 1 || level > 100) continue;  // asleep / off, or no valid reading
-        DeviceStatus s;
-        s.key = L"atknk:" + Hex4(kNanoDongle);
-        s.name = L"ATK / VXE NK mouse";  // the dongle is shared by several NearLink models
-        s.kind = DeviceKind::Mouse;
-        s.via = L"2.4 GHz receiver";
-        s.graceSec = 1800;  // the dongle stops answering while the mouse sleeps: keep the last value
-        s.percent = level;
-        s.charging = Query(d, 0x0F) == 1;
-        ctx.Add(s, kVid, kNanoDongle);
-        break;
+    // The VXE R1 NK on its USB-C cable (373B:124C, PR #100) answers the same NearLink frames, target 01, on
+    // the same FF05:0001 collection. The cable is tried first so an idle dongle cannot hand back a stale
+    // reading while the mouse is wired; both report under the dongle's key, so charging is one entry.
+    for (USHORT pid : { kNkCable, kNanoDongle }) {
+        if (ctx.IsClaimed(kVid, pid)) continue;
+        const bool wired = pid == kNkCable;
+        bool added = false;
+        for (const HidColl* c : ctx.Find(kVid, pid, [](const HidColl& c) {
+                 return c.page() == 0xFF05 && c.usage() == 0x0001 && c.outLen() >= 64 && c.inLen() >= 8;
+             })) {
+            HidDev d;
+            if (!d.Open(*c)) continue;
+            int level = Query(d, 0x07);
+            if (level < 1 || level > 100) continue;  // asleep / off, or no valid reading
+            DeviceStatus s;
+            s.key = L"atknk:" + Hex4(kNanoDongle);
+            std::wstring product = wired ? HidProduct(*c) : L"";
+            s.name = product.empty() ? L"ATK / VXE NK mouse" : product;  // the dongle is shared by several models
+            s.kind = DeviceKind::Mouse;
+            s.via = wired ? L"USB cable" : L"2.4 GHz receiver";
+            s.graceSec = 1800;  // the dongle stops answering while the mouse sleeps: keep the last value
+            s.percent = level;
+            s.charging = wired || Query(d, 0x0F) == 1;
+            ctx.Add(s, kVid, pid);
+            added = true;
+            break;
+        }
+        if (added && wired) ctx.Claim(kVid, kNanoDongle);  // the mouse is listed once, from its cable
     }
 }

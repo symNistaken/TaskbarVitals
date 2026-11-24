@@ -8,7 +8,7 @@
 //   request: 65-byte feature report on the vendor collection FF01:0001, report id 0x12, payload
 //            [06 00 00 ...] with EVERY payload byte inverted (^ 0xFF), padding included
 //   reply:   the same report read back: [12][F9 = 06 ^ FF][payload, inverted]
-//            payload = vid:u16 (5253; 41E4 or 3837 on the 3837 dongles), model:u16, firmware:u32,
+//            payload = paired vid:u16, model:u16, firmware:u32,
 //            flags:u8 (09 on the receiver, 00 on the cable), level:u8, charging:u8
 // The receiver only has a value while the mouse itself is awake: asleep, it still echoes the
 // command but with an all-zero payload, so that is reported as "asleep" (the last value is kept).
@@ -30,7 +30,7 @@ const BYTE kReport = 0x12;
 const BYTE kCmdStatus = 0x06;
 
 // Returns 1 for a status reply, 0 for a valid echo with an empty payload (mouse asleep), -1 otherwise.
-int ParseStatus(const std::vector<BYTE>& r, USHORT vidField, USHORT altVidField, int& level, int& charging, int& flags) {
+int ParseStatus(const std::vector<BYTE>& r, USHORT vid, USHORT pid, int& level, int& charging, int& flags) {
     if (r.size() < 13 || r[0] != kReport || r[1] != (kCmdStatus ^ 0xFF)) return -1;
     BYTE p[11];
     for (int i = 0; i < 11; i++) p[i] = r[2 + i] ^ 0xFF;
@@ -38,15 +38,18 @@ int ParseStatus(const std::vector<BYTE>& r, USHORT vidField, USHORT altVidField,
     for (BYTE b : p)
         if (b) allZero = false;
     if (allZero) return 0;
-    USHORT field = (USHORT)(p[0] | (p[1] << 8));
-    if (field != vidField && field != altVidField) return -1;
+    const USHORT pairedVid = (USHORT)(p[0] | (p[1] << 8));
+    const USHORT model = (USHORT)(p[2] | (p[3] << 8));
+    // The L7 Ultra+ on the shared 5253:1020 receiver reports its paired identity as 3837:4016.
+    const bool l7UltraPlus = vid == kVid && pid == 0x1020 && pairedVid == kVidRealtek && model == 0x4016;
+    if (pairedVid != vid && !(vid == kVidRealtek && pairedVid == 0x41E4) && !l7UltraPlus) return -1;
     level = p[9];
     charging = p[10];
     flags = p[8];
     return level <= 100 ? 1 : -1;
 }
 
-void PollProduct(PollContext& ctx, USHORT vid, USHORT pid, USHORT vidField, USHORT altVidField) {
+void PollProduct(PollContext& ctx, USHORT vid, USHORT pid) {
     for (const HidColl* c : ctx.Find(vid, pid, [](const HidColl& c) { return c.page() == 0xFF01 && c.usage() == 0x0001 && c.featLen() >= 65; })) {
         HidDev d;
         if (!d.OpenFeatureOnly(*c)) continue;
@@ -60,7 +63,7 @@ void PollProduct(PollContext& ctx, USHORT vid, USHORT pid, USHORT vidField, USHO
             if (!d.SetFeature(req)) break;
             Sleep(120);
             if (!d.GetFeature(kReport, r)) continue;
-            int st = ParseStatus(r, vidField, altVidField, level, charging, flags);
+            int st = ParseStatus(r, vid, pid, level, charging, flags);
             if (st > state) state = st;
         }
         if (state < 0) continue;  // not answering this protocol
@@ -86,12 +89,12 @@ void PollProduct(PollContext& ctx, USHORT vid, USHORT pid, USHORT vidField, USHO
 
 void PollMchose(PollContext& ctx) {
     for (auto [vid, pid] : ctx.Products(kVid)) {
-        PollProduct(ctx, vid, pid, kVid, kVid);
+        PollProduct(ctx, vid, pid);
     }
     for (USHORT pid : kRealtekPids) {
         if (ctx.IsClaimed(kVidRealtek, pid)) continue;
         // The vid field differs between 3837 dongles: 41E4 on the A5 V2 Ultra (100C), 3837 on the
         // K7 Ultra (1001).
-        PollProduct(ctx, kVidRealtek, pid, 0x41E4, kVidRealtek);
+        PollProduct(ctx, kVidRealtek, pid);
     }
 }

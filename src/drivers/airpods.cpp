@@ -1,24 +1,16 @@
 // Apple AirPods / Beats (AirPods Max, AirPods Pro 1/2/3 and AirPods 1-5) over Bluetooth.
 //
-// Windows does not read the battery of AirPods (they report it through Apple-specific HFP commands),
-// so the Bluetooth fallback shows nothing for them. They do broadcast it in clear, several times a
-// second, in the BLE "proximity pairing" message iPhones use for their battery popup: manufacturer
-// data of company 0x004C (Apple), type 0x07, length 0x19:
-//   [0] 07  [1] 19  [2] 01 (paired status mode; 00 is pairing mode)
-//   [3..4] model (LE, = Bluetooth PID, e.g. 0x200A AirPods Max, 0x2014 AirPods Pro 2)
-//   [5] status: bit 5 set = the left bud is the one broadcasting (dual-bud models)
-//   [6] dual-bud: low nibble = broadcasting bud, high nibble = the other one (0-10 = x10 %, 15 = unknown)
-//       single-battery (AirPods Max, Beats headphones): low nibble = battery (0-10 = x10 %), high nibble = 0
-//   [7] high nibble: bit 0 broadcasting/single charging, bit 1 other bud charging, bit 2 case charging
-//       (bit 3 is always set on AirPods Max: 0x80 discharging, 0x90 charging); low nibble: case level
-// (layout from OpenPods / MagicPodsCore / AirPodsDesktop / librepods, verified on AirPods Max 200A).
-//
-// The shared BLE advertisement watcher (ble_adverts.cpp) is started the first time a paired Apple
-// audio device is seen and keeps running. Nearby AirPods of other people broadcast the same message with random
-// addresses, so only messages whose model matches the PID of a paired device are used, and the
-// strongest recent signal wins.
+// Two transports are supported:
+//   1. Apple Accessory Protocol (AAP) over Bluetooth Classic L2CAP PSM 0x1001 via an installed
+//      Windows kernel bridge driver (NTPodsAAP, PodPilotAap, or MagicAAP) when the device is
+//      connected over Classic Bluetooth. This provides true 1% battery levels (see airpods_aap.cpp).
+//   2. BLE "proximity pairing" advertisements (company 0x004C, type 0x07, length 0x19) via the
+//      shared watcher (ble_adverts.cpp), which report 10%-step levels even while charging in a
+//      case or before Classic Bluetooth connects.
 #include "drivers.h"
 #include "ble_adverts.h"
+#include "airpods_aap.h"
+#include "airpods_protocol.h"
 
 #include <setupapi.h>
 #include <initguid.h>
@@ -32,96 +24,15 @@
 
 namespace {
 
-// ---- received messages -------------------------------------------------------------------------
-
-struct Advert {
-    UINT16 model = 0;
-    bool single = false;
-    bool leftBroadcasts = false;
-    int left = -1, right = -1, box = -1;  // percent, -1 unknown (single-battery models use `left`)
-    bool leftChg = false, rightChg = false, boxChg = false;
-    int rssi = -127;
-    ULONGLONG tick = 0;
-};
-
 SRWLOCK g_lock = SRWLOCK_INIT;
-std::map<UINT64, Advert> g_adverts;  // by (random, rotating) BLE address
-
-int Level(int nibble) { return nibble <= 10 ? nibble * 10 : -1; }
-
-// Single-battery headphones and neckbands (AirPods Max, Beats Solo/Studio/X/Flex/Powerbeats) put
-// their battery in the low nibble of byte 6 and leave the upper nibble and case nibble as 0 (not
-// 15), so decoding them as dual-bud would always report the unused side as 0%.
-bool IsSingleBatteryModel(UINT16 model) {
-    switch (model) {
-        case 0x200A:  // AirPods Max (Lightning)
-        case 0x201F:  // AirPods Max (USB-C)
-        case 0x202D:  // AirPods Max 2
-        case 0x2003:  // Powerbeats 3
-        case 0x2005:  // BeatsX
-        case 0x2006:  // Beats Solo 3
-        case 0x2009:  // Beats Studio 3
-        case 0x200C:  // Beats Solo Pro
-        case 0x200D:  // Powerbeats 4
-        case 0x2010:  // Beats Flex
-        case 0x2017:  // Beats Studio Pro
-        case 0x2025:  // Beats Solo 4
-            return true;
-        default:
-            return false;
-    }
-}
-
-bool ParseProximityTlv(const BYTE* d, UINT32 n, Advert& a) {
-    // d[1] == 0x19 (25 bytes following) and d[2] == 0x01 (paired status mode; 0x00 is pairing mode).
-    if (n < 27 || d[0] != 0x07 || d[1] != 0x19 || d[2] != 0x01) return false;
-    a.model = (UINT16)(d[3] | d[4] << 8);
-    if ((a.model & 0xFF00) != 0x2000) return false;
-    a.single = IsSingleBatteryModel(a.model);
-    a.leftBroadcasts = (d[5] & 0x20) != 0;
-    int cur = d[6] & 0x0F, other = d[6] >> 4;
-    int chg = d[7] >> 4;
-    if (a.single) {
-        int pct = Level(cur);
-        bool charging = (chg & 0x01) != 0;
-        if (cur == 0 && other >= 1 && other <= 10) {
-            pct = Level(other);
-            charging = (chg & 0x02) != 0;
-        }
-        if (pct < 0) return false;
-        a.left = pct;
-        a.leftChg = charging;
-        a.right = -1;
-        a.box = -1;
-        return true;
-    }
-    a.left = Level(a.leftBroadcasts ? cur : other);
-    a.right = Level(a.leftBroadcasts ? other : cur);
-    a.leftChg = a.left >= 0 && (chg & (a.leftBroadcasts ? 0x01 : 0x02)) != 0;
-    a.rightChg = a.right >= 0 && (chg & (a.leftBroadcasts ? 0x02 : 0x01)) != 0;
-    a.box = Level(d[7] & 0x0F);
-    a.boxChg = a.box >= 0 && (chg & 0x04) != 0;
-    return a.left >= 0 || a.right >= 0 || a.box >= 0;
-}
-
-bool Parse(const BYTE* buf, UINT32 n, Advert& a) {
-    // Walk the Apple Continuity TLV sequence in case another TLV precedes 0x07.
-    for (UINT32 i = 0; i + 1 < n;) {
-        BYTE type = buf[i], len = buf[i + 1];
-        if (i + 2 + (UINT32)len > n) break;
-        if (type == 0x07 && ParseProximityTlv(buf + i, 2 + (UINT32)len, a)) return true;
-        i += 2 + (UINT32)len;
-    }
-    return false;
-}
-
-// ---- paired Apple audio devices ----------------------------------------------------------------
+std::map<UINT64, AirPodsBle::Advert> g_adverts;  // by (random, rotating) BLE address
 
 const DEVPROPKEY kIsConnected = { { 0x83DA6326, 0x97A6, 0x4088, { 0x94, 0x53, 0xA1, 0x92, 0x3F, 0x57, 0x3B, 0x29 } }, 15 };
 
 struct AppleDevice {
     std::wstring name;
     UINT16 pid = 0;          // Apple model id, from the "_VID&0001004C_PID&xxxx" service nodes
+    UINT64 addr = 0;         // 48-bit Bluetooth Classic address from "BTHENUM\DEV_<12 hex>\"
     bool connected = false;
     bool apple = false;
 };
@@ -129,6 +40,20 @@ struct AppleDevice {
 std::wstring Upper(std::wstring s) {
     for (auto& c : s) c = towupper(c);
     return s;
+}
+
+UINT64 ParseHex12(const wchar_t* p) {
+    UINT64 addr = 0;
+    for (int i = 0; i < 12; ++i) {
+        wchar_t ch = p[i];
+        UINT64 nib = 0;
+        if (ch >= L'0' && ch <= L'9') nib = static_cast<UINT64>(ch - L'0');
+        else if (ch >= L'A' && ch <= L'F') nib = static_cast<UINT64>(ch - L'A' + 10);
+        else if (ch >= L'a' && ch <= L'f') nib = static_cast<UINT64>(ch - L'a' + 10);
+        else return 0;
+        addr = (addr << 4) | nib;
+    }
+    return addr;
 }
 
 std::vector<AppleDevice> PairedAppleAudio() {
@@ -152,7 +77,11 @@ std::vector<AppleDevice> PairedAppleAudio() {
             size_t p = id.find(L"_PID&", v);
             if (p != std::wstring::npos) d.pid = (UINT16)wcstoul(id.c_str() + p + 5, nullptr, 16);
         }
-        if (!wcsncmp(inst, L"BTHENUM\\DEV_", 12)) {
+        if (_wcsnicmp(inst, L"BTHENUM\\DEV_", 12) == 0) {
+            if (wcslen(inst + 12) >= 12) {
+                UINT64 parsedAddr = ParseHex12(inst + 12);
+                if (parsedAddr) d.addr = parsedAddr;
+            }
             wchar_t buf[256] = {};
             if (SetupDiGetDevicePropertyW(di, &dd, &DEVPKEY_Device_FriendlyName, &t, (PBYTE)buf, sizeof(buf) - sizeof(wchar_t), nullptr, 0))
                 d.name = buf;
@@ -178,47 +107,63 @@ std::vector<AppleDevice> PairedAppleAudio() {
     return out;
 }
 
-// Best message for one device: the model must match when the PID is known; the strongest signal
-// among the last 90 s wins (or the latest one within 5 min when Classic Bluetooth is connected).
-// When one bud is in the ear and the other is in the open case, both buds broadcast separately,
-// so any missing side/case reading is filled from the latest recent broadcast of the other bud.
-bool Pick(const AppleDevice& dev, Advert& best) {
-    ULONGLONG now = GetTickCount64();
-    ULONGLONG maxAge = dev.connected ? 5 * 60 * 1000 : 90 * 1000;
-    int minRssi = dev.connected ? -90 : -80;
-    bool found = false;
+bool PickBle(const AppleDevice& dev, AirPodsBle::Advert& best) {
+    std::vector<AirPodsBle::Advert> snapshot;
     AcquireSRWLockShared(&g_lock);
-    for (auto& [addr, a] : g_adverts) {
-        if (dev.pid && a.model != dev.pid) continue;
-        ULONGLONG age = now - a.tick;
-        if (age > maxAge || a.rssi < minRssi) continue;
-        bool fresh = age < 90 * 1000, bestFresh = found && now - best.tick < 90 * 1000;
-        if (!found || (fresh && !bestFresh) || (fresh && bestFresh && a.rssi > best.rssi) ||
-            (!fresh && !bestFresh && a.tick > best.tick)) {
-            best = a;
-            found = true;
-        }
-    }
-    if (found && !best.single) {
-        for (auto& [addr, a] : g_adverts) {
-            if (a.model != best.model || a.single) continue;
-            if (best.tick > a.tick ? best.tick - a.tick > 15 * 1000 : a.tick - best.tick > 15 * 1000) continue;
-            if (best.left < 0 && a.left >= 0) { best.left = a.left; best.leftChg = a.leftChg; }
-            if (best.right < 0 && a.right >= 0) { best.right = a.right; best.rightChg = a.rightChg; }
-            if (best.box < 0 && a.box >= 0) { best.box = a.box; best.boxChg = a.boxChg; }
-        }
-    }
+    snapshot.reserve(g_adverts.size());
+    for (const auto& [addr, a] : g_adverts) snapshot.push_back(a);
     ReleaseSRWLockShared(&g_lock);
-    return found;
+    return AirPodsBle::PickBestAdvert(snapshot, dev.pid, dev.connected, GetTickCount64(), best);
 }
 
 std::wstring Pct(int v) { return v < 0 ? L"?" : std::to_wstring(v) + L"%"; }
 
+// Populates dual-bud main level/charging (preferring the lower discharging bud) and detail breakdown.
+bool FillDualBudStatus(DeviceStatus& s, int left, bool leftChg, int right, bool rightChg, int box, bool boxChg,
+                       const wchar_t* suffix) {
+    int disLo = -1, chgLo = -1;
+    if (left >= 0) {
+        int& dst = leftChg ? chgLo : disLo;
+        if (dst < 0 || left < dst) dst = left;
+    }
+    if (right >= 0) {
+        int& dst = rightChg ? chgLo : disLo;
+        if (dst < 0 || right < dst) dst = right;
+    }
+    if (disLo >= 0) {
+        s.percent = disLo;
+        s.charging = false;
+    } else if (chgLo >= 0) {
+        s.percent = chgLo;
+        s.charging = true;
+    } else {
+        s.percent = box;
+        s.charging = boxChg;
+    }
+    if (s.percent < 0) return false;
+    s.full = s.charging && s.percent >= 100;
+    s.detail = L"L " + Pct(left) + (leftChg ? L" \x26A1" : L"") +
+               L", R " + Pct(right) + (rightChg ? L" \x26A1" : L"") +
+               L", case " + Pct(box) + (boxChg ? L" \x26A1" : L"");
+    if (suffix && *suffix) s.detail += suffix;
+    // Each part on its own, for the dashboard (PR #3946).
+    if (left >= 0) s.batteries.push_back({ L"Left", left, leftChg, left >= 100 && leftChg });
+    if (right >= 0) s.batteries.push_back({ L"Right", right, rightChg, right >= 100 && rightChg });
+    if (box >= 0) s.batteries.push_back({ L"Case", box, boxChg, box >= 100 && boxChg });
+    return true;
+}
+
+std::wstring FormatMac12(UINT64 addr) {
+    wchar_t buf[20];
+    swprintf(buf, 20, L"%012llX", static_cast<unsigned long long>(addr & 0xFFFFFFFFFFFFULL));
+    return buf;
+}
+
 }  // namespace
 
 void AirPodsOnAdvert(UINT64 addr, int rssi, const BYTE* data, UINT32 len) {
-    Advert a;
-    if (!Parse(data, len, a)) return;
+    AirPodsBle::Advert a;
+    if (!AirPodsBle::Parse(data, len, a)) return;
     a.rssi = rssi;
     a.tick = GetTickCount64();
     AcquireSRWLockExclusive(&g_lock);
@@ -231,55 +176,143 @@ void AirPodsOnAdvert(UINT64 addr, int rssi, const BYTE* data, UINT32 len) {
 void PollAirPods(PollContext& ctx) {
     auto devices = PairedAppleAudio();
     if (devices.empty()) return;
-    if (EnsureBleWatcher()) {
+
+    bool anyNewAap = false;
+    for (const auto& d : devices) {
+        if (!d.addr) continue;
+        if (d.connected) {
+            if (airpods_aap::EnsureSession(d.addr)) anyNewAap = true;
+        } else {
+            airpods_aap::ReleaseSession(d.addr);
+        }
+    }
+
+    if (anyNewAap) {
+        for (int i = 0; i < 25; ++i) {
+            bool allSettled = true;
+            for (const auto& d : devices) {
+                if (!d.connected || !d.addr) continue;
+                airpods_aap::Snapshot snap;
+                if (!airpods_aap::GetReading(d.addr, snap) && airpods_aap::IsStarting(d.addr)) {
+                    allSettled = false;
+                    break;
+                }
+            }
+            if (allSettled) break;
+            Sleep(100);
+        }
+    }
+
+    bool needBle = false;
+    for (const auto& d : devices) {
+        airpods_aap::Snapshot snap;
+        if (!(d.connected && d.addr && airpods_aap::GetReading(d.addr, snap) && snap.battery.HasAny())) {
+            needBle = true;
+            break;
+        }
+    }
+
+    if (needBle && EnsureBleWatcher()) {
         // Just started: give the headphones a moment to broadcast (about once every 1-2 s).
         for (int i = 0; i < 15; i++) {
-            Advert a;
+            AirPodsBle::Advert a;
             bool any = false;
-            for (auto& d : devices) any |= Pick(d, a);
+            for (auto& d : devices) any |= PickBle(d, a);
             if (any) break;
             Sleep(200);
         }
     }
+
     std::set<UINT16> usedPid;
     for (auto& d : devices) {
         if (d.pid && !d.connected && usedPid.count(d.pid)) continue;
-        Advert a;
-        if (!Pick(d, a)) continue;
-        if (d.pid) usedPid.insert(d.pid);
+
         DeviceStatus s;
         s.name = d.name.empty() ? L"AirPods" : d.name;
         s.key = L"airpods:" + Hex4(d.pid) + L":" + s.name;
         s.kind = DeviceKind::Headset;
+        s.vid = 0x004C;
+        s.via = L"Bluetooth";
+        s.graceSec = d.connected ? 300 : 0;
+
+        airpods_aap::Snapshot aapSnap;
+        if (d.connected && d.addr && airpods_aap::GetReading(d.addr, aapSnap) && aapSnap.battery.HasAny()) {
+            const auto& b = aapSnap.battery;
+            const bool single = b.singleModel || AirPodsBle::IsSingleBatteryModel(d.pid);
+            if (single) {
+                int pct = b.single;
+                bool chg = b.singleCharging;
+                if (pct < 0 && b.left >= 0) { pct = b.left; chg = b.leftCharging; }
+                if (pct < 0 && b.right >= 0) { pct = b.right; chg = b.rightCharging; }
+                if (pct >= 0) {
+                    s.percent = pct;
+                    s.charging = chg;
+                    s.full = s.charging && s.percent >= 100;
+                    s.detail = L"AAP";
+                    if (d.pid) usedPid.insert(d.pid);
+                    ctx.out.push_back(s);
+                    continue;
+                }
+            } else if (FillDualBudStatus(s, b.left, b.leftCharging, b.right, b.rightCharging,
+                                         b.box, b.boxCharging, L" \x00B7 AAP")) {
+                if (d.pid) usedPid.insert(d.pid);
+                ctx.out.push_back(s);
+                continue;
+            }
+        }
+
+        AirPodsBle::Advert a;
+        if (!PickBle(d, a)) continue;
+        if (d.pid) usedPid.insert(d.pid);
         if (a.single) {
             s.percent = a.left;
             s.charging = a.leftChg;
-            s.via = L"Bluetooth";
+            s.full = s.charging && s.percent >= 100;
         } else {
-            // Prefer the lower discharging bud (the one in use); only show charging when every online bud is charging.
-            int disLo = -1, chgLo = -1;
-            if (a.left >= 0) {
-                int& dst = a.leftChg ? chgLo : disLo;
-                if (dst < 0 || a.left < dst) dst = a.left;
-            }
-            if (a.right >= 0) {
-                int& dst = a.rightChg ? chgLo : disLo;
-                if (dst < 0 || a.right < dst) dst = a.right;
-            }
-            if (disLo >= 0) {
-                s.percent = disLo;
-                s.charging = false;
-            } else if (chgLo >= 0) {
-                s.percent = chgLo;
-                s.charging = true;
-            } else {
-                s.percent = a.box;
-                s.charging = a.boxChg;
-            }
-            s.via = L"Bluetooth \x00B7 L " + Pct(a.left) + (a.leftChg ? L"\x26A1" : L"") + L"  R " + Pct(a.right) +
-                    (a.rightChg ? L"\x26A1" : L"") + L"  case " + Pct(a.box) + (a.boxChg ? L"\x26A1" : L"");
+            if (!FillDualBudStatus(s, a.left, a.leftChg, a.right, a.rightChg, a.box, a.boxChg, nullptr))
+                continue;
         }
-        s.graceSec = d.connected ? 300 : 0;
         ctx.out.push_back(s);
     }
+}
+
+void ShutdownAirPods() {
+    airpods_aap::Shutdown();
+}
+
+std::wstring DumpAirPodsStatus() {
+    std::wstring out = L"\nApple AirPods / Beats:\n";
+    auto devices = PairedAppleAudio();
+    if (devices.empty()) {
+        out += L"  paired devices: none\n";
+    } else {
+        for (const auto& d : devices) {
+            out += L"  " + (d.name.empty() ? std::wstring(L"(unnamed)") : d.name) +
+                   L"  PID=" + Hex4(d.pid) +
+                   L"  addr=" + (d.addr ? FormatMac12(d.addr) : L"none") +
+                   L"  connected=" + (d.connected ? L"true" : L"false") + L"\n";
+        }
+    }
+    out += airpods_aap::DumpDiagnostics();
+
+    ULONGLONG now = GetTickCount64();
+    AcquireSRWLockShared(&g_lock);
+    out += L"  BLE 0x07 cache entries: " + std::to_wstring(g_adverts.size()) + L"\n";
+    for (const auto& [addr, a] : g_adverts) {
+        ULONGLONG ageSec = now >= a.tick ? (now - a.tick) / 1000 : 0;
+        out += L"    BLE=" + FormatMac12(addr) +
+               L" model=" + Hex4(a.model) +
+               L" rssi=" + std::to_wstring(a.rssi) +
+               L" age=" + std::to_wstring(ageSec) + L"s";
+        if (a.single) {
+            out += L" single=" + Pct(a.left) + (a.leftChg ? L"+" : L"");
+        } else {
+            out += L" L=" + Pct(a.left) + (a.leftChg ? L"+" : L"") +
+                   L" R=" + Pct(a.right) + (a.rightChg ? L"+" : L"") +
+                   L" case=" + Pct(a.box) + (a.boxChg ? L"+" : L"");
+        }
+        out += L"\n";
+    }
+    ReleaseSRWLockShared(&g_lock);
+    return out;
 }

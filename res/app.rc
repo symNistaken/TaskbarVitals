@@ -5,6 +5,7 @@
 1 ICON "app.ico"
 2 ICON "app_light.ico"
 1 24 "app.manifest"
+FLAG_RU BITMAP "flag_ru.bmp"  // Russian flag next to Русский in the Language menu
 
 // The built-in UI languages: lang\*.txt joined by the build (see src/i18n.cpp).
 LANGS RCDATA "languages.txt"

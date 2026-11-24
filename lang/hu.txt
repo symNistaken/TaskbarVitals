@@ -197,3 +197,14 @@ Taskbar Vitals could not reopen. Please start it manually or repair the installa
 Taskbar Vitals is up to date. = A Taskbar Vitals naprakész.
 Taskbar Vitals update = Taskbar Vitals frissítés
 Taskbar Vitals will close briefly while the update is installed. = A Taskbar Vitals rövid időre bezárul a frissítés telepítése közben.
+
+Thank you! Your request was sent. You can follow it at {page}. = Köszönjük! A kérelmedet elküldtük. Itt követheted: {page}.
+You already sent this device in the last 24 hours, so it's on the list. Thank you! = Ezt az eszközt már beküldted az elmúlt 24 órában, így rajta van a listán. Köszönjük!
+The request was not accepted: {reason} = A kérelmet nem fogadták el: {reason}
+please check the fields. = kérjük, ellenőrizd a mezőket.
+Too many requests from your network. Please try again in an hour. = Túl sok kérés érkezett a hálózatodról. Próbáld újra egy óra múlva.
+The site answered with an error ({code}). Please try again later. = Az oldal hibával válaszolt ({code}). Kérjük, próbáld újra később.
+(kept private) = (bizalmasan kezelve)
+Your name (optional, kept private and never shown) = A neved (opcionális, bizalmasan kezeljük, sosem jelenik meg)
+This is exactly what will be sent: = Pontosan ez kerül elküldésre:
+Sending... = Küldés...

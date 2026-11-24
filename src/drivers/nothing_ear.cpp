@@ -138,6 +138,9 @@ void PollNothingEar(PollContext& ctx) {
         s.charging = st.leftCharging || st.rightCharging;
         s.detail = L"L " + Pct(st.left) + L", R " + Pct(st.right);
         if (st.caseLevel >= 0) s.detail += L", case " + Pct(st.caseLevel);
+        if (st.left >= 0) s.batteries.push_back({ L"Left", st.left, st.leftCharging, st.left >= 100 && st.leftCharging });  // PR #3946
+        if (st.right >= 0) s.batteries.push_back({ L"Right", st.right, st.rightCharging, st.right >= 100 && st.rightCharging });
+        if (st.caseLevel >= 0) s.batteries.push_back({ L"Case", st.caseLevel, st.caseCharging, st.caseLevel >= 100 && st.caseCharging });
         s.graceSec = 180;
         ctx.out.push_back(s);
     }

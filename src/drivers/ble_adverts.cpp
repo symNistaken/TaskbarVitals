@@ -7,6 +7,8 @@
 #include <roapi.h>
 #include <winstring.h>
 
+#include <string>
+
 #include <cwchar>
 
 // ---- minimal WinRT ABI declarations (MinGW ships no windows.devices.bluetooth.advertisement.h) ----
@@ -129,6 +131,15 @@ void OnReceived(IReceivedArgs* args) {
     args->get_BluetoothAddress(&addr);
     args->get_RawSignalStrengthInDBm(&rssi);
 
+    // The BigBigWon Armor X Pro advertises its name ("ARMOR-X...") in the scan response (active scan, PR #145).
+    HSTRING local = nullptr;
+    if (SUCCEEDED(adv->get_LocalName(&local)) && local) {
+        UINT32 n = 0;
+        const wchar_t* s = WindowsGetStringRawBuffer(local, &n);
+        if (s && n && std::wstring(s, n).find(L"ARMOR-X") != std::wstring::npos) ArmorXOnAdvert(addr);
+        WindowsDeleteString(local);
+    }
+
     IManufacturerDataView* mview = nullptr;
     if (SUCCEEDED(adv->GetManufacturerDataByCompanyId(0x004C, &mview)) && mview) {
         UINT32 count = 0;
@@ -191,6 +202,8 @@ struct ReceivedHandler : IUnknown {
 
 ReceivedHandler g_handler;
 IWatcher* g_watcher = nullptr;
+bool g_activeWanted = false;  // a driver needs names from scan responses (BleWantActiveScan)
+bool g_activeSet = false;     // the watcher is in active mode
 
 }  // namespace
 
@@ -213,10 +226,21 @@ bool EnsureBleWatcher() {
             Release(g_watcher);
             return false;
         }
+        if (g_activeWanted && SUCCEEDED(g_watcher->put_ScanningMode(1))) g_activeSet = true;  // 1 = Active
         return SUCCEEDED(g_watcher->Start());
     }
     INT32 st = 0;
-    if (SUCCEEDED(g_watcher->get_Status(&st)) && (st == kWatcherStopped || st == kWatcherAborted))
-        return SUCCEEDED(g_watcher->Start());
+    if (FAILED(g_watcher->get_Status(&st))) return false;
+    if (g_activeWanted && !g_activeSet) {
+        // The mode can only change while stopped: stop now, switch and restart on a later call.
+        if (st != kWatcherStopped && st != kWatcherAborted) {
+            g_watcher->Stop();
+            return false;
+        }
+        if (SUCCEEDED(g_watcher->put_ScanningMode(1))) g_activeSet = true;
+    }
+    if (st == kWatcherStopped || st == kWatcherAborted) return SUCCEEDED(g_watcher->Start());
     return false;
 }
+
+void BleWantActiveScan() { g_activeWanted = true; }

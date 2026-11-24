@@ -34,9 +34,25 @@
 // as the Launcher's getKReciverState does; report B3 [06] returns the mouse's base info, whose byte 19
 // is the power byte: bits 0-6 = battery %, bit 7 = charging (the Launcher's power.value/power.state,
 // also used for its battery-life estimate). Read-only; from launcher.keychron.com main.js.
+// Ultra 8K keyboards (ZMK firmware on a Realtek RTL8762G, e.g. the Q6 Ultra 8K, 3434:1260) sit behind
+// the same Ultra-Link 8K receiver. Its raw HID collection FF60:0061 answers B2 with its three slots (at
+// bytes 2/7/12: vid LE16, pid LE16 = the keyboard's USB product id, status, 1 = connected) and tunnels
+// A7 xx to the keyboard, as the Link-KM does for the Nape Pro. Stock firmware has no battery
+// sub-command (Keychron/zmk branch rtl8762g, kc_user_cmd in app/src/launcher/launcher.c) and echoes
+// A7 31 with an empty payload; it answers A4 with VIA's "unhandled" FF. Firmware patched as described
+// in docs/keychron_keyboard_firmware/q6_ultra_8k.md answers A7 31 [battery %][charging] like the
+// Nape Pro, over the receiver and on the USB cable. Checked on a real Q6 Ultra 8K ANSI (v1.0.4).
 #include "drivers.h"
 
 namespace {
+
+// Ultra 8K (ZMK) keyboards read with A7 31 by PollUltraKeyboard, by their USB product id.
+const wchar_t* UltraKeyboardName(USHORT pid) {
+    switch (pid) {
+        case 0x1260: return L"Keychron Q6 Ultra 8K";
+    }
+    return nullptr;
+}
 
 // Sends a 32-byte request to the receiver's raw HID interface and waits for a reply starting with `cmd`.
 bool LinkQuery(HidDev& d, BYTE cmd, std::vector<BYTE>& r, int timeoutMs) {
@@ -56,6 +72,7 @@ bool LinkQuery(HidDev& d, BYTE cmd, std::vector<BYTE>& r, int timeoutMs) {
 // plugged in directly with the cable (then the keyboard itself owns the FF60 interface).
 void PollKeychronLinkKeyboard(PollContext& ctx, USHORT vid, USHORT pid) {
     if (pid == 0xD026 || pid == 0x0440) return;  // Nape Pro receiver / cable: handled by PollNape
+    if (UltraKeyboardName(pid)) return;          // Ultra 8K keyboard on its cable: handled by PollUltraKeyboard
     for (const HidColl* c : ctx.Find(vid, pid, [](const HidColl& c) { return c.page() == 0xFF60 && c.usage() == 0x61 && c.outLen() == 33; })) {
         HidDev d;
         if (!d.Open(*c)) continue;
@@ -69,6 +86,7 @@ void PollKeychronLinkKeyboard(PollContext& ctx, USHORT vid, USHORT pid) {
                 if ((s[0] | (s[1] << 8)) == 0x3434 && s[4]) { kbPid = (USHORT)(s[2] | (s[3] << 8)); break; }
             }
             if (!kbPid) return;  // keyboard off, asleep or on the cable: the app keeps its last value
+            if (UltraKeyboardName(kbPid)) return;  // answers A4 with FF: handled by PollUltraKeyboard
             // After the link has been idle, the first request is lost while it wakes up (a stray
             // reply arrives instead); a second one is answered within ~60 ms. Worst case (stock firmware) ~1.1 s.
             if (!LinkQuery(d, 0xA4, r, 400) && !LinkQuery(d, 0xA4, r, 400)) return;  // stock firmware
@@ -246,6 +264,9 @@ void PollLegacy(PollContext& ctx) {
 }
 
 constexpr USHORT kUltraLink8k = 0xD028;  // Keychron Ultra-Link 8K receiver
+// Link-KM receivers that pair a mouse (e.g. the M6, slot pid 3434:D064) answer the same "8k" B5/B3
+// queries on FFC1:0001. Checked on a real M6 on a 3434:D029 Link-KM receiver.
+constexpr USHORT kLinkKmMouse = 0xD029;
 constexpr BYTE kUltraReceiverReport = 0xB5;
 constexpr BYTE kUltraMouseReport = 0xB3;
 
@@ -264,31 +285,91 @@ bool UltraQuery(HidDev& d, BYTE id, BYTE cmd, std::vector<BYTE>& r) {
     return false;
 }
 
-// 8K mouse on the Ultra-Link 8K receiver (Launcher protocol "8k" on FFC1:0001).
+// 8K mouse on the Ultra-Link 8K receiver, or a mouse on the Link-KM (D029), via the Launcher protocol "8k" on FFC1:0001.
 void PollUltraLink(PollContext& ctx) {
-    for (const HidColl* c : ctx.Find(0x3434, kUltraLink8k, [](const HidColl& c) { return c.page() == 0xFFC1 && c.usage() == 0x01 && c.outLen() >= 21 && c.inLen() >= 21; })) {
+    for (USHORT rpid : {kUltraLink8k, kLinkKmMouse}) {
+        for (const HidColl* c : ctx.Find(0x3434, rpid, [](const HidColl& c) { return c.page() == 0xFFC1 && c.usage() == 0x01 && c.outLen() >= 21 && c.inLen() >= 21; })) {
+            HidDev d;
+            if (!d.Open(*c)) continue;
+            std::vector<BYTE> r;
+            // Only ask when a mouse sits in a receiver slot and is connected.
+            if (!UltraQuery(d, kUltraReceiverReport, 0x03, r)) continue;
+            bool connected = false;
+            USHORT mousePid = 0;
+            for (int off : {3, 8, 13}) {  // payload offsets 2/7/12 (+1 for the report id): vid LE16, pid LE16, status
+                // A keyboard in the slot never answers B3 06 (checked on a Q6 Ultra 8K): it is not a mouse to wait for.
+                USHORT slotPid = (USHORT)(r[off + 2] | (r[off + 3] << 8));
+                bool keyboard = UltraKeyboardName(slotPid) != nullptr;
+                bool here = !keyboard && (r[off] | r[off + 1]) != 0 && r[off + 4] != 0;
+                if (here && !mousePid) mousePid = slotPid;
+                connected = connected || here;
+            }
+            if (!connected) continue;
+            if (!UltraQuery(d, kUltraMouseReport, 0x06, r)) continue;
+            BYTE power = r[20];  // payload byte 19
+            int percent = power & 0x7F;
+            if (percent < 1 || percent > 100) continue;
+            DeviceStatus s;
+            s.key = L"keychron:" + Hex4(rpid);
+            if (rpid == kLinkKmMouse) s.name = mousePid == 0xD064 ? L"Keychron M6" : L"Keychron mouse";
+            else s.name = CleanName(HidProduct(*c));
+            s.kind = DeviceKind::Mouse;
+            s.via = L"2.4 GHz receiver";
+            s.percent = percent;
+            s.charging = (power & 0x80) != 0;
+            ctx.Add(s, 0x3434, rpid);
+            break;
+        }
+    }
+}
+
+bool IsRawHid(const HidColl& c) { return c.page() == 0xFF60 && c.usage() == 0x61 && c.outLen() == 33; }
+
+// A7 31 -> [A7][31][battery %][charging]. Stock firmware echoes the request with zeros: rejected.
+bool QueryUltraBattery(HidDev& d, DeviceStatus& s) {
+    std::vector<BYTE> r;
+    if (!RawQuery(d, {0xA7, 0x31}, r) || r[2] < 1 || r[2] > 100 || r[3] > 1) return false;
+    s.kind = DeviceKind::Keyboard;
+    s.percent = r[2];
+    s.charging = r[3] != 0;
+    return true;
+}
+
+// Ultra 8K keyboard with firmware that answers A7 31, behind the Ultra-Link 8K receiver or on its cable.
+void PollUltraKeyboard(PollContext& ctx) {
+    for (const HidColl* c : ctx.Find(0x3434, kUltraLink8k, IsRawHid)) {
         HidDev d;
         if (!d.Open(*c)) continue;
         std::vector<BYTE> r;
-        // Only ask when a mouse sits in a receiver slot and is connected.
-        if (!UltraQuery(d, kUltraReceiverReport, 0x03, r)) continue;
-        bool connected = false;
-        for (int off : {3, 8, 13})  // payload offsets 2/7/12 (+1 for the report id): vid LE16, pid LE16, status
-            connected = connected || ((r[off] | r[off + 1]) != 0 && r[off + 4] != 0);
-        if (!connected) continue;
-        if (!UltraQuery(d, kUltraMouseReport, 0x06, r)) continue;
-        BYTE power = r[20];  // payload byte 19
-        int percent = power & 0x7F;
-        if (percent < 1 || percent > 100) continue;
-        DeviceStatus s;
-        s.key = L"keychron:" + Hex4(kUltraLink8k);
-        s.name = CleanName(HidProduct(*c));
-        s.kind = DeviceKind::Mouse;
-        s.via = L"2.4 GHz receiver";
-        s.percent = percent;
-        s.charging = (power & 0x80) != 0;
-        ctx.Add(s, 0x3434, kUltraLink8k);
-        return;
+        if (!RawQuery(d, {0xB2}, r) || r.size() < 17) continue;
+        for (int off : {2, 7, 12}) {
+            USHORT kbPid = (USHORT)(r[off + 2] | (r[off + 3] << 8));
+            const wchar_t* name = UltraKeyboardName(kbPid);
+            // Only ask when a known keyboard sits in the slot and is connected (not asleep or switched off).
+            if ((r[off] | (r[off + 1] << 8)) != 0x3434 || !name || r[off + 4] != 1) continue;
+            DeviceStatus s;
+            if (!QueryUltraBattery(d, s)) break;
+            s.key = L"keychron-kb:" + Hex4(kbPid);  // same key over the receiver and the cable
+            s.name = name;
+            s.via = L"2.4 GHz receiver";
+            s.graceSec = 1800;     // the slot reads "not connected" while the keyboard sleeps: keep the last value
+            ctx.out.push_back(s);  // the receiver is not claimed: a mouse can sit in another slot
+            return;
+        }
+    }
+    for (auto [vid, pid] : ctx.Products(0x3434)) {
+        const wchar_t* name = UltraKeyboardName(pid);
+        if (!name) continue;
+        for (const HidColl* c : ctx.Find(vid, pid, IsRawHid)) {
+            HidDev d;
+            DeviceStatus s;
+            if (!d.Open(*c) || !QueryUltraBattery(d, s)) continue;
+            s.key = L"keychron-kb:" + Hex4(pid);
+            s.name = name;
+            s.via = L"USB cable";
+            ctx.Add(s, vid, pid);
+            break;
+        }
     }
 }
 
@@ -298,6 +379,7 @@ void PollKeychron(PollContext& ctx) {
     PollNape(ctx);
     PollLegacy(ctx);
     PollUltraLink(ctx);
+    PollUltraKeyboard(ctx);
     for (auto [vid, pid] : ctx.Products(0x3434)) {
         for (const HidColl* c : ctx.Find(vid, pid, [](const HidColl& c) { return c.page() >= 0xFF00 && c.outLen() == 65 && c.inLen() == 65; })) {
             HidDev d;

@@ -201,3 +201,14 @@ Taskbar Vitals could not reopen. Please start it manually or repair the installa
 Taskbar Vitals is up to date. = Taskbar Vitals оновлено до останньої версії.
 Taskbar Vitals update = Оновлення Taskbar Vitals
 Taskbar Vitals will close briefly while the update is installed. = Taskbar Vitals ненадовго закриється під час встановлення оновлення.
+
+Thank you! Your request was sent. You can follow it at {page}. = Дякуємо! Ваш запит надіслано. Ви можете стежити за ним на {page}.
+You already sent this device in the last 24 hours, so it's on the list. Thank you! = Ви вже надсилали цей пристрій за останні 24 години, тому він є в списку. Дякуємо!
+The request was not accepted: {reason} = Запит не прийнято: {reason}
+please check the fields. = будь ласка, перевірте поля.
+Too many requests from your network. Please try again in an hour. = Забагато запитів із вашої мережі. Будь ласка, спробуйте знову за годину.
+The site answered with an error ({code}). Please try again later. = Сайт відповів з помилкою ({code}). Будь ласка, спробуйте пізніше.
+(kept private) = (зберігається конфіденційно)
+Your name (optional, kept private and never shown) = Ваше ім'я (необов'язково, конфіденційно і ніколи не показується)
+This is exactly what will be sent: = Ось що саме буде надіслано:
+Sending... = Надсилання...

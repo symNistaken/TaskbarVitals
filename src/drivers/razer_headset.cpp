@@ -8,7 +8,9 @@
 // most once every 5 minutes and the last reading is reused in between.
 // Protocol from OpenRazer PR #2794 (docs/v3_pro_protocol.md) and github.com/ReedME/omarchy-blackshark-v3.
 //
-// BlackShark V2 Pro (2020), 2.4 GHz receiver 1532:0528, uses feature report FF on FF00:0001.
+// BlackShark V2 Pro (2020), receiver 1532:0528, and Barracuda X (2021), receiver 1532:0536,
+// use the same Avnera battery query via 64-byte feature report FF on interface 3, FF00:0001.
+// The Barracuda X reply header, voltage and percentage were confirmed on its 2.4 GHz receiver.
 // Request from https://github.com/openrazer/openrazer/issues/1280#issuecomment-1094116217.
 // Reply and power states documented in https://github.com/HeyOkay/HaloBattery/blob/main/providers/blackshark2020.py.
 //
@@ -110,17 +112,22 @@ std::vector<BYTE> HsQueryFrame(BYTE cmd, BYTE seq) {
 
 // The Win32 HID layer returns the report ID in r[0] for numbered reports.
 // WebHID's payload offsets are therefore shifted by one here.
-bool ParseHsReply(const std::vector<BYTE>& r, BYTE cmd, BYTE seq, int& value) {
+bool ParseHsReply(const std::vector<BYTE>& r, BYTE cmd, BYTE seq, int& value, bool chroma = false) {
     if (r.size() < 64 || r[0] != 0x02 || r[2] != seq || r[10] != cmd || r[12] < 1) return false;
     BYTE checksum = 0;
     for (int i = 1; i < 62; ++i) checksum ^= r[i];
     if (checksum != r[62]) return false;
+    // Chroma uses the fixed 0x60 transaction ID. Check the whole reply header to
+    // reject stale events, receiver replies and error status (no headset online).
+    if (chroma && (r[1] != 0x02 || r[3] != 0 || r[4] != 0 || r[5] != 0 ||
+                   r[6] != 0x05 || r[7] != 0 || r[8] != 0x80 || r[9] != 0x80 ||
+                   r[11] != 0x01 || r[12] != 0x01)) return false;
     value = r[13];
     return true;
 }
 
-int HsQuery(HidDev& d, BYTE cmd) {
-    const BYTE seq = NextHsSeq();
+int HsQuery(HidDev& d, BYTE cmd, bool chroma = false) {
+    const BYTE seq = chroma ? 0x60 : NextHsSeq();
     d.Flush();
     if (!d.Write(HsQueryFrame(cmd, seq))) return -1;
     const ULONGLONG end = GetTickCount64() + 650;
@@ -129,7 +136,7 @@ int HsQuery(HidDev& d, BYTE cmd) {
         int remaining = static_cast<int>(end - GetTickCount64());
         if (d.Read(r, remaining) < 0) break;
         int value = -1;
-        if (ParseHsReply(r, cmd, seq, value)) return value;
+        if (ParseHsReply(r, cmd, seq, value, chroma)) return value;
     }
     return -1;
 }
@@ -179,8 +186,36 @@ void PollBlackSharkV2HyperSpeed(PollContext& ctx) {
     }
 }
 
-void PollBlackSharkV2Pro2020(PollContext& ctx) {
-    constexpr USHORT vid = 0x1532, pid = 0x0528;
+// Barracuda X Chroma (1532:0574): verified 0x60 / GET 21, 2A protocol.
+// Device captures: tochtlani/synapseless PROTOCOL.md and itayavra/batterywatch#55.
+// The receiver exposes FF14:0001 on interface 3. The headset does not answer when off.
+void PollBarracudaXChroma(PollContext& ctx) {
+    constexpr USHORT vid = 0x1532, pid = 0x0574;
+    if (ctx.IsClaimed(vid, pid)) return;
+    auto colls = ctx.Find(vid, pid, [](const HidColl& c) {
+        return c.iface == 3 && c.page() == 0xFF14 && c.usage() == 0x0001 &&
+               c.outLen() >= 64 && c.inLen() >= 64;
+    });
+    for (const HidColl* c : colls) {
+        HidDev d;
+        if (!d.Open(*c)) continue;
+        const int level = HsQuery(d, 0x21, true);
+        if (level < 0 || level > 100) continue;
+        const int charge = HsQuery(d, 0x2A, true);
+        DeviceStatus s;
+        s.key = L"barracuda:" + Hex4(pid);
+        s.name = L"Razer Barracuda X Chroma";
+        s.kind = DeviceKind::Headset;
+        s.via = L"2.4 GHz receiver";
+        s.percent = level;
+        s.charging = charge == 1;
+        ctx.Add(s, vid, pid);
+        return;
+    }
+}
+
+void PollRazerAvneraHeadset(PollContext& ctx, USHORT pid, const wchar_t* name, const wchar_t* key) {
+    constexpr USHORT vid = 0x1532;
     constexpr int reportLen = 64, maxReads = 5;
     constexpr BYTE reply[] = { 0xFF, 0x0F, 0x05, 0xFE, 0x12, 0x04, 0x1F, 0x08, 0x05 };
     constexpr BYTE stale[] = { 0xFF, 0x01, 0x00, 0xFE, 0x12, 0x04, 0x1F, 0x08, 0x05 };
@@ -203,15 +238,15 @@ void PollBlackSharkV2Pro2020(PollContext& ctx) {
             if (!fresh && !offline) continue;
 
             DeviceStatus s;
-            s.key = L"blackshark:" + Hex4(pid);
-            s.name = L"Razer BlackShark V2 Pro (2020)";
+            s.key = key;
+            s.name = name;
             s.kind = DeviceKind::Headset;
             s.via = L"2.4 GHz receiver";
             s.millivolts = fresh ? (r[12] << 8) | r[13] : 0;
             s.connected = s.millivolts != 0;
             if (s.connected) {
                 s.charging = r[11] == 0x09;
-                // The receiver can jump to 80% as soon as charging starts, even from 10%.
+                // A BlackShark receiver can jump to 80% as soon as charging starts, even from 10%.
                 if (!s.charging && r[14] <= 100) s.percent = r[14];
             }
             ctx.Add(s, vid, pid);
@@ -482,8 +517,10 @@ void PollBlackSharkV3X(PollContext& ctx) {
 
 void PollRazerHeadsets(PollContext& ctx) {
     PollBlackSharkV2HyperSpeed(ctx);
+    PollBarracudaXChroma(ctx);
     PollBarracudaX(ctx);
-    PollBlackSharkV2Pro2020(ctx);
+    PollRazerAvneraHeadset(ctx, 0x0528, L"Razer BlackShark V2 Pro (2020)", L"blackshark:0528");
+    PollRazerAvneraHeadset(ctx, 0x0536, L"Razer Barracuda X (2021)", L"barracuda:0536");
     PollBlackSharkV2Pro2023(ctx);
     PollBlackSharkV3X(ctx);
     for (USHORT pid : { (USHORT)0x0576, (USHORT)0x0577, (USHORT)0x0579, (USHORT)0x057A, (USHORT)0x0A4E,

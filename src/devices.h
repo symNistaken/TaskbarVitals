@@ -1,8 +1,17 @@
 #pragma once
 #include <string>
 #include <vector>
+#include <cstdint>
 
-enum class DeviceKind { Other, Mouse, Headset, Keyboard, Gamepad, Phone, Microphone };
+enum class DeviceKind { Other, Mouse, Headset, Keyboard, Gamepad, Phone, Microphone, Speaker };
+
+// One battery of a device with several, e.g. the left earbud, the right one and the case (PR #3946).
+struct BatteryComponent {
+    std::wstring name;      // L"Left", L"Right", L"Case", ...
+    int percent = -1;       // 0..100, or -1 when unknown
+    bool charging = false;
+    bool full = false;
+};
 
 // One battery-powered device, as seen during a single poll.
 struct DeviceStatus {
@@ -13,6 +22,7 @@ struct DeviceStatus {
     int  percent    = -1;      // 0..100, or -1 when unknown right now
     std::wstring detail;       // extra breakdown for the tooltip, e.g. "L 80%, R 75%, case 40%"
     std::wstring levelText;    // set when the device only reports coarse levels ("Low", "Full"...)
+    std::wstring note;         // advice shown while there is no level (an English phrase, translated by the UI)
     bool charging   = false;
     bool full       = false;   // on power and fully charged (charging may also be set)
     bool asleep     = false;   // receiver answered but the device is sleeping (keep last value)
@@ -20,6 +30,11 @@ struct DeviceStatus {
     int  millivolts = 0;       // battery voltage when reported (0 = unknown)
     int  graceSec   = 0;       // keep showing the last value this long if the device stops answering
     unsigned short vid = 0;    // USB / Bluetooth HID vendor id when known (picks the brand color)
+    bool unsupported = false;  // seen but no driver reads its battery: listed in the menu only (PR #2463)
+    std::vector<BatteryComponent> batteries;  // each battery, when the device reports several (PR #3946)
+    bool hasCapacity = false;               // capacities below are reported by the hardware (PR #3946)
+    uint32_t designCapacityMwh = 0;
+    uint32_t fullChargeCapacityMwh = 0;
 };
 
 // Queries every supported device. Blocking (can take a second or two); call from a worker thread.
@@ -27,3 +42,6 @@ std::vector<DeviceStatus> PollAllDevices();
 
 // Prints every HID collection (for adding support for new devices).
 std::wstring DumpHidCollections();
+
+// Releases background driver sessions (e.g. AAP channels) cleanly before exit.
+void ShutdownDevices();

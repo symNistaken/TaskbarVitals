@@ -73,7 +73,7 @@ void PollSinowealthReceiver(PollContext& ctx);  // Redragon M602-KS receiver (25
 void PollDarkrim(PollContext& ctx);   // DARKRIM SHADOW receiver (3654:6901)
 void PollGlorious(PollContext& ctx);  // also Hitscan
 void PollAula(PollContext& ctx);      // AULA F75 / F87 Pro / F99 / HERO 68 Air keyboards, SC580 mouse (before Kysona)
-void PollEweadn(PollContext& ctx);    // EWEADN S7 / S9 mice (372E:103D receiver, 372E:1027 S9 Ultra cable)
+void PollEweadn(PollContext& ctx);    // EWEADN S7 / S9 mice (receiver 372E:1026/1033/103D/1055, cable 372E:1027/1029/105E/108D)
 void PollAulaMouse(PollContext& ctx); // AULA X9 Ultra on the shared AULA-8K receiver
 void PollAulaHeadset(PollContext& ctx); // AULA A7Pro over its 2.4 GHz receiver
 void PollDareu(PollContext& ctx);     // DAREU EM901X receiver / cable, A84 keyboard, A980 Pro, Sharkoon SGM50W (split feature/input collections)
@@ -83,9 +83,12 @@ void PollDarmoshark(PollContext& ctx); // Darmoshark M3 over its 2.4 GHz receive
 void PollDarmosharkNrf(PollContext& ctx); // Darmoshark M3S Pro on the Nordic 1K receiver (1915:0723)
 void PollAtkSerial(PollContext& ctx); // ATK N9 Pro / N9 Ultra headsets (virtual COM port)
 void PollAtkMercury(PollContext& ctx); // ATK Mercury I / M1 headset (373B:107C receiver)
-void PollKeychron(PollContext& ctx);  // Keychron mice (incl. Ultra-Link 8K receiver), Nape Pro trackball (Link-KM receiver)
+void PollKeychron(PollContext& ctx);  // Keychron mice (incl. Ultra-Link 8K receiver), Nape Pro trackball (Link-KM receiver), keyboards with battery firmware
 void PollCherry(PollContext& ctx);    // CHERRY MX 3.0S Wireless (FF1C channel) and the Cherry XTRFY 1K mouse receiver (046A:0330, CompX protocol)
 void PollNuphy(PollContext& ctx);     // NuPhy WH80 over USB cable (19F5:A011)
+void PollWobkey(PollContext& ctx);    // Wobkey Rainy75 V2 keyboard (36B0:3071 receiver / 36B0:3075 cable)
+void PollNuphyHalo96(PollContext& ctx); // Halo96 V2 with custom telemetry over the stock 2.4 GHz receiver
+void PollCrociris(PollContext& ctx);  // CROCIRIS X7 series mice on the 36F9:AA20 "X7 Receiver 8K"
 void PollArbiter(PollContext& ctx);   // Arbiter Studio Akitsu mice on 373E (before Lamzu, same vendor id)
 void PollLamzu(PollContext& ctx);     // LAMZU mice on vendor ids 373E / 37B0
 void PollEndgame(PollContext& ctx);   // Endgame Gear 4K mice (OP1w 4k, XM2w 4k) on the 4K dongle
@@ -94,9 +97,10 @@ void PollAtkKeyboard(PollContext& ctx);   // ATK V75X / VGN keyboards and ATK Z8
 void PollRedragonEvision(PollContext& ctx);  // Redragon M999 on its Evision 2.4 GHz receiver (320F:226F)
 void PollBarracudaPro(PollContext& ctx);  // Razer Barracuda Pro (1532:053A), before the generic Razer driver
 void PollSteelSeriesElite(PollContext& ctx);  // SteelSeries Arctis Nova Elite base station (1038:2244)
-void PollAudeze(PollContext& ctx);        // Audeze Maxwell (VID 3329) dongle or cable
+void PollAudeze(PollContext& ctx);        // Audeze Maxwell (VID 3329): PC / Xbox / Maxwell 2 dongles or cable
 void PollEndorfy(PollContext& ctx);       // ENDORFY Viro Wireless dongle (3738:0072), Airoha RACE battery query
 void PollTurtleBeach(PollContext& ctx);   // Turtle Beach Stealth 700 Gen 3 (10F5:2251 / 2262 transmitters, 2253 cable)
+void PollRoccat(PollContext& ctx);        // ROCCAT Syn Max Air headset on its receiver (1E7D:3A3F)
 void PollAkg(PollContext& ctx);           // AKG N9 Hybrid on its USB dongle (0ECB:20D9), Airoha RACE battery query
 void PollNzxt(PollContext& ctx);          // NZXT Lift Elite Wireless (1E71:2101 / 2129)
 void PollPlantronics(PollContext& ctx);   // Poly / Plantronics headsets behind the BT600 adapter (047F)
@@ -107,13 +111,18 @@ void PollNinjutso(PollContext& ctx);  // Sora V2 (1915:AE1C 1K receiver, AE11 ca
 void PollSprime(PollContext& ctx);    // Sprime PM1 (1915:AC1C / AD8C receivers, AC11-AC13 cable)
 void PollRawm(PollContext& ctx);      // RAWM mice (Leviathan V4, ES21, ...) and SADES Dagger (1915:23xx, RAWM HUB protocol)
 void PollRongyuan(PollContext& ctx);  // Rongyuan receivers (Attack Shark, Ajazz keyboards, ...)
-void PollSonyInzone(PollContext& ctx);  // Sony INZONE H9 II / H5 / Buds
-void PollSonix(PollContext& ctx);     // SONiX keyboards on their 2.4 GHz dongle (AJAZZ AK820 MAX / AK820 Pro, AK980 V2, AULA F108 Pro)
+void PollVgnClient(PollContext& ctx);  // VGN / VXE mice and keyboards (2.4 GHz link only; runs after Kysona, AULA, ATK and Rongyuan, which claim parts of the same ids)
+
+void PollSonyInzone(PollContext& ctx);  // Sony INZONE H9 II / H5 / Buds (HID), H9 / H7 (serial port)
+void PollPlayStationLink(PollContext& ctx);  // PULSE Explore earbuds on the PlayStation Link adapter (054C:0ECC)
+void PollSonix(PollContext& ctx);     // SONiX keyboards on their 2.4 GHz dongle (AJAZZ AK820 MAX, AK980 V2, AULA F108 Pro)
 void PollViaDongle(PollContext& ctx);  // 36B0:3002 dongle (PMO Hub or VIA firmware) and PMO Hub keyboards on their cable (Wave 75, Aurora 80, P75, PMO 80)
+
 void PollSemico(PollContext& ctx);    // Semico 1A2C keyboards (Attack Shark X98, AJAZZ AK820 Max Plus) on 8FFF / A034 / A036
 void PollAjazzAk992(PollContext& ctx); // AJAZZ AK992 on the Telink 2.4 GHz receiver
 void PollFractal(PollContext& ctx);   // Fractal Design Scape headset (dongle or cable)
 void PollJabra(PollContext& ctx);     // Jabra GNP headsets, on USB or behind a Link dongle
+void PollJblSpeaker(PollContext& ctx); // JBL Flip 7 over Bluetooth LE (PR #274; refreshed on its own thread)
 void PollJbl(PollContext& ctx);       // JBL Quantum wireless headsets (HIDV1 and HIDV3)
 void PollRog(PollContext& ctx);       // ASUS ROG keyboards, mice and the Pelta headset
 void PollZowie(PollContext& ctx);     // BenQ ZOWIE EC-CW / DW / U2 mice
@@ -142,7 +151,9 @@ void PollAtkBitmouse(PollContext& ctx);  // ATK / VXE NK NANO dongle 373B:1216, 
 void PollChimera(PollContext& ctx);      // Chimera V2 mouse (3554:F512, before Kysona, same vendor id)
 void PollKysona(PollContext& ctx);    // also Pulsar, ATK / VXE, Hitscan Hyperlight
 void PollHyperX(PollContext& ctx);
+void PollLogitechG435Jieli(PollContext& ctx);  // G435 on the Jieli 4C4A:4155 receiver: Bluetooth-calibrated estimate (PR #632)
 void PollLogitechG435(PollContext& ctx);  // G435 headset on the 046D:0ADF dongle (not HID++)
+void PollLogitechG735(PollContext& ctx);  // G735 headset on the 046D:0AD8 dongle (Centurion HID++ in report F2)
 void PollAstro(PollContext& ctx);  // A50 X / Gen 5 vendor protocol (before generic Logitech)
 void PollLogitech(PollContext& ctx);
 void PollRazer(PollContext& ctx);
@@ -159,17 +170,25 @@ void PollGameSirSapjoy(PollContext& ctx);  // Tarantula Pro / NovaPro (Super Nov
 void PollGameSirBle(PollContext& ctx);  // Cyclone Pro on its dongle (3537:1015), battery over Bluetooth LE
 void Poll8BitDo(PollContext& ctx);     // Ultimate 2 Wireless in D-input mode (2DC8:6012)
 void PollBeitong(PollContext& ctx);    // BEITONG KP20 / KP40D on their 2.4 GHz receivers (20BC:5128, 20BC:515C, XInput mode)
-void PollAirPods(PollContext& ctx);   // Apple AirPods / Beats (BLE proximity broadcasts)
+void PollAirPods(PollContext& ctx);   // Apple AirPods / Beats (AAP L2CAP 1% via bridge driver, or BLE fallback)
+void ShutdownAirPods();
+std::wstring DumpAirPodsStatus();
 void PollPhoneLink(PollContext& ctx);  // phone linked with Microsoft Phone Link (reads its Start menu card)
 void PollGalaxyBuds(PollContext& ctx); // Samsung Galaxy Buds (Bluetooth RFCOMM, not HID)
 void PollNothingEar(PollContext& ctx); // Nothing / CMF Ear earbuds (Bluetooth RFCOMM NT Link, not HID)
+void PollSonyHeadphones(PollContext& ctx); // Sony WH / WF headphones and earbuds (Bluetooth RFCOMM, not HID)
+void PollMarshall(PollContext& ctx);   // Marshall EMBERTON II speaker (unpaired LE Battery Service, address from Fast Pair stream)
 void PollAkko(PollContext& ctx);       // Akko V9 Dash Pro / Dash V9 Ultra receivers (38EE:000C/000F)
+void PollSoundcore(PollContext& ctx);  // Anker Soundcore Bluetooth headphones / earbuds (RFCOMM)
 void PollMoondrop(PollContext& ctx);   // MOONDROP GM01 Pro headset (WalkPlay 2.4 GHz dongle)
 void PollAlienware(PollContext& ctx);  // Alienware AW920H headset on its 2.4 GHz dongle (413C:A515)
 void PollPressPlayIcarus(PollContext& ctx);  // ICARUS V2 Nearlink on its 7768:6434 receiver
 void PollScyrox(PollContext& ctx);        // Scyrox V12M on its 2.4 GHz receiver (395A:0006), read-only profile read
 // Fallbacks.
 void PollHeadsetControl(PollContext &ctx); // only if headsetcontrol.exe is installed
+std::wstring HidContainer(const std::wstring& path);  // container id of the physical device behind a HID path
+void PollUnsupported(PollContext& ctx);  // last: wireless mice / keyboards no driver could read, flagged `unsupported`
+void PollArmorX(PollContext& ctx);  // BigBigWon Armor X Pro: level over Bluetooth LE while on its 045E:0B12 dongle
 void PollGenericHid(PollContext &ctx);
 void PollBluetooth(PollContext &ctx);
 void PollXInput(PollContext &ctx);

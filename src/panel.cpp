@@ -54,6 +54,45 @@ HFONT g_icons = nullptr, g_smallIcons = nullptr;
 
 int S(int v) { return MulDiv(v, (int)g_dpi, 96); }
 
+void DrawVectorIcon(HDC dc, const RECT& box, vector_icons::VectorIcon icon, COLORREF color, int sizePx) {
+    auto mask = vector_icons::Render(icon, sizePx);
+    if (mask.w <= 0 || mask.h <= 0 || mask.a.empty()) return;
+    BITMAPINFO bi{};
+    bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bi.bmiHeader.biWidth = mask.w;
+    bi.bmiHeader.biHeight = -mask.h;
+    bi.bmiHeader.biPlanes = 1;
+    bi.bmiHeader.biBitCount = 32;
+    bi.bmiHeader.biCompression = BI_RGB;
+    void* bits = nullptr;
+    HDC mem = CreateCompatibleDC(dc);
+    if (!mem) return;
+    HBITMAP dib = CreateDIBSection(mem, &bi, DIB_RGB_COLORS, &bits, nullptr, 0);
+    if (!dib || !bits) {
+        if (dib) DeleteObject(dib);
+        DeleteDC(mem);
+        return;
+    }
+    const int cr = GetRValue(color), cg = GetGValue(color), cb = GetBValue(color);
+    auto* px = static_cast<DWORD*>(bits);
+    const int count = mask.w * mask.h;
+    for (int i = 0; i < count; ++i) {
+        const BYTE a = mask.a[(size_t)i];
+        const DWORD pr = (DWORD)(cr * a / 255);
+        const DWORD pg = (DWORD)(cg * a / 255);
+        const DWORD pb = (DWORD)(cb * a / 255);
+        px[i] = ((DWORD)a << 24) | (pr << 16) | (pg << 8) | pb;
+    }
+    HGDIOBJ old = SelectObject(mem, dib);
+    const int dx = box.left + ((box.right - box.left) - mask.w) / 2;
+    const int dy = box.top + ((box.bottom - box.top) - mask.h) / 2;
+    BLENDFUNCTION bf{ AC_SRC_OVER, 0, 255, AC_SRC_ALPHA };
+    GdiAlphaBlend(dc, dx, dy, mask.w, mask.h, mem, 0, 0, mask.w, mask.h, bf);
+    SelectObject(mem, old);
+    DeleteObject(dib);
+    DeleteDC(mem);
+}
+
 int RowHeight(const Row& r) {
     switch (r.kind) {
         case RowKind::SectionHeader: return 28;
@@ -372,7 +411,10 @@ void Paint(HDC dc, const RECT& client) {
             RECT iconRc{ innerLeft, iconTop, innerLeft + iconBox, iconTop + iconBox };
             RoundBox(dc, iconRc, S(8), c.pillBg, CLR_INVALID);
             COLORREF glyphCol = (r.hasAccent && !r.dim && !r.grayed) ? r.accentColor : mainText;
-            if (r.glyph) Text(dc, std::wstring(1, r.glyph), iconRc, glyphCol, g_icons, DT_CENTER);
+            if (r.vectorIcon != vector_icons::VectorIcon::None)
+                DrawVectorIcon(dc, iconRc, r.vectorIcon, glyphCol, S(18));
+            else if (r.glyph)
+                Text(dc, std::wstring(1, r.glyph), iconRc, glyphCol, g_icons, DT_CENTER);
 
             // Right controls: [↑] [↓] [⋯] [Switch]
             bool hovUp = g_hover.index == (int)i && g_hover.part == HitPart::Up;
@@ -396,7 +438,10 @@ void Paint(HDC dc, const RECT& client) {
             RECT iconRc{ innerLeft, iconTop, innerLeft + iconBox, iconTop + iconBox };
             RoundBox(dc, iconRc, S(8), c.pillBg, CLR_INVALID);
             COLORREF glyphCol = (r.hasAccent && !r.grayed) ? r.accentColor : mainText;
-            if (r.glyph) Text(dc, std::wstring(1, r.glyph), iconRc, glyphCol, g_icons, DT_CENTER);
+            if (r.vectorIcon != vector_icons::VectorIcon::None)
+                DrawVectorIcon(dc, iconRc, r.vectorIcon, glyphCol, S(17));
+            else if (r.glyph)
+                Text(dc, std::wstring(1, r.glyph), iconRc, glyphCol, g_icons, DT_CENTER);
 
             bool hovUp = g_hover.index == (int)i && g_hover.part == HitPart::Up;
             bool hovDn = g_hover.index == (int)i && g_hover.part == HitPart::Down;
@@ -461,10 +506,27 @@ void Paint(HDC dc, const RECT& client) {
             Text(dc, r.label, { innerLeft, rc.top, textRight, rc.bottom },
                  mainText, g_font, align | DT_END_ELLIPSIS);
         } else if (r.kind == RowKind::Action) {
+            int chevronW = r.id ? S(22) : 0;
             if (r.id != 0)
                 Text(dc, std::wstring(1, i18n::Rtl() ? 0xE76B : 0xE76C),
                      { innerRight - S(16), rc.top, innerRight, rc.bottom }, c.secondary, g_smallIcons, DT_CENTER);
-            Text(dc, r.label, { innerLeft, rc.top, innerRight - (r.id ? S(22) : 0), rc.bottom },
+            int textRight = innerRight - chevronW;
+            if (!r.value.empty()) {
+                SelectObject(dc, g_small);
+                SIZE sz{};
+                GetTextExtentPoint32W(dc, r.value.c_str(), (int)r.value.size(), &sz);
+                int maxBadgeW = std::max(S(48), (textRight - innerLeft) / 2);
+                int badgeW = std::min<int>(sz.cx + S(16), maxBadgeW);
+                int badgeH = S(24);
+                int cy = (rc.top + rc.bottom) / 2;
+                int badgeRight = textRight - S(4);
+                RECT brc{ badgeRight - badgeW, cy - badgeH / 2, badgeRight, cy + badgeH / 2 };
+                RoundBox(dc, brc, S(6), c.pillBg, c.cardBorder);
+                Text(dc, r.value, { brc.left + S(6), brc.top, brc.right - S(6), brc.bottom },
+                     r.dim ? c.secondary : c.text, g_small, DT_CENTER | DT_END_ELLIPSIS);
+                textRight = brc.left - S(8);
+            }
+            Text(dc, r.label, { innerLeft, rc.top, textRight, rc.bottom },
                  mainText, r.indented ? g_small : g_font, align | DT_END_ELLIPSIS);
         } else if (r.kind == RowKind::Segmented) {
             RECT track{ innerLeft, rc.top + S(7), innerRight, rc.bottom - S(7) };

@@ -37,6 +37,12 @@ int main() {
     assert(AdapterUse(full, gpu) == 100);  // capped
     const std::vector<EngineSample> fraction = { { gpu, L"3D", 12.4 } };
     assert(AdapterUse(fraction, gpu) == 12);
-    std::puts("GPU monitor tests passed (instance names, LUIDs, busiest engine type, other adapters, cap).");
+
+    assert(gpumon::FormatClocksMhz(1950, 7000) == L"1950/7000 MHz");
+    assert(gpumon::FormatClocksMhz(1800, -1) == L"1800 MHz");
+    assert(gpumon::FormatClocksMhz(-1, 6000) == L"6000 MHz");
+    assert(gpumon::FormatClocksMhz(-1, -1).empty());
+
+    std::puts("GPU monitor tests passed (instance names, LUIDs, busiest engine type, clocks, other adapters, cap).");
     return 0;
 }

@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 namespace battery_history {
@@ -71,6 +72,30 @@ inline RuntimeEstimate EstimateRuntime(const std::vector<Sample>& input, int64_t
     }
     out.state = RuntimeState::Ready;
     return out;
+}
+
+// Compact badge for the taskbar; the ~ prefix differentiates a prediction from a measured percentage.
+// Return an empty string for any non-ready forecast, allowing a safe % fallback.
+inline std::wstring CompactRuntimeText(const RuntimeEstimate& forecast) {
+    if (forecast.state != RuntimeState::Ready ||
+        !std::isfinite(forecast.hoursRemaining) ||
+        forecast.hoursRemaining < 0 ||
+        forecast.hoursRemaining > 90.0 * 24.0)
+        return {};
+
+    const double hours = forecast.hoursRemaining;
+
+    if (hours > 0 && hours < 1)
+        return L"<1h";
+
+    if (hours >= 48)
+        return L"~" +
+            std::to_wstring(static_cast<long long>(std::llround(hours / 24.0))) +
+            L"d";
+
+    return L"~" +
+        std::to_wstring(static_cast<long long>(std::llround(hours))) +
+        L"h";
 }
 
 } // namespace battery_history

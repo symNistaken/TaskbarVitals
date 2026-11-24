@@ -15,7 +15,9 @@
 //    command 10 (device info, answered by the receiver): reply [10][00 = ok]..., [4..7] model id,
 //    [12] charging, [13] percent, [14] mouse connected (receiver), [31] = sum([4..30]).
 //    From github.com/Rockeyxx/aj179-linux (docs/PROTOCOL.md).
-//  * AJAZZ AJ-series mice on the SONiX vendor id 3151 (AJ159 PRO / APEX and siblings). The dongle
+//  * AJAZZ AJ-series mice on the SONiX vendor id 3151 (AJ159 PRO / APEX and siblings), for receivers that
+//    are not in the Rongyuan list: the Rongyuan driver runs first and reads 3151:5007 (the AJ159 APEX 8K
+//    dock) and the other receivers it knows, with the mouse model from its device id. The dongle
 //    exposes a 65-byte feature collection on usage page FFFF / usage 02. A SET_FEATURE status poll
 //    (report 0x00, opcode 0xF7, zero payload) brings the 2.4 GHz telemetry link up; ~30 ms later
 //    GET_FEATURE report 0x05 carries the charge in byte 3 (0..100). A frame with a non-zero byte 1

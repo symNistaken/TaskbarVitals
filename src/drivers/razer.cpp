@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <array>
+#include <map>
 
 namespace {
 
@@ -165,6 +166,21 @@ void SetBatteryReading(DeviceStatus& s, HidDev& d, BYTE tid, Rz res, const std::
 }  // namespace
 
 void PollRazer(PollContext& ctx) {
+    struct LastReading { std::wstring path; DeviceStatus status; };
+    static std::map<USHORT, LastReading> lastGood;
+    for (auto it = lastGood.begin(); it != lastGood.end();) {
+        bool present = false;
+        for (const auto& c : ctx.colls)
+            if (c.path == it->second.path) { present = true; break; }
+        if (present) { ++it; continue; }
+        // A removed receiver is different from a mouse sleeping behind it.
+        DeviceStatus gone = it->second.status;
+        gone.connected = false;
+        gone.percent = -1;
+        gone.charging = false;
+        ctx.out.push_back(gone);
+        it = lastGood.erase(it);
+    }
     const auto firstRazer = ctx.out.size();
     auto addReading = [&](const DeviceStatus& s, USHORT vid, USHORT pid) {
         // The same device can answer through its cable, its receiver or a shared receiver.
@@ -174,9 +190,10 @@ void PollRazer(PollContext& ctx) {
             ctx.Add(s, vid, pid);
         } else {
             ctx.Claim(vid, pid);
-            if (!existing->connected && s.connected) {
+            if (s.percent >= 0 && existing->percent < 0) {  // a live reading wins over an asleep one
                 existing->connected = true;
                 existing->percent = s.percent;
+                existing->asleep = false;
             }
             existing->charging |= s.charging;
         }
@@ -225,8 +242,22 @@ void PollRazer(PollContext& ctx) {
             s.kind = kind;
             if (s.kind == DeviceKind::Other) s.kind = GuessKind(s.name);
             s.via = L"Razer receiver";
+            // The Viper V2 Pro changes PID between its cable (00A5) and its receiver (00A6, PR #1422): one key,
+            // so its history, name and position survive a cable change.
+            if (pid == 0x00A5 || pid == 0x00A6) {
+                s.key = L"razer:00A6";
+                if (pid == 0x00A5) s.via = L"USB cable";
+            }
             s.graceSec = 120;  // retain the last reading briefly when Synapse prevents a valid reply
             SetBatteryReading(s, d, tid, res, args);
+            if (res == Rz::Offline) {
+                // Receiver timeouts cannot distinguish sleep from the power switch (PR #3787).
+                // Keep a previously seen mouse dimmed while its receiver remains plugged in.
+                s.asleep = s.kind == DeviceKind::Mouse && lastGood.count(pid) != 0;
+                s.connected = s.asleep;
+            } else if (s.kind == DeviceKind::Mouse) {
+                lastGood[pid] = { c->path, s };
+            }
             addReading(s, vid, pid);
             break;
         }

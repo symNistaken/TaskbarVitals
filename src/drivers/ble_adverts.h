@@ -22,3 +22,15 @@ struct FastPairBattery {
 };
 // Latest broadcast of the device with this Bluetooth address, if heard in the last 5 minutes.
 bool FastPairLookup(UINT64 addr, FastPairBattery& out);
+
+// Asks for an active scan from now on (scan responses carry device names). Takes effect on the next
+// EnsureBleWatcher calls; passive otherwise. Call from the poll thread, like EnsureBleWatcher.
+void BleWantActiveScan();
+// An advertisement whose name contains "ARMOR-X" (BigBigWon Armor X Pro), see armorx.cpp.
+void ArmorXOnAdvert(UINT64 addr);
+
+// The standard LE Battery Level (0x180F / 0x2A19) at this address, without pairing; -1 on failure.
+// Blocking for seconds: call from a worker thread with WinRT initialised (marshall.cpp). The address
+// must have been heard by the watcher recently. `settle` reads twice, 2.5 s apart (a device that
+// reports a placeholder right after connecting).
+int ReadLeBatteryLevel(UINT64 address, bool randomAddress, bool settle);

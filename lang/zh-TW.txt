@@ -197,3 +197,14 @@ Taskbar Vitals could not reopen. Please start it manually or repair the installa
 Taskbar Vitals is up to date. = Taskbar Vitals 已是最新版本。
 Taskbar Vitals update = Taskbar Vitals 更新
 Taskbar Vitals will close briefly while the update is installed. = 安裝更新期間 Taskbar Vitals 將短暫關閉。
+
+Thank you! Your request was sent. You can follow it at {page}. = 謝謝！你的請求已送出，可在 {page} 查看進度。
+You already sent this device in the last 24 hours, so it's on the list. Thank you! = 你在過去 24 小時內已經送出過這個裝置，它已在清單中。謝謝！
+The request was not accepted: {reason} = 請求未被接受：{reason}
+please check the fields. = 請檢查各個欄位。
+Too many requests from your network. Please try again in an hour. = 來自你網路的請求太多，請一小時後再試。
+The site answered with an error ({code}). Please try again later. = 網站回傳了錯誤（{code}），請稍後再試。
+(kept private) = （保密）
+Your name (optional, kept private and never shown) = 你的名字（選填，保密，絕不公開）
+This is exactly what will be sent: = 將會送出的內容如下：
+Sending... = 正在送出...

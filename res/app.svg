@@ -1,10 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Taskbar Vitals app icon: a battery with a pulse line. Made by res/make_app_svg.py; res/make_icon.py turns it into app.ico. -->
+<!-- Taskbar Vitals app icon: Fluent dark-slate squircle with battery outline and glowing vitals pulse. -->
 <svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-<g fill-rule="evenodd" clip-rule="evenodd">
-	<path d="M84,120 H396 C424.7,120 448,143.3 448,172 V340 C448,368.7 424.7,392 396,392 H84 C55.3,392 32,368.7 32,340 V172 C32,143.3 55.3,120 84,120 Z"/>
-	<path d="M84,164 H396 C400.4,164 404,167.6 404,172 V340 C404,344.4 400.4,348 396,348 H84 C79.6,348 76,344.4 76,340 V172 C76,167.6 79.6,164 84,164 Z"/>
-	<path d="M448,216 H470 C481,216 490,225 490,236 V276 C490,287 481,296 470,296 H448 Z"/>
-	<path d="M100,272 L174.5,272 L201.5,232.2 L239.5,312.8 L268.6,312.6 L300.7,241.3 L316.1,272 L380,272 L380,240 L335.9,240 L314.3,196.8 L285.4,197.4 L253.7,267.8 L218.5,193.2 L190.8,191 L157.5,240 L100,240 Z"/>
-</g>
+  <defs>
+    <linearGradient id="tvTile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#222E42"/>
+      <stop offset="100%" stop-color="#0E141F"/>
+    </linearGradient>
+    <linearGradient id="tvPulse" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="55%" stop-color="#2DD4BF"/>
+      <stop offset="100%" stop-color="#34D399"/>
+    </linearGradient>
+    <linearGradient id="tvFill" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#34D399" stop-opacity="0.06"/>
+    </linearGradient>
+  </defs>
+  <rect x="32" y="32" width="448" height="448" rx="108" fill="url(#tvTile)" stroke="#334155" stroke-width="10"/>
+  <rect x="86" y="152" width="316" height="208" rx="42" fill="url(#tvFill)" stroke="#F8FAFC" stroke-width="26"/>
+  <path d="M402,216 H422 C434,216 444,226 444,238 V274 C444,286 434,296 422,296 H402 Z" fill="#F8FAFC"/>
+  <path d="M126,262 H178 L207,200 L246,316 L284,194 L314,262 H362"
+        fill="none" stroke="url(#tvPulse)" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

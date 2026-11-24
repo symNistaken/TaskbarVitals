@@ -197,3 +197,14 @@ Taskbar Vitals could not reopen. Please start it manually or repair the installa
 Taskbar Vitals is up to date. = Taskbar Vitals è aggiornato.
 Taskbar Vitals update = Aggiornamento Taskbar Vitals
 Taskbar Vitals will close briefly while the update is installed. = Taskbar Vitals si chiuderà temporaneamente mentre l'aggiornamento viene installato.
+
+Thank you! Your request was sent. You can follow it at {page}. = Grazie! La tua richiesta è stata inviata. Puoi seguirla su {page}
+You already sent this device in the last 24 hours, so it's on the list. Thank you! = Hai già inviato questo dispositivo nelle ultime 24 ore, quindi è in lista. Grazie!
+The request was not accepted: {reason} = La richiesta non è stata accettata per il seguente motivo: {reason}
+please check the fields. = Per favore, controlla i campi.
+Too many requests from your network. Please try again in an hour. = Troppe richieste dalla tua rete. Per favore, riprova fra un'ora.
+The site answered with an error ({code}). Please try again later. = Il sito ha riportato l'errore {code}. Per favore, riprova più tardi.
+(kept private) = (tenuto privato)
+Your name (optional, kept private and never shown) = Il tuo nome (opzionale, tenuto privato e mai mostrato)
+This is exactly what will be sent: = Questo è esattamente ciò che verrà inviato:
+Sending... = Invio...

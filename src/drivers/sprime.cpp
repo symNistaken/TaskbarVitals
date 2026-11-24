@@ -41,6 +41,7 @@ void PollSprime(PollContext& ctx) {
                 s.connected = cable || r[12] != 0;  // receiver present, mouse off or out of range
                 s.percent = !s.connected ? -1 : full ? 100 : r[9];
                 s.charging = s.connected && r[10] != 0 && !full;
+                s.full = s.connected && full;  // PR #632
                 if (s.connected) break;
             }
             if (!answered) continue;

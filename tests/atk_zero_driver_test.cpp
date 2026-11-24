@@ -22,6 +22,7 @@ bool HidDev::Write(const std::vector<BYTE>& q,int) {
 }
 int HidDev::Read(std::vector<BYTE>& r,int ms){assert(ms>0&&ms<=700);if(pending.empty())return -1;r=pending.front();pending.pop_front();return (int)r.size();}
 std::wstring Hex4(USHORT n){wchar_t b[5];swprintf(b,5,L"%04X",n);return b;}
+std::wstring HidProduct(const HidColl&){return L"";}
 HidColl Coll(USHORT pid){HidColl c;c.vid=0x373B;c.pid=pid;c.caps.UsagePage=0xFF05;c.caps.Usage=1;c.caps.InputReportByteLength=c.caps.OutputReportByteLength=64;return c;}
 PollContext Poll(std::vector<HidColl> h){opens=writes=0;PollContext c;c.colls=h;PollAtkBitmouse(c);return c;}
 int main(){

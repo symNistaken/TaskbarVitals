@@ -53,7 +53,7 @@ std::vector<DeviceStatus> PollAllDevices() {
     PollAula(ctx);       // before Kysona (shares the 3554 vendor id) and SONiX (shares 05AC:024F)
     PollAulaMouse(ctx);
     PollAulaHeadset(ctx);
-    PollEweadn(ctx);     // EWEADN S7 / S9 mice on 372E:103D / 1027 (AULA keeps 372E:106C)
+    PollEweadn(ctx);     // BeiYing mice: EWEADN S9 on 372E:1026/1033/103D/1055 receivers or 1027/1029/105E/108D cables, RK M3 on 1019 / 102A (AULA keeps 106C)
     PollDareu(ctx);
     PollPiao(ctx);       // IPI PIAO mouse on 372E:1014 receiver (and wired 1015/1028/1056)
     PollZenith(ctx);
@@ -70,6 +70,9 @@ std::vector<DeviceStatus> PollAllDevices() {
     PollKeychron(ctx);
     PollCherry(ctx);
     PollNuphy(ctx);
+    PollWobkey(ctx);
+    PollNuphyHalo96(ctx);
+    PollCrociris(ctx);
     PollArbiter(ctx);    // before Lamzu, which shares the 373E vendor id
     PollLamzu(ctx);
     PollEndgame(ctx);
@@ -83,11 +86,13 @@ std::vector<DeviceStatus> PollAllDevices() {
     PollRawm(ctx);
     PollAkko(ctx);
     PollRongyuan(ctx);
+    PollVgnClient(ctx);  // VGN: after the drivers that already claim VGN ids (320F ATK keyboards, 3554 Kysona/AULA, 3151 Rongyuan)
     PollSonix(ctx);
     PollViaDongle(ctx);
     PollSemico(ctx);
     PollAjazzAk992(ctx);
     PollSonyInzone(ctx);
+    PollPlayStationLink(ctx);
     PollFractal(ctx);
     PollJabra(ctx);
     PollJbl(ctx);
@@ -114,6 +119,8 @@ std::vector<DeviceStatus> PollAllDevices() {
     PollBarracudaPro(ctx);   // before the generic Razer driver as well
     PollHyperX(ctx);
     PollLogitechG435(ctx);  // before the HID++ driver, which shares the vendor id
+    PollLogitechG435Jieli(ctx);
+    PollLogitechG735(ctx);  // likewise
     PollAstro(ctx);
     PollLogitech(ctx);
     PollRazer(ctx);
@@ -122,6 +129,7 @@ std::vector<DeviceStatus> PollAllDevices() {
     PollAudeze(ctx);
     PollEndorfy(ctx);
     PollTurtleBeach(ctx);
+    PollRoccat(ctx);
     PollAkg(ctx);
     PollNzxt(ctx);
     PollPlantronics(ctx);
@@ -141,15 +149,21 @@ std::vector<DeviceStatus> PollAllDevices() {
     PollPhoneLink(ctx);
     PollGalaxyBuds(ctx);  // before the Bluetooth fallback, which skips devices already listed by name
     PollNothingEar(ctx);  // before the Bluetooth fallback, which skips devices already listed by name
+    PollSonyHeadphones(ctx);  // before the Bluetooth fallback, which skips devices already listed by name
+    PollMarshall(ctx);    // EMBERTON II: Windows has no level for it; before the Bluetooth fallback as well
+    PollSoundcore(ctx);   // before the Bluetooth fallback: works even with Hands-Free AG disabled
     PollMoondrop(ctx);
     PollDarkrim(ctx);
     PollAlienware(ctx);
     PollMaono(ctx);  // MAONO PD200W receiver (352F:040E), experimental battery query
     PollPressPlayIcarus(ctx);
     PollHeadsetControl(ctx);
+    PollJblSpeaker(ctx);  // before the Bluetooth fallback, which skips devices already listed by name
     PollBluetooth(ctx);   // before the generic HID check: Windows' own level wins for the same device
     PollGenericHid(ctx);
+    PollArmorX(ctx);  // claims 045E:0B12 so the Xbox fallback skips the dongle's fake "Full" (PR #145)
     PollXInput(ctx);
+    PollUnsupported(ctx);  // menu only: "No battery info"
     return ctx.out;
 }
 
@@ -164,5 +178,10 @@ std::wstring DumpHidCollections() {
     out += report::DumpExtras();  // unopenable HID collections, non-HID USB devices, Bluetooth devices
     out += DumpXentaFrames();
     out += DumpAstroFrames();
+    out += DumpAirPodsStatus();
     return out;
+}
+
+void ShutdownDevices() {
+    ShutdownAirPods();
 }

@@ -34,13 +34,23 @@ struct Reading {
     int vram = -1;           // percent of dedicated memory in use
     double vramUsedGb = 0, vramTotalGb = 0;
     int tempC = -1;          // -1 when the driver does not report it
-    int watts = -1;          // board power in W (NVIDIA, through nvml.dll); -1 when not asked for or not reported
+    int watts = -1;          // board power in W (NVIDIA nvml / AMD ADL2); -1 when not asked for or not reported
     int powerPct = -1;       // power as a share of the power limit (any WDDM 2.4+ driver); -1 when not reported
+    int gpuClockMhz = -1;    // core graphics clock in MHz (NVIDIA nvml / AMD ADL2); -1 when not available
+    int vramClockMhz = -1;   // memory / VRAM clock in MHz (NVIDIA nvml / AMD ADL2 / WDDM); -1 when not available
 };
+
+// Formats clock rate concisely ("1950/7000 MHz" or "1950 MHz"). Empty when both are < 0.
+inline std::wstring FormatClocksMhz(int gpuMhz, int vramMhz) {
+    if (gpuMhz >= 0 && vramMhz >= 0) return std::to_wstring(gpuMhz) + L"/" + std::to_wstring(vramMhz) + L" MHz";
+    if (gpuMhz >= 0) return std::to_wstring(gpuMhz) + L" MHz";
+    if (vramMhz >= 0) return std::to_wstring(vramMhz) + L" MHz";
+    return L"";
+}
 
 // Samples the adapter with the most dedicated memory (the discrete GPU on a laptop with two).
 // Runs on the UI thread every few seconds while a GPU reading is shown.
-Reading Sample(bool wantTemperature, bool wantPower = false);
+Reading Sample(bool wantTemperature, bool wantPower = false, bool wantClocks = false);
 
 // Frees the counters and the adapter handle (when the readings are switched off, and at exit).
 void Stop();

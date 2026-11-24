@@ -35,7 +35,7 @@ const int kReportLen = 34;  // Ultimate 2 v1.02 firmware sends 12-byte reports w
 struct Model { USHORT pid; const wchar_t* name; bool needsFeature06; };
 const Model kModels[] = {
     { 0x310B, L"8BitDo Ultimate 2 Wireless", false },
-    { 0x6012, L"8BitDo Ultimate 2", false },
+    { 0x6012, L"8BitDo Ultimate 2 Wireless", false },
     { 0x6013, L"8BitDo Ultimate 2 Wireless", false },
     { 0x202F, L"8BitDo Ultimate 3-mode", false },
     { 0x202E, L"8BitDo Ultimate 3-mode", false },
@@ -99,6 +99,30 @@ bool PollVendorCollection(const HidColl& c, DeviceStatus& s) {
     s.graceSec = 1800;
 
     std::vector<BYTE> r;
+    bool wired = false;
+    bool isDongle = false;
+    if (QueryVendor(d, { 0x81, 0x04, 0x00, 0x01 }, 0x00, 0x01, r) && r.size() >= 24) {
+        USHORT internalPid = (USHORT)(r[22] | (r[23] << 8));
+        isDongle = (internalPid == kPidDongle || internalPid == kPidDongle24GIdle);
+        wired = !isDongle;
+    }
+
+    if (wired) {
+        s.via = L"USB cable";
+        s.connected = true;
+        s.charging = true;
+        if (QueryVendor(d, { 0x81, 0x04, 0x21, 0x01, 0x00, 0x00, 0x06 }, 0x21, 0x01, r)) {
+            int pct = r[18] & 0x7F;
+            if (pct > 0 && pct <= 100) {
+                s.percent = pct;
+                if (ult2) g_lastUltimate2Pct = pct;
+                return true;
+            }
+        }
+        if (ult2 && g_lastUltimate2Pct >= 0) s.percent = g_lastUltimate2Pct;
+        return true;
+    }
+
     bool linkedKnown = false;
     bool linked = true;
     if (QueryVendor(d, { 0x81, 0x04, 0x20, 0x01 }, 0x20, 0x01, r)) {
@@ -109,6 +133,7 @@ bool PollVendorCollection(const HidColl& c, DeviceStatus& s) {
     if ((!linkedKnown || linked) && QueryVendor(d, { 0x81, 0x04, 0x21, 0x01, 0x00, 0x00, 0x06 }, 0x21, 0x01, r)) {
         int pct = r[18] & 0x7F;
         if (pct > 0 && pct <= 100) {
+            s.via = L"2.4 GHz dongle";
             s.connected = true;
             s.percent = pct;
             s.charging = (r[18] & 0x80) != 0 && pct < 100;
@@ -117,26 +142,7 @@ bool PollVendorCollection(const HidColl& c, DeviceStatus& s) {
         }
     }
 
-    if (QueryVendor(d, { 0x81, 0x04, 0x00, 0x01 }, 0x00, 0x01, r) && r.size() >= 24) {
-        USHORT internalPid = (USHORT)(r[22] | (r[23] << 8));
-        if (internalPid != kPidDongle && internalPid != kPidDongle24GIdle) {
-            s.via = L"USB cable";
-            s.connected = true;
-            s.charging = true;
-            if (ult2 && g_lastUltimate2Pct >= 0) s.percent = g_lastUltimate2Pct;
-            return true;
-        }
-        if (ult2 && g_lastUltimate2Pct >= 0) {
-            s.connected = true;
-            s.percent = -1;
-            s.asleep = true;
-            return true;
-        }
-        s.connected = false;
-        return true;
-    }
-
-    if (c.pid == kPidDongle || c.pid == kPidDongle24GIdle) {
+    if (isDongle || c.pid == kPidDongle || c.pid == kPidDongle24GIdle) {
         if (ult2 && g_lastUltimate2Pct >= 0) {
             s.connected = true;
             s.percent = -1;
@@ -170,7 +176,9 @@ bool PollDInputGamepad(const HidColl& c, DeviceStatus& s) {
     s.key = ult2 ? L"8bitdo:ultimate2" : (L"8bitdo:" + Hex4(c.pid));
     s.name = ModelName(c);
     s.kind = DeviceKind::Gamepad;
-    s.via = c.path.find(L"00001124") != std::wstring::npos ? L"Bluetooth" : L"2.4 GHz dongle or USB";
+    s.via = (c.path.find(L"00001124") != std::wstring::npos || c.path.find(L"00001812") != std::wstring::npos)
+                ? L"Bluetooth"
+                : L"2.4 GHz dongle or USB";
     s.percent = r[14] & 0x7F;
     s.charging = (r[14] & 0x80) != 0 && s.percent < 100;
     s.graceSec = 180;
@@ -181,25 +189,41 @@ bool PollDInputGamepad(const HidColl& c, DeviceStatus& s) {
 }  // namespace
 
 void Poll8BitDo(PollContext& ctx) {
-    for (auto [vid, pid] : ctx.Products(kVid)) {
-        for (const HidColl* c : ctx.Find(vid, pid, [](const HidColl& c) {
-                 return (c.page() == 0xFF7A || c.page() == 0xFFA0) && c.usage() == 0x0001 &&
-                        c.inLen() >= 64 && c.outLen() >= 64;
-             })) {
-            DeviceStatus s;
-            if (PollVendorCollection(*c, s)) {
-                ctx.Add(s, vid, pid);
-                break;
-            }
-        }
-        if (!ctx.IsClaimed(vid, pid) && FindModel(pid)) {
+    bool liveUltimate2 = false;
+    std::vector<std::pair<USHORT, USHORT>> products = ctx.Products(kVid);
+
+    // Poll live/wired/Bluetooth devices first; handle idle 2.4 GHz dongles (6013, 3109) last so
+    // an idle dongle never overwrites an active Bluetooth or USB cable reading for the same pad.
+    for (int pass = 0; pass < 2; ++pass) {
+        for (auto [vid, pid] : products) {
+            bool idleDongle = (pid == kPidDongle || pid == kPidDongle24GIdle);
+            if ((pass == 0) == idleDongle || ctx.IsClaimed(vid, pid)) continue;
+
             for (const HidColl* c : ctx.Find(vid, pid, [](const HidColl& c) {
-                     return c.page() == 0x01 && (c.usage() == 0x05 || c.usage() == 0x04) && c.inLen() >= 15;
+                     return (c.page() == 0xFF7A || c.page() == 0xFFA0) && c.usage() == 0x0001 &&
+                            c.inLen() >= 64 && c.outLen() >= 64;
                  })) {
                 DeviceStatus s;
-                if (PollDInputGamepad(*c, s)) {
-                    ctx.Add(s, vid, pid);
+                if (PollVendorCollection(*c, s)) {
+                    if (IsUltimate2(pid) && s.connected && s.percent >= 0) liveUltimate2 = true;
+                    if (IsUltimate2(pid) && idleDongle && (!s.connected || s.percent < 0) && liveUltimate2) {
+                        ctx.Claim(vid, pid);
+                    } else {
+                        ctx.Add(s, vid, pid);
+                    }
                     break;
+                }
+            }
+            if (!ctx.IsClaimed(vid, pid) && FindModel(pid)) {
+                for (const HidColl* c : ctx.Find(vid, pid, [](const HidColl& c) {
+                         return c.page() == 0x01 && (c.usage() == 0x05 || c.usage() == 0x04) && c.inLen() >= 15;
+                     })) {
+                    DeviceStatus s;
+                    if (PollDInputGamepad(*c, s)) {
+                        if (IsUltimate2(pid) && s.connected && s.percent >= 0) liveUltimate2 = true;
+                        ctx.Add(s, vid, pid);
+                        break;
+                    }
                 }
             }
         }

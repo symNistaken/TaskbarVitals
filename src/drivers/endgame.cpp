@@ -56,11 +56,9 @@ void PollEndgame(PollContext& ctx) {
         if (!d.OpenFeatureOnly(*c)) continue;
         std::vector<BYTE> r;
         int st = Command(d, 0xB4, 0x00, r);
-        if (st != 0x01 && st != 0x08 && st != 0x11) {
-            // Unexpected status or no answer: probe the dongle and the mouse once, then retry.
+        if (st != 0x01) {
             std::vector<BYTE> p;
-            Command(d, 0x0F, 0x01, p);
-            Command(d, 0x0F, 0x0F, p);
+            if (Command(d, 0x0F, 0x0F, p) != 0x01) Command(d, 0x0F, 0x01, p);
             st = Command(d, 0xB4, 0x00, r);
         }
         bool awake = st == 0x01 && r[16] <= 100;

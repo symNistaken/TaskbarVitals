@@ -49,6 +49,16 @@ int main() {
     assert(tricky.find(L"C:\\A&amp;B\\&lt;x&gt;&quot;y&quot;.exe") != std::wstring::npos);
     assert(tricky.find(L"<x>") == std::wstring::npos);
 
-    std::puts("CPU temperature tests passed (TjMax, package reading, shared block age, task definition, escaping).");
+    // AMD Ryzen / Threadripper SMN THM_TCON_CUR_TMP encoding & SKU Tctl offsets.
+    assert(AmdTctlOffset("AMD Ryzen 7 5800X 8-Core Processor") == 0);
+    assert(AmdTctlOffset("AMD Ryzen 7 1700X Eight-Core Processor") == -20);
+    assert(AmdTctlOffset("AMD Ryzen 7 2700X Eight-Core Processor") == -10);
+    assert(AmdTctlOffset("AMD Ryzen Threadripper 1950X 16-Core Processor") == -27);
+    assert(AmdPackageTemperature(50U * 8U << 21, 0) == 50);
+    assert(AmdPackageTemperature(((100U * 8U) << 21) | (1U << 19), 0) == 51);  // range bit subtracts 49 C
+    assert(AmdPackageTemperature((85U * 8U) << 21, -20) == 65);
+    assert(AmdPackageTemperature(0xFFFFFFFFU, 0) == -1);  // out of believable range
+
+    std::puts("CPU temperature tests passed (TjMax, Intel/AMD package reading, shared block age, task definition, escaping).");
     return 0;
 }

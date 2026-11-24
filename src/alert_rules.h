@@ -44,6 +44,46 @@ inline bool ShouldNotify(const DeviceStatus& s, int threshold, bool& warned) {
     return false;
 }
 
+// Tiered low-battery alerts (PR #3946): the device's threshold, then 10% (when the threshold is above it)
+// and 5%, each once per discharge. Same rules as ShouldNotify: only fresh readings count, charging or a
+// level 10 points above the threshold re-arms all three.
+enum class LowAlert { None, Low, Critical, Emergency };
+struct LowLatch { bool low = false, critical = false, emergency = false; };
+constexpr int kCriticalLevel = 10, kEmergencyLevel = 5;
+
+inline LowAlert EvaluateLow(const DeviceStatus& s, int threshold, LowLatch& l, bool tiers = true) {
+    if (threshold == kDisabled) { l = {}; return LowAlert::None; }
+    if (!s.connected || s.asleep || s.percent < 0 || s.percent > 100) return LowAlert::None;
+    if (s.charging || s.percent > threshold + 10) { l = {}; return LowAlert::None; }
+    if (tiers && s.percent <= kEmergencyLevel && !l.emergency) {
+        l.emergency = l.critical = l.low = true;
+        return LowAlert::Emergency;
+    }
+    if (tiers && threshold > kCriticalLevel && s.percent <= kCriticalLevel && !l.critical) {
+        l.critical = l.low = true;
+        return LowAlert::Critical;
+    }
+    if (s.percent <= threshold && !l.low) {
+        l.low = true;
+        return LowAlert::Low;
+    }
+    return LowAlert::None;
+}
+
+// "Fully charged" (PR #3946): once per charge, only when the level is seen reaching full while charging,
+// so a device already full on its charger when the app starts says nothing. Re-armed when unplugged.
+inline bool ShouldNotifyCharged(const DeviceStatus& s, int previousPercent, bool& warned) {
+    if (!s.connected || s.asleep || s.percent < 0 || s.percent > 100) return false;
+    if (!s.charging && !s.full) { warned = false; return false; }
+    bool full = s.full || s.percent >= 100;
+    if (!warned && full && previousPercent >= 0 && previousPercent < 100) {
+        warned = true;
+        return true;
+    }
+    if (full) warned = true;  // already full when first seen: wait for the next charge
+    return false;
+}
+
 // "Unplug to save the battery": charging past `limit` (e.g. 80%) wears a lithium battery faster, so the
 // app can say when the level crosses it. Only when it is seen crossing (previous reading below the limit),
 // so starting the app on a device already at 90% says nothing; once per charge, re-armed when unplugged

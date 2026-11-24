@@ -1,5 +1,6 @@
 #include "battery_history.h"
 #include "history_model.h"
+#include "demo_history.h"
 #include "runtime_estimate.h"
 #include "i18n.h"
 #include "memory_trim.h"
@@ -108,24 +109,10 @@ void Load() {
     if (data != g_store.Serialize()) Rewrite(); // remove expired/malformed/incomplete records at startup
 }
 
-std::vector<Sample> DemoSamples(int64_t now) {
-    // Only for --demo UI previews, never added to g_store or persisted.
-    std::vector<Sample> points;
-    const int64_t start = now - 30 * kSecondsPerDay;
-    for (int i = 0; i <= 720; i += 3) {
-        const int cycleHour = (i + 60) % 120; // five-day discharge/recharge cycle
-        const bool charging = cycleHour >= 108 && cycleHour <= 114;
-        int pct = cycleHour < 108 ? 96 - cycleHour / 2 :
-                  cycleHour == 108 ? 60 : cycleHour == 111 ? 78 : 96;
-        points.push_back({g_key, start + static_cast<int64_t>(i) * 3600, pct, charging});
-    }
-    return points;
-}
-
 std::vector<Sample> Visible(int64_t now) {
     const int64_t since = now - static_cast<int64_t>(g_days) * kSecondsPerDay;
     if (!g_demo) return g_store.For(g_key, since, now);
-    auto points = DemoSamples(now);
+    auto points = DemoSamples(g_key, now);
     points.erase(std::remove_if(points.begin(), points.end(), [since](const Sample& s) {
         return s.timestamp < since;
     }), points.end());
@@ -297,7 +284,7 @@ void Paint(HWND w) {
     const int64_t now = UtcNow();
     const auto points = Visible(now);
     const Stats stats = Summarize(points);
-    const auto forecastPoints = g_demo ? DemoSamples(now) : g_store.For(g_key, now - kRetentionSeconds, now);
+    const auto forecastPoints = g_demo ? DemoSamples(g_key, now) : g_store.For(g_key, now - kRetentionSeconds, now);
     const RuntimeEstimate forecast = EstimateRuntime(forecastPoints, now);
 
     // Headline and a separate subtitle row: they never overlap statistic cards.
@@ -574,6 +561,66 @@ void Observe(const std::wstring& key, int percent, bool charging) {
     }
 }
 
+double HoursRemaining(const std::wstring& key) {
+    if (key.empty()) return -1;
+    const int64_t now = UtcNow();
+    const auto points = g_demo ? DemoSamples(key, now) : g_store.For(key, now - kRetentionSeconds, now);
+    const RuntimeEstimate forecast = EstimateRuntime(points, now);
+    return forecast.state == RuntimeState::Ready ? forecast.hoursRemaining : -1;
+}
+
+std::wstring RemainingText(const std::wstring& key) {
+    const double hours = HoursRemaining(key);
+    return hours >= 0 ? FormatRemaining(hours) : L"";
+}
+
+std::wstring FormatHours(double hours) { return FormatRemaining(hours); }
+
+double RoughHoursRemaining(const std::wstring& key) {
+    if (key.empty()) return -1;
+    const int64_t now = UtcNow();
+    auto points = g_demo ? DemoSamples(key, now) : g_store.For(key, now - kRetentionSeconds, now);
+    if (points.size() < 2) return -1;
+    std::stable_sort(points.begin(), points.end(), [](const Sample& a, const Sample& b) { return a.timestamp < b.timestamp; });
+    const Sample& latest = points.back();
+    if (latest.charging || latest.percent <= 0 || now - latest.timestamp > 24 * 3600) return -1;
+    // the current discharge: back from the latest reading while not charging and not rising
+    size_t start = points.size() - 1;
+    while (start > 0 && !points[start - 1].charging && points[start - 1].percent >= points[start].percent) --start;
+    const double hours = (latest.timestamp - points[start].timestamp) / 3600.0;
+    const int drop = points[start].percent - latest.percent;
+    if (hours < 1.0 || drop < 1) return -1;
+    const double perHour = drop / hours;
+    const double left = latest.percent / perHour;
+    return std::isfinite(left) && left <= 90.0 * 24.0 ? left : -1;
+}
+
+std::vector<Point> Recent(const std::wstring& key, int hours) {
+    std::vector<Point> out;
+    if (key.empty() || hours <= 0) return out;
+    const int64_t now = UtcNow();
+    const auto points = g_demo ? DemoSamples(key, now) : g_store.For(key, now - (int64_t)hours * 3600, now);
+    for (const auto& s : points)
+        if (s.timestamp >= now - (int64_t)hours * 3600) out.push_back({ s.timestamp - now, s.percent, s.charging });
+    std::sort(out.begin(), out.end(), [](const Point& a, const Point& b) { return a.secondsAgo < b.secondsAgo; });
+    return out;
+}
+
+std::wstring TimeToEmpty(const std::wstring& key) {
+    if (g_demo) return {};
+    const int64_t now = UtcNow();
+    const RuntimeEstimate forecast = EstimateRuntime(g_store.For(key, now - kRetentionSeconds, now), now);
+    if (forecast.state != RuntimeState::Ready || forecast.hoursRemaining <= 0) return {};
+    return FormatRemaining(forecast.hoursRemaining);
+}
+
+std::wstring EstimatedRuntimeText(const std::wstring& key) {
+    if (key.empty()) return {};
+    const int64_t now = UtcNow();
+    const auto samples = g_demo ? DemoSamples(key, now) : g_store.For(key, now - kRetentionSeconds, now);
+    return CompactRuntimeText(EstimateRuntime(samples, now));
+}
+
 void Show(HWND owner, const std::wstring& key, const std::wstring& displayName) {
     if (key.empty()) return;
     g_key = key;
@@ -606,4 +653,5 @@ void Show(HWND owner, const std::wstring& key, const std::wstring& displayName) 
     SetForegroundWindow(g_view);
     (void)owner; // viewer is independent of the hidden tray message window
 }
+const Store& GetStore() { return g_store; }
 } // namespace battery_history

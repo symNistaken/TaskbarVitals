@@ -6,6 +6,9 @@
 //    Property 0F = battery (0..1000), 10 = charge state (1 charging, 3 full), 12 = product id (as in OpenRGB). Target 08 is the device
 //    or receiver itself, 09+ are devices paired to a receiver. GET is read-only; we never switch the
 //    device into software mode.
+//    Slot routing: https://github.com/ckb-next/ckb-next/blob/master/src/daemon/usb_bragi.c
+//    and https://github.com/ckb-next/ckb-next/blob/master/src/daemon/keymap.c (process_input_urb).
+//    Requests use 08 | child id; replies identify that child as source 0..7.
 //  * Compx mice (e.g. Corsair Sabre V2 Pro Ultralight Wireless, 1B1C:2B2A):
 //    17-byte report ID 08, command 03 = online status, command 04 = battery.
 //    Byte 6 = percent, byte 7 = charging, bytes 8-9 = millivolts, byte 16 = checksum.
@@ -77,7 +80,7 @@ private:
         else req = numbered_ ? std::vector<BYTE>{ 0x02, target, 0x02, prop } : std::vector<BYTE>{ 0x00, 0x02, target, 0x02, prop };
         d_.Flush();
         if (!d_.Write(req)) return false;
-        BYTE source = target == 0x08 ? 0x00 : 0x01;
+        BYTE source = target & 0x07;  // receiver = 0, paired slots 09/0A/0B = 1/2/3
         size_t o = plain ? 0 : 1;  // offset of the source byte in the reply
         ULONGLONG end = GetTickCount64() + timeoutMs;
         std::vector<BYTE> r;
@@ -220,7 +223,10 @@ void PollCorsair(PollContext& ctx) {
                 s.via = target == 0x08 ? L"USB / Bluetooth" : L"Corsair receiver";
                 s.percent = Clamp100((int)(level + 5) / 10);
                 unsigned charge = 0;
-                if (b.Get(target, 0x10, charge)) s.charging = charge == 1 || charge == 3;
+                if (b.Get(target, 0x10, charge)) {
+                    s.charging = charge == 1 || charge == 3;
+                    s.full = charge == 3;  // charged (PR #632)
+                }
                 ctx.out.push_back(s);
                 any = true;
             }

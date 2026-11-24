@@ -39,6 +39,9 @@ int main() {
     Expect(L"jbl:x", L"Quantum 910", 0, K::Headset, Accent::Jbl);
     Expect(L"coolermaster:x", L"MM712", 0, K::Mouse, Accent::CoolerMaster);
     Expect(L"steam:x", L"Controller", 0, K::Gamepad, Accent::Steam);
+    Expect(L"endorfy:liv-plus", L"ENDORFY LIV Plus Wireless", 0x3299, K::Mouse, Accent::Endorfy);
+    Expect(L"endorfy:celeris-1800", L"ENDORFY Celeris 1800", 0x3738, K::Keyboard, Accent::Endorfy);
+    Expect(L"endorfy:viro", L"ENDORFY Viro Wireless", 0x3738, K::Headset, Accent::Endorfy);
     Expect(L"redragon:fa7e", L"Invader Pro", 0, K::Mouse, Accent::Redragon);
     // Vendor ids (HeadsetControl and plain Bluetooth / HID devices).
     Expect(L"hsc:1038:12e0", L"Arctis Nova 7", 0x1038, K::Headset, Accent::SteelSeries);

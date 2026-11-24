@@ -68,6 +68,10 @@ public:
 
     bool Write(const std::vector<BYTE>& data, int timeoutMs = 500);
     bool Write(std::initializer_list<BYTE> data, int timeoutMs = 500) { return Write(std::vector<BYTE>(data), timeoutMs); }
+    // Writes a request and waits for an input response. Windows arms the input read before writing;
+    // writeSucceeded distinguishes a failed write from a request that received no response.
+    int WriteAndRead(const std::vector<BYTE>& data, std::vector<BYTE>& buf, int timeoutMs,
+                     bool* writeSucceeded = nullptr);
     // Reads one input report into `buf` (resized to fit). Returns the byte count, or -1 on timeout/error.
     int Read(std::vector<BYTE>& buf, int timeoutMs);
     // For collections without an interrupt OUT pipe (WriteFile fails there): arms a read, sends

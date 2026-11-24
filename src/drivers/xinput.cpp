@@ -22,6 +22,10 @@ using ABI::Windows::System::Power::BatteryStatus;
 #include <windows.devices.power.h>
 #include <windows.gaming.input.h>
 
+#ifdef _MSC_VER
+using __FIReference_1_INT32 = __FIReference_1_int;  // the MSVC SDK name (PR #632)
+#endif
+
 namespace {
 
 using namespace ABI::Windows::Gaming::Input;
@@ -105,6 +109,15 @@ int PollWgi(PollContext& ctx, int& thirdParty) {
                 s.via = L"Xbox Wireless / Bluetooth";
                 s.percent = Clamp100(r * 100 / f);
                 s.charging = st == ABI::Windows::System::Power::BatteryStatus_Charging;
+                // Capacities for the dashboard's battery health (PR #3946).
+                s.hasCapacity = true;
+                s.fullChargeCapacityMwh = static_cast<uint32_t>(f);
+                __FIReference_1_INT32* des = nullptr;
+                if (SUCCEEDED(report->get_DesignCapacityInMilliwattHours(&des)) && des) {
+                    INT32 dVal = 0;
+                    if (SUCCEEDED(des->get_Value(&dVal)) && dVal > 0) s.designCapacityMwh = static_cast<uint32_t>(dVal);
+                    Release(des);
+                }
                 ctx.Add(s, vid, pid);
                 added++;
                 if (vid != 0x045E) thirdParty++;
