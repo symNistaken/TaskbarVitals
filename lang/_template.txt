@@ -324,6 +324,7 @@ Battery almost empty =
 Battery critically low = 
 {name} is at {percent}%. Charge it now. = 
 Connect the headset over Bluetooth once to calibrate the estimate = 
+Switch the controller to D-input mode to see its battery = 
 Fully charged = 
 {name} is fully charged. = 
 View in dashboard... = 

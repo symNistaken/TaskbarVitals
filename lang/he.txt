@@ -311,6 +311,7 @@ Battery almost empty = הסוללה כמעט ריקה
 Battery critically low = הסוללה חלשה מאוד
 {name} is at {percent}%. Charge it now. = {name} ברמת {percent}%. טען אותו עכשיו.
 Connect the headset over Bluetooth once to calibrate the estimate = חבר את האוזניות דרך Bluetooth פעם אחת כדי לכייל את ההערכה
+Switch the controller to D-input mode to see its battery = העבר את השלט למצב D-input כדי לראות את הסוללה
 Fully charged = טעון במלואו
 {name} is fully charged. = {name} טעון במלואו.
 View in dashboard... = הצג בלוח הבקרה...

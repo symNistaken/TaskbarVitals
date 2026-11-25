@@ -318,6 +318,7 @@ Battery almost empty = Batteriet är nästan tomt
 Battery critically low = Batteriet är kritiskt lågt
 {name} is at {percent}%. Charge it now. = {name} ligger på {percent}%. Ladda den nu.
 Connect the headset over Bluetooth once to calibrate the estimate = Anslut headsetet via Bluetooth en gång för att kalibrera uppskattningen
+Switch the controller to D-input mode to see its battery = Växla handkontrollen till D-input-läge för att se batteriet
 Fully charged = Fulladdad
 {name} is fully charged. = {name} är fulladdad.
 View in dashboard... = Visa i instrumentpanelen...

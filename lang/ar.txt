@@ -311,6 +311,7 @@ Battery almost empty = البطارية على وشك النفاد
 Battery critically low = البطارية منخفضة جدًا
 {name} is at {percent}%. Charge it now. = {name} عند {percent}%. اشحنه الآن.
 Connect the headset over Bluetooth once to calibrate the estimate = وصّل سماعة الرأس عبر Bluetooth مرة واحدة لمعايرة التقدير
+Switch the controller to D-input mode to see its battery = بدّل وحدة التحكم إلى وضع D-input لعرض البطارية
 Fully charged = مشحون بالكامل
 {name} is fully charged. = {name} مشحون بالكامل.
 View in dashboard... = عرض في لوحة المعلومات...

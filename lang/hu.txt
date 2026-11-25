@@ -319,6 +319,7 @@ Battery almost empty = Az akkumulátor majdnem lemerült
 Battery critically low = Az akkumulátor kritikusan alacsony
 {name} is at {percent}%. Charge it now. = {name} töltöttsége {percent}%. Töltsd most.
 Connect the headset over Bluetooth once to calibrate the estimate = Egyszer csatlakoztasd a fejhallgatót Bluetooth-on a becslés kalibrálásához
+Switch the controller to D-input mode to see its battery = Állítsa a kontrollert D-input módba az akkumulátor megtekintéséhez
 Fully charged = Teljesen feltöltve
 {name} is fully charged. = {name} teljesen fel van töltve.
 View in dashboard... = Megtekintés az irányítópulton...

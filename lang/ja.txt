@@ -310,6 +310,7 @@ Battery almost empty = バッテリー残量わずか
 Battery critically low = バッテリー残量が危険なレベル
 {name} is at {percent}%. Charge it now. = {name} の残量は {percent}% です。今すぐ充電してください。
 Connect the headset over Bluetooth once to calibrate the estimate = 推定の精度を上げるため、ヘッドセットを一度 Bluetooth で接続してください
+Switch the controller to D-input mode to see its battery = バッテリー残量を表示するには、コントローラーを D-input モードに切り替えてください
 Fully charged = 満充電
 {name} is fully charged. = {name} は満充電です。
 View in dashboard... = ダッシュボードで表示...

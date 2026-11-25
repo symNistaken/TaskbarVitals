@@ -320,6 +320,7 @@ Battery almost empty = باتری تقریباً خالی است
 Battery critically low = باتری بسیار ضعیف است
 {name} is at {percent}%. Charge it now. = شارژ {name} روی {percent}٪ است. همین حالا آن را شارژ کنید.
 Connect the headset over Bluetooth once to calibrate the estimate = برای کالیبره کردن تخمین، هدست را یک بار از طریق Bluetooth وصل کنید
+Switch the controller to D-input mode to see its battery = برای دیدن باتری، دسته را به حالت D-input ببرید
 Fully charged = شارژ کامل
 {name} is fully charged. = {name} کاملاً شارژ شده است.
 View in dashboard... = مشاهده در داشبورد...

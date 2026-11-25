@@ -23,6 +23,17 @@
 //    2.4 GHz radio off and the receiver switches from 310B to 6013 (idle). We keep the last known
 //    reading visible as asleep so the controller does not disappear while docked.
 //    Protocol reference: MiguelSanzBr/8bitdo-ultimate2-linux (docs/PROTOCOL.md).
+//
+// 3. First-generation Ultimate Wireless Controller for PC (2.4 GHz dongle with charging dock), one
+//    shared key `8bitdo:ultimate24g` for all its modes (issue #1):
+//    * 2DC8:3013 (3012)  D-input mode, 64-byte report with the battery in byte 14: a live reading.
+//    * 2DC8:3109         dock mode (idle dongle): only the vendor channel (FFA0:0001, "IDLE") answers.
+//                        If it gives a level that is shown; otherwise the last known level is listed
+//                        asleep (percent -1) so the controller does not vanish while it charges.
+//    * 2DC8:3106         X-input mode: Windows sees a wired Xbox 360 pad with no vendor collection, so
+//                        no battery can be read. The entry stays listed (asleep with the last known
+//                        level, if any) and tells the user to switch to D-input mode.
+//    A live D-input / vendor reading always wins over the dock and X-input placeholders in a poll.
 #include "drivers.h"
 
 namespace {
@@ -30,6 +41,7 @@ namespace {
 const USHORT kVid = 0x2DC8;
 const USHORT kPidDongle = 0x6013;
 const USHORT kPidDongle24GIdle = 0x3109;
+const USHORT kPidUltimate24GXInput = 0x3106;  // X-input mode: no readable battery (issue #1)
 const int kReportLen = 34;  // Ultimate 2 v1.02 firmware sends 12-byte reports without battery
 
 struct Model { USHORT pid; const wchar_t* name; bool needsFeature06; };
@@ -62,6 +74,14 @@ const Model* FindModel(USHORT pid) {
 }
 
 bool IsUltimate2(USHORT pid) { return pid == 0x310B || pid == 0x6012 || pid == 0x6013; }
+bool IsUltimate24G(USHORT pid) { return pid == 0x3012 || pid == 0x3013 || pid == 0x3109 || pid == kPidUltimate24GXInput; }
+
+// One key per physical controller, whatever mode it is in.
+std::wstring DeviceKey(USHORT pid) {
+    if (IsUltimate2(pid)) return L"8bitdo:ultimate2";
+    if (IsUltimate24G(pid)) return L"8bitdo:ultimate24g";
+    return L"8bitdo:" + Hex4(pid);
+}
 
 std::wstring ModelName(const HidColl& c) {
     if (const Model* m = FindModel(c.pid)) return m->name;
@@ -74,6 +94,7 @@ std::wstring ModelName(const HidColl& c) {
 }
 
 int g_lastUltimate2Pct = -1;
+int g_lastUltimate24gPct = -1;
 
 bool QueryVendor(HidDev& d, const std::vector<BYTE>& req, BYTE cmdLo, BYTE cmdHi, std::vector<BYTE>& r) {
     d.Flush();
@@ -92,7 +113,7 @@ bool PollVendorCollection(const HidColl& c, DeviceStatus& s) {
     if (!d.Open(c)) return false;
 
     bool ult2 = IsUltimate2(c.pid);
-    s.key = ult2 ? L"8bitdo:ultimate2" : (L"8bitdo:" + Hex4(c.pid));
+    s.key = DeviceKey(c.pid);
     s.name = ModelName(c);
     s.kind = DeviceKind::Gamepad;
     s.via = L"2.4 GHz dongle or USB";
@@ -116,6 +137,7 @@ bool PollVendorCollection(const HidColl& c, DeviceStatus& s) {
             if (pct > 0 && pct <= 100) {
                 s.percent = pct;
                 if (ult2) g_lastUltimate2Pct = pct;
+                if (IsUltimate24G(c.pid)) g_lastUltimate24gPct = pct;
                 return true;
             }
         }
@@ -138,12 +160,13 @@ bool PollVendorCollection(const HidColl& c, DeviceStatus& s) {
             s.percent = pct;
             s.charging = (r[18] & 0x80) != 0 && pct < 100;
             if (ult2) g_lastUltimate2Pct = pct;
+            if (IsUltimate24G(c.pid)) g_lastUltimate24gPct = pct;
             return true;
         }
     }
 
     if (isDongle || c.pid == kPidDongle || c.pid == kPidDongle24GIdle) {
-        if (ult2 && g_lastUltimate2Pct >= 0) {
+        if ((ult2 && g_lastUltimate2Pct >= 0) || (IsUltimate24G(c.pid) && g_lastUltimate24gPct >= 0)) {
             s.connected = true;
             s.percent = -1;
             s.asleep = true;
@@ -173,7 +196,7 @@ bool PollDInputGamepad(const HidColl& c, DeviceStatus& s) {
         found = d.Read(r, 100) >= minLen && (r[0] == 0x01 || r[0] == 0x04) && (r[14] & 0x7F) <= 100;
     if (!found) return false;
     bool ult2 = IsUltimate2(c.pid);
-    s.key = ult2 ? L"8bitdo:ultimate2" : (L"8bitdo:" + Hex4(c.pid));
+    s.key = DeviceKey(c.pid);
     s.name = ModelName(c);
     s.kind = DeviceKind::Gamepad;
     s.via = (c.path.find(L"00001124") != std::wstring::npos || c.path.find(L"00001812") != std::wstring::npos)
@@ -183,21 +206,53 @@ bool PollDInputGamepad(const HidColl& c, DeviceStatus& s) {
     s.charging = (r[14] & 0x80) != 0 && s.percent < 100;
     s.graceSec = 180;
     if (ult2 && s.percent > 0) g_lastUltimate2Pct = s.percent;
+    if (IsUltimate24G(c.pid) && s.percent > 0) g_lastUltimate24gPct = s.percent;
     return true;
+}
+
+// X-input mode (3106): the pad looks like a wired Xbox 360 pad, so there is nothing to read. Keep it
+// listed under the shared key and say how to get a battery reading.
+void PollUltimate24GXInput(const HidColl& c, DeviceStatus& s) {
+    s.key = DeviceKey(c.pid);
+    s.name = L"8BitDo Ultimate 2.4G";
+    s.kind = DeviceKind::Gamepad;
+    s.via = L"2.4 GHz dongle";
+    s.connected = true;
+    s.percent = -1;
+    s.asleep = g_lastUltimate24gPct >= 0;
+    s.graceSec = 1800;
+    s.note = L"Switch the controller to D-input mode to see its battery";
 }
 
 }  // namespace
 
 void Poll8BitDo(PollContext& ctx) {
     bool liveUltimate2 = false;
+    bool liveUltimate24g = false;
     std::vector<std::pair<USHORT, USHORT>> products = ctx.Products(kVid);
 
     // Poll live/wired/Bluetooth devices first; handle idle 2.4 GHz dongles (6013, 3109) last so
-    // an idle dongle never overwrites an active Bluetooth or USB cable reading for the same pad.
+    // an idle dongle never overwrites an active Bluetooth or USB cable reading for the same pad. The
+    // X-input placeholder (3106) is handled in that last pass too.
     for (int pass = 0; pass < 2; ++pass) {
         for (auto [vid, pid] : products) {
-            bool idleDongle = (pid == kPidDongle || pid == kPidDongle24GIdle);
+            bool idleDongle = (pid == kPidDongle || pid == kPidDongle24GIdle || pid == kPidUltimate24GXInput);
             if ((pass == 0) == idleDongle || ctx.IsClaimed(vid, pid)) continue;
+
+            if (pid == kPidUltimate24GXInput) {
+                // Never read from this pad: it is an XInput device. A live D-input or vendor reading
+                // of the same controller in this poll wins over the placeholder.
+                if (!liveUltimate24g) {
+                    for (const HidColl* c : ctx.Find(vid, pid, [](const HidColl&) { return true; })) {
+                        DeviceStatus s;
+                        PollUltimate24GXInput(*c, s);
+                        ctx.Add(s, vid, pid);
+                        break;
+                    }
+                }
+                ctx.Claim(vid, pid);
+                continue;
+            }
 
             for (const HidColl* c : ctx.Find(vid, pid, [](const HidColl& c) {
                      return (c.page() == 0xFF7A || c.page() == 0xFFA0) && c.usage() == 0x0001 &&
@@ -206,7 +261,10 @@ void Poll8BitDo(PollContext& ctx) {
                 DeviceStatus s;
                 if (PollVendorCollection(*c, s)) {
                     if (IsUltimate2(pid) && s.connected && s.percent >= 0) liveUltimate2 = true;
-                    if (IsUltimate2(pid) && idleDongle && (!s.connected || s.percent < 0) && liveUltimate2) {
+                    if (IsUltimate24G(pid) && s.connected && s.percent >= 0) liveUltimate24g = true;
+                    if (pid == kPidDongle24GIdle && (!s.connected || s.percent < 0) && liveUltimate24g) {
+                        ctx.Claim(vid, pid);
+                    } else if (IsUltimate2(pid) && idleDongle && (!s.connected || s.percent < 0) && liveUltimate2) {
                         ctx.Claim(vid, pid);
                     } else {
                         ctx.Add(s, vid, pid);
@@ -221,6 +279,7 @@ void Poll8BitDo(PollContext& ctx) {
                     DeviceStatus s;
                     if (PollDInputGamepad(*c, s)) {
                         if (IsUltimate2(pid) && s.connected && s.percent >= 0) liveUltimate2 = true;
+                        if (IsUltimate24G(pid) && s.connected && s.percent >= 0) liveUltimate24g = true;
                         ctx.Add(s, vid, pid);
                         break;
                     }

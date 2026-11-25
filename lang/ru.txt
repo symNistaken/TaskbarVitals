@@ -310,6 +310,7 @@ Battery almost empty = Батарея почти разряжена
 Battery critically low = Критически низкий заряд батареи
 {name} is at {percent}%. Charge it now. = {name}: заряд {percent}%. Зарядите устройство сейчас.
 Connect the headset over Bluetooth once to calibrate the estimate = Один раз подключите гарнитуру по Bluetooth, чтобы откалибровать оценку
+Switch the controller to D-input mode to see its battery = Переключите геймпад в режим D-input, чтобы увидеть заряд
 Fully charged = Полностью заряжено
 {name} is fully charged. = {name} полностью заряжено.
 View in dashboard... = Открыть в панели устройств...

@@ -319,6 +319,7 @@ Battery almost empty = 電池電量即將耗盡
 Battery critically low = 電池電量嚴重不足
 {name} is at {percent}%. Charge it now. = {name} 剩餘 {percent}%。請立即充電。
 Connect the headset over Bluetooth once to calibrate the estimate = 請透過 Bluetooth 連接一次耳機以校準估算
+Switch the controller to D-input mode to see its battery = 請將手把切換到 D-input 模式以查看電量
 Fully charged = 已充滿
 {name} is fully charged. = {name} 已充滿。
 View in dashboard... = 在儀表板中檢視...

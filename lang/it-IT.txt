@@ -319,6 +319,7 @@ Battery almost empty = Batteria quasi scarica
 Battery critically low = Batteria critica
 {name} is at {percent}%. Charge it now. = {name} è al {percent}%. Ricaricalo ora.
 Connect the headset over Bluetooth once to calibrate the estimate = Collega una volta le cuffie via Bluetooth per calibrare la stima
+Switch the controller to D-input mode to see its battery = Imposta il controller in modalità D-input per vedere la batteria
 Fully charged = Carica completa
 {name} is fully charged. = {name} è completamente carico.
 View in dashboard... = Visualizza nella dashboard...

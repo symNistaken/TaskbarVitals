@@ -319,6 +319,7 @@ Battery almost empty = แบตเตอรี่เกือบหมด
 Battery critically low = แบตเตอรี่ต่ำมาก
 {name} is at {percent}%. Charge it now. = {name} เหลือ {percent}% ชาร์จเดี๋ยวนี้
 Connect the headset over Bluetooth once to calibrate the estimate = เชื่อมต่อชุดหูฟังผ่าน Bluetooth สักครั้งเพื่อปรับเทียบค่าประมาณ
+Switch the controller to D-input mode to see its battery = สลับคอนโทรลเลอร์เป็นโหมด D-input เพื่อดูแบตเตอรี่
 Fully charged = ชาร์จเต็มแล้ว
 {name} is fully charged. = {name} ชาร์จเต็มแล้ว
 View in dashboard... = ดูในแดชบอร์ด...

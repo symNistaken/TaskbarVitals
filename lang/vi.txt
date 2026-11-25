@@ -323,6 +323,7 @@ Battery almost empty = Pin sắp hết
 Battery critically low = Pin cực thấp
 {name} is at {percent}%. Charge it now. = {name} còn {percent}%. Hãy sạc ngay.
 Connect the headset over Bluetooth once to calibrate the estimate = Hãy kết nối tai nghe qua Bluetooth một lần để hiệu chỉnh ước tính
+Switch the controller to D-input mode to see its battery = Chuyển tay cầm sang chế độ D-input để xem pin
 Fully charged = Đã sạc đầy
 {name} is fully charged. = {name} đã sạc đầy.
 View in dashboard... = Xem trong bảng điều khiển...

@@ -310,6 +310,7 @@ Battery almost empty = Akku fast leer
 Battery critically low = Akku kritisch niedrig
 {name} is at {percent}%. Charge it now. = {name} steht bei {percent} %. Jetzt laden.
 Connect the headset over Bluetooth once to calibrate the estimate = Verbinde das Headset einmal über Bluetooth, um die Schätzung zu kalibrieren
+Switch the controller to D-input mode to see its battery = Wechsle den Controller in den D-Input-Modus, um den Akku zu sehen
 Fully charged = Vollständig geladen
 {name} is fully charged. = {name} ist vollständig geladen.
 View in dashboard... = Im Dashboard anzeigen...

@@ -282,6 +282,7 @@ Battery almost empty = Pil neredeyse bitti
 Battery critically low = Pil kritik seviyede
 {name} is at {percent}%. Charge it now. = {name} %{percent} seviyesinde. Şimdi şarj edin.
 Connect the headset over Bluetooth once to calibrate the estimate = Tahmini kalibre etmek için kulaklığı bir kez Bluetooth üzerinden bağlayın
+Switch the controller to D-input mode to see its battery = Pili görmek için kumandayı D-input moduna alın
 Fully charged = Tam şarjlı
 {name} is fully charged. = {name} tamamen şarj oldu.
 View in dashboard... = Panoda görüntüle...
