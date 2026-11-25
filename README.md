@@ -17,6 +17,7 @@
   <a href="https://symnistaken.github.io/TaskbarVitals/compatibility.html"><img src="https://img.shields.io/badge/Hardware_Matrix-85_Families-2ea44f?style=flat-square" alt="Searchable 85-family hardware compatibility matrix"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/symNistaken/TaskbarVitals?style=flat-square&color=555555" alt="GPL-3.0-or-later license"></a>
   <a href="https://buymeacoffee.com/symnistaken"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-symnistaken-FFDD00?style=flat-square&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me a Coffee"></a>
+  <a href="https://x.com/symnistaken"><img src="https://img.shields.io/badge/X-@symnistaken-000000?style=flat-square&logo=x&logoColor=white" alt="Follow @symnistaken on X"></a>
 </p>
 
 <p>
