@@ -8,7 +8,7 @@
 <h1>Taskbar Vitals</h1>
 
 <p>
-  <strong>7-metric Windows hardware telemetry, rich sparkline hover cards, and read-only wireless peripheral battery levels across 85 brand &amp; protocol families — natively on your taskbar.</strong>
+  <strong>See the battery of your wireless mouse, headset, keyboard and controller right on the Windows taskbar, with CPU, GPU and RAM next to it.</strong>
 </p>
 
 <p>
@@ -22,8 +22,8 @@
 <p>
   <a href="#installation-smartscreen--update-verification">Install</a> ·
   <a href="#taskbar-layouts--live-sparkline-hover-cards">Taskbar Modes</a> ·
-  <a href="#7-metric-system-telemetry-architecture">System Telemetry</a> ·
-  <a href="#device-intelligence-dashboard--365-day-health">Dashboard</a> ·
+  <a href="#system-readings">System Readings</a> ·
+  <a href="#device-dashboard">Dashboard</a> ·
   <a href="#supported-hardware">Supported Hardware</a> ·
   <a href="#cli--local-json-pipe">CLI &amp; Pipe</a> ·
   <a href="SECURITY.md">Security</a>
@@ -46,18 +46,19 @@
 
 ---
 
-## Why Taskbar Vitals 2.1?
+## What it does
 
-Peripheral companion apps regularly eat hundreds of megabytes of RAM just to show a mouse percentage, while separate HUD overlays cover your game screen for temperatures and wattage. **Taskbar Vitals** replaces both with one lightweight native **C++17 / Win32** utility.
+<p align="center"><img src="docs/readme/demo.gif" alt="Short demo: hover cards for CPU and a headset battery, the settings panel switching strip styles live, and the device dashboard" width="800"></p>
 
-| Pillar | What Ships in 2.1.1 |
-|---|---|
-| **7-Metric System Telemetry** | Live **CPU** (`%`, `°C` on Intel &amp; AMD Ryzen `17h–1Ah`, RAPL `W`), **RAM** (`%` &amp; `Used/Total GB`), **GPU** (`%`, `°C`, `W` via NVML/ADLX/IGCL, **core &amp; VRAM clocks in `MHz`**), **VRAM** (`%` &amp; `GB`), **Storage / NVMe** (`°C`, busy `%`, `R/W MB/s`, capacity), **Network** (`↓`/`↑` + built-in HTTP Speed Test), and **Laptop Battery** (`±W`, `mWh`, runtime). |
-| **85 Hardware &amp; Protocol Families** | Read-only battery, charging, and wake monitoring across **122 driver files** — gaming mice, wireless keyboards, headsets, AirPods/Beats AAP L2CAP, earbuds, gamepads, Bluetooth speakers, and Phone Link, backed by a read-only `HidEventListener` push-wake engine. |
-| **Rich Sparkline Hover Cards** | Hovering any taskbar item opens a native Win32 graph card: a **3-minute real-time waveform + adapter clocks / throughput** for system hardware, or a **24-hour discharge curve + dashed runtime forecast** for peripherals. |
-| **4 Strip Styles &amp; 19 Brand Colors** | Switch between **1-Row Colored Vector Icons**, **Compact 2-Row Layout**, **Icons Above Values**, or **Radial Battery Rings**. Dock strips independently on any monitor or combine them, with automatic contrast adaptation for **MyFinder** bars. |
-| **Native 5-Tab Device Dashboard** | Inspect **Overview**, **Device Details**, **Battery Comparison** (`%/day`), **Charging History**, and **System Vitals** — plus 365-day **Battery Health** cycle wear tracking (`95% → 20%`) and 5-column CSV exports. |
-| **100% Local &amp; ECDSA-Verified Updates** | Zero telemetry or accounts. Optional **Local JSON Pipe (`\\.\pipe\TaskbarVitals`)** restricts ACLs to your user SID; official auto-updates validate `SHA256SUMS.txt.sig` offline via Windows BCrypt (ECDSA P-256). |
+- **Battery levels on the taskbar** for wireless mice, headsets, keyboards, controllers, AirPods and more: 85 brand and protocol families so far.
+- **CPU, GPU, RAM, VRAM, SSD and network** readings next to them, if you want them.
+- **Hover anything** for a small live graph. Devices also show a 24-hour curve and how long the battery should last.
+- **A device dashboard** that compares how fast each device drains and tracks battery wear over a year.
+- **Free, open source, no ads, no account, no telemetry.** One small native app, about 3 MB.
+
+Taskbar Vitals started as a continuation of [BatteryHub](https://github.com/krisgfx9/Wireless-Device-Battery-Monitor) by krisgfx9 after its GitHub repository went away, and grew from there.
+
+> **Built together with the community.** Every supported device exists because someone reported it or tested it. If your device is missing, shows a wrong level, or you spot a bug, please [open an issue](https://github.com/symNistaken/TaskbarVitals/issues/new/choose) (attach the output of `TaskbarVitals.exe --report`). Pull requests, translations and any other contributions are just as welcome: see [Contributing](CONTRIBUTING.md).
 
 ---
 
@@ -98,7 +99,7 @@ All captures below come directly from Windows 11 — zero synthetic mockups.
 
 ---
 
-## 7-Metric System Telemetry Architecture
+## System Readings
 
 System vitals sample every **2 seconds** (configurable). Optional libraries (`pdh.dll`, `dxgi.dll`, `nvml.dll`, `amdadlx64.dll`, `ControlLib.dll`, `iphlpapi.dll`, `winmm.dll`) are delay-loaded on first use and freed immediately when disabled.
 
@@ -116,7 +117,7 @@ System vitals sample every **2 seconds** (configurable). Optional libraries (`pd
 
 ---
 
-## Device Intelligence Dashboard & 365-Day Health
+## Device Dashboard
 
 Open **Device dashboard...** from the **Batteries** tab or any device's `⋯` menu. All 5 native Win32 tabs (**Overview**, **Device Details**, **Battery Comparison**, **Charging History**, and **System Vitals**) share your dark/light theme:
 
@@ -263,7 +264,7 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 
 Taskbar Vitals ships **21 built-in languages**: `English`, `العربية`, `Deutsch`, `Español`, `فارسی`, `Français`, `עברית`, `Magyar`, `Italiano`, `日本語`, `한국어`, `Polski`, `Português (Brasil)`, `Русский`, `Svenska`, `ภาษาไทย`, `Türkçe`, `Українська`, `Tiếng Việt`, `简体中文`, `繁體中文`.
 
-> **Help wanted.** Taskbar Vitals is maintained by one person. Phrases added in 2.1 were machine-translated for every language except English and Turkish; they sit at the end of each file in [`lang/`](lang/) under a "please review" comment. If you speak one of these languages, corrections are very welcome as a pull request or an [issue](https://github.com/symNistaken/TaskbarVitals/issues). The same goes for bugs and devices that show a wrong or missing battery level: open an issue and attach the output of `TaskbarVitals.exe --report`.
+> **Help wanted.** Taskbar Vitals is a small project. Phrases added in 2.1 were machine-translated for every language except English and Turkish; they sit at the end of each file in [`lang/`](lang/) under a "please review" comment. If you speak one of these languages, corrections are very welcome as a pull request or an [issue](https://github.com/symNistaken/TaskbarVitals/issues). The same goes for bugs and devices that show a wrong or missing battery level: open an issue and attach the output of `TaskbarVitals.exe --report`.
 
 - **Customize locally:** Open **Settings → General → Language → Add your own language...** to copy `_template.txt` in `%APPDATA%\WirelessBattery\lang\` to `<code>.txt`.
 - **Contribute:** See [`CONTRIBUTING.md`](CONTRIBUTING.md) for driver architecture, test registration, and security rules, and [`SECURITY.md`](SECURITY.md) for vulnerability disclosure &amp; signing notes.
