@@ -117,9 +117,15 @@ int main() {
     ctx = Poll({ std::vector<BYTE>(64, 0), Reply(12, 2) });
     assert(ctx.out.size() == 1 && ctx.out[0].percent == 12 && writes == 1);
 
-    // Nothing answers (headset off, receiver idle): nothing is reported and the id stays unclaimed.
+    // Nothing answers while the dongle is plugged in (headset asleep, dongle gone quiet): the entry
+    // stays listed as asleep instead of running out of grace and vanishing.
     ctx = Poll({});
-    assert(ctx.out.empty() && !ctx.IsClaimed(0x291D, 0x385D));
+    assert(ctx.out.size() == 1 && ctx.out[0].asleep && ctx.out[0].percent == -1);
+    assert(ctx.out[0].key == L"mchose:v9pro1" && ctx.IsClaimed(0x291D, 0x385D));
+
+    // Only unrelated traffic before the deadline is still silence.
+    ctx = Poll({ std::vector<BYTE>(64, 0) });
+    assert(ctx.out.size() == 1 && ctx.out[0].asleep && ctx.out[0].percent == -1);
 
     // A different collection layout on the same id is not this protocol (e.g. the FF21 interface).
     ctx = Poll({ Reply(40, 2) }, Collection(0xFF21, 0x0001));

@@ -24,7 +24,10 @@ constexpr BYTE kStateCharging = 3;
 constexpr BYTE kStateFull = 4;
 constexpr BYTE kStateSleep = 26;
 
-enum class Reply { None, Off, Level };
+// Silent: the query went out but no battery frame came back within the deadline. Some dongles stop
+// answering a while after the headset goes to sleep; without this the entry ran out of grace and
+// vanished after 30 minutes although the dongle was still plugged in.
+enum class Reply { None, Silent, Off, Level };
 
 // One input report (r[0] = report ID) carrying the BLK battery frame, queried or pushed.
 Reply ParseBattery(const std::vector<BYTE>& r, int& percent, bool& charging, bool& full) {
@@ -44,14 +47,16 @@ Reply QueryBattery(const HidColl& c, int& percent, bool& charging, bool& full) {
     if (!d.Write({kReportId, kReadBattery, 0x01})) return Reply::None;  // zero-padded to 64 bytes
 
     std::vector<BYTE> r;
+    bool sawBatteryFrame = false;
     ULONGLONG end = GetTickCount64() + 1000;
     while ((LONGLONG)end - (LONGLONG)GetTickCount64() > 0) {
         int left = (int)((LONGLONG)end - (LONGLONG)GetTickCount64());
         if (d.Read(r, left) < 0) break;
         Reply got = ParseBattery(r, percent, charging, full);
         if (got != Reply::None) return got;
+        if (r.size() >= 2 && r[0] == kReportId && r[1] == kReadBattery) sawBatteryFrame = true;
     }
-    return Reply::None;
+    return sawBatteryFrame ? Reply::None : Reply::Silent;  // a malformed battery frame is not silence
 }
 
 }  // namespace
@@ -72,8 +77,8 @@ void PollMchoseV9Pro(PollContext& ctx) {
         if (s.name.empty()) s.name = L"MCHOSE V9 PRO";
         s.kind = DeviceKind::Headset;
         s.via = L"2.4 GHz receiver";
-        if (got == Reply::Off) {
-            s.asleep = true;  // the dongle answered, the headset is off or asleep: keep the last value
+        if (got == Reply::Off || got == Reply::Silent) {
+            s.asleep = true;  // the headset is off or asleep (or the dongle went quiet): keep the last value
         } else {
             s.percent = pct;
             s.charging = chg;
