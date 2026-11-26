@@ -20,6 +20,6 @@ AppsAndFeaturesEntries:
 Installers:
 - Architecture: x64
   InstallerUrl: https://github.com/symNistaken/TaskbarVitals/releases/download/v2.1.2/TaskbarVitals-Setup-2.1.2.exe
-  InstallerSha256: 1CB9BF3A8F4EE51C21738AA0395CC7B5D9BA9C5181C8EFB57A43CB45872BD914
+  InstallerSha256: 69D068B4D440AB5F803891AD8D8F61F2362A0AA1AE5B2507A34C2FBA435575F6
 ManifestType: installer
 ManifestVersion: 1.6.0
