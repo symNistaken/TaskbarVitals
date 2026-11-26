@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
 
 PackageIdentifier: symNistaken.TaskbarVitals
-PackageVersion: 2.1.1
+PackageVersion: 2.1.2
 PackageLocale: en-US
 Publisher: symNistaken
 PublisherUrl: https://github.com/symNistaken/TaskbarVitals

@@ -78,12 +78,12 @@ void TestScoopManifest() {
     const auto* checkver = FindObjKey(root, "checkver");
     const auto* autoupdate = FindObjKey(root, "autoupdate");
 
-    assert(ver && ver->type == JsonValue::Type::String && ver->str == "2.1.1");
+    assert(ver && ver->type == JsonValue::Type::String && ver->str == "2.1.2");
     assert(hp && hp->type == JsonValue::Type::String && hp->str == "https://github.com/symNistaken/TaskbarVitals");
     assert(lic && lic->type == JsonValue::Type::String && lic->str == "GPL-3.0-or-later");
     assert(bin && bin->type == JsonValue::Type::String && bin->str == "TaskbarVitals.exe");
     assert(url && url->type == JsonValue::Type::String &&
-           url->str == "https://github.com/symNistaken/TaskbarVitals/releases/download/v2.1.1/TaskbarVitals-2.1.1-portable.zip");
+           url->str == "https://github.com/symNistaken/TaskbarVitals/releases/download/v2.1.2/TaskbarVitals-2.1.2-portable.zip");
     assert(hash && hash->type == JsonValue::Type::String && IsHex64(hash->str));
     assert(checkver && checkver->type == JsonValue::Type::String && checkver->str == "github");
     assert(autoupdate && autoupdate->type == JsonValue::Type::Object);
@@ -94,20 +94,20 @@ void TestWingetManifests() {
     const std::string expectedProductCode = ExtractIssAppId(iss) + "_is1";
 
     const std::string verYaml = ReadText(
-        "installer/packaging/winget/manifests/s/symNistaken/TaskbarVitals/2.1.1/symNistaken.TaskbarVitals.yaml");
+        "installer/packaging/winget/manifests/s/symNistaken/TaskbarVitals/2.1.2/symNistaken.TaskbarVitals.yaml");
     const std::string instYaml = ReadText(
-        "installer/packaging/winget/manifests/s/symNistaken/TaskbarVitals/2.1.1/symNistaken.TaskbarVitals.installer.yaml");
+        "installer/packaging/winget/manifests/s/symNistaken/TaskbarVitals/2.1.2/symNistaken.TaskbarVitals.installer.yaml");
     const std::string locYaml = ReadText(
-        "installer/packaging/winget/manifests/s/symNistaken/TaskbarVitals/2.1.1/symNistaken.TaskbarVitals.locale.en-US.yaml");
+        "installer/packaging/winget/manifests/s/symNistaken/TaskbarVitals/2.1.2/symNistaken.TaskbarVitals.locale.en-US.yaml");
 
     assert(ExtractYamlValue(verYaml, "PackageIdentifier:") == "symNistaken.TaskbarVitals");
-    assert(ExtractYamlValue(verYaml, "PackageVersion:") == "2.1.1");
+    assert(ExtractYamlValue(verYaml, "PackageVersion:") == "2.1.2");
     assert(ExtractYamlValue(verYaml, "DefaultLocale:") == "en-US");
     assert(ExtractYamlValue(verYaml, "ManifestType:") == "version");
     assert(ExtractYamlValue(verYaml, "ManifestVersion:") == "1.6.0");
 
     assert(ExtractYamlValue(instYaml, "PackageIdentifier:") == "symNistaken.TaskbarVitals");
-    assert(ExtractYamlValue(instYaml, "PackageVersion:") == "2.1.1");
+    assert(ExtractYamlValue(instYaml, "PackageVersion:") == "2.1.2");
     assert(ExtractYamlValue(instYaml, "InstallerType:") == "inno");
     assert(ExtractYamlValue(instYaml, "Scope:") == "user");
     assert(ExtractYamlValue(instYaml, "UpgradeBehavior:") == "install");
@@ -115,11 +115,11 @@ void TestWingetManifests() {
     assert(ExtractYamlValue(instYaml, "ManifestVersion:") == "1.6.0");
     assert(ExtractYamlValue(instYaml, "  ProductCode:") == expectedProductCode);
     assert(ExtractYamlValue(instYaml, "  InstallerUrl:") ==
-           "https://github.com/symNistaken/TaskbarVitals/releases/download/v2.1.1/TaskbarVitals-Setup-2.1.1.exe");
+           "https://github.com/symNistaken/TaskbarVitals/releases/download/v2.1.2/TaskbarVitals-Setup-2.1.2.exe");
     assert(IsHex64(ExtractYamlValue(instYaml, "  InstallerSha256:")));
 
     assert(ExtractYamlValue(locYaml, "PackageIdentifier:") == "symNistaken.TaskbarVitals");
-    assert(ExtractYamlValue(locYaml, "PackageVersion:") == "2.1.1");
+    assert(ExtractYamlValue(locYaml, "PackageVersion:") == "2.1.2");
     assert(ExtractYamlValue(locYaml, "PackageLocale:") == "en-US");
     assert(ExtractYamlValue(locYaml, "Publisher:") == "symNistaken");
     assert(ExtractYamlValue(locYaml, "PackageName:") == "Taskbar Vitals");
