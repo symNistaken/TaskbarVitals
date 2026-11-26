@@ -13,6 +13,8 @@
 // The Barracuda X reply header, voltage and percentage were confirmed on its 2.4 GHz receiver.
 // Request from https://github.com/openrazer/openrazer/issues/1280#issuecomment-1094116217.
 // Reply and power states documented in https://github.com/HeyOkay/HaloBattery/blob/main/providers/blackshark2020.py.
+// Nari Essential, receiver 1532:051E, is tried with the same query (same era, vendor interface 3); not yet
+// confirmed on a real receiver.
 //
 // BlackShark V2 Pro (2023), HyperSpeed dongle 1532:0555, vendor collection (usage page FF00).
 // 64-byte output report 02, "PA" envelope: [02][80][8+len][00 00]['P']['A'][08][00][type][cmd][flag][len].
@@ -521,6 +523,7 @@ void PollRazerHeadsets(PollContext& ctx) {
     PollBarracudaX(ctx);
     PollRazerAvneraHeadset(ctx, 0x0528, L"Razer BlackShark V2 Pro (2020)", L"blackshark:0528");
     PollRazerAvneraHeadset(ctx, 0x0536, L"Razer Barracuda X (2021)", L"barracuda:0536");
+    PollRazerAvneraHeadset(ctx, 0x051E, L"Razer Nari Essential", L"nari:051E");
     PollBlackSharkV2Pro2023(ctx);
     PollBlackSharkV3X(ctx);
     for (USHORT pid : { (USHORT)0x0576, (USHORT)0x0577, (USHORT)0x0579, (USHORT)0x057A, (USHORT)0x0A4E,
