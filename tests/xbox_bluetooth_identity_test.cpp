@@ -89,5 +89,23 @@ int main() {
     assert(!AddIfDistinct(colliding, Bt(L"{CCCCCCCC}", L"Xbox Wireless Controller", 95)));
     assert(colliding.size() == 1);
 
-    std::puts("Xbox Bluetooth identity regression tests passed (two controllers, same ID, vendor fallback, JBL).");
+    // A Logitech mouse over Bluetooth: HID++ read it last poll, missed it this poll. Windows' level keeps
+    // the vendor card (same key, name and link) instead of adding a second "Bluetooth" card.
+    DeviceStatus logi;
+    logi.key = L"logi:unit:12345678";
+    logi.name = L"MX Master 3S";
+    logi.via = L"USB / Bluetooth";
+    logi.kind = DeviceKind::Mouse;
+    logi.percent = 80;
+    logi.millivolts = 3900;
+    logi.charging = true;
+    logi.full = true;
+    logi.asleep = true;
+    DeviceStatus standIn = StandInForVendor(logi, 75);
+    assert(standIn.key == logi.key && standIn.name == logi.name && standIn.via == logi.via);
+    assert(standIn.kind == DeviceKind::Mouse && standIn.percent == 75 && standIn.millivolts == 0);
+    assert(standIn.connected && !standIn.asleep && standIn.charging && !standIn.full);
+    assert(StandInForVendor(logi, 100).full);
+
+    std::puts("Xbox Bluetooth identity regression tests passed (two controllers, same ID, vendor fallback, JBL, vendor stand-in).");
 }

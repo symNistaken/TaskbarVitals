@@ -372,10 +372,19 @@ void PollBluetooth(PollContext& ctx) {
     // Bluetooth calls it "LIFT", so the name check below misses it).
     std::set<std::wstring> reported;
     std::map<std::wstring, std::pair<USHORT, USHORT>> hidIds;  // container id -> HID vid/pid on that device
+    // Container id -> the vendor driver's last entry for that device, kept across polls: when the vendor
+    // driver misses one poll, Windows' level fills its card instead of adding a second "Bluetooth" card.
+    static std::map<std::wstring, DeviceStatus> lastVendor;
     for (const auto& c : ctx.colls) {
         std::wstring cont = HidContainer(c.path);
         hidIds[cont] = { c.vid, c.pid };
-        if (ctx.IsClaimed(c.vid, c.pid)) reported.insert(cont);
+        if (!ctx.IsClaimed(c.vid, c.pid)) continue;
+        reported.insert(cont);
+        const DeviceStatus* match = nullptr;
+        int matches = 0;
+        for (const auto& o : ctx.out)
+            if (o.vid == c.vid && o.pid == c.pid && o.key.rfind(L"bt:", 0) != 0) { match = &o; ++matches; }
+        if (matches == 1) lastVendor[cont] = *match;  // a receiver with several devices is not one device
     }
 
     bool watching = false, waited = false;
@@ -383,6 +392,12 @@ void PollBluetooth(PollContext& ctx) {
         if (reported.count(cid)) continue;
         auto mc = containerConn.find(cid);
         if (mc != containerConn.end() ? !mc->second : !f.connected) continue;
+        auto vendor = lastVendor.find(cid);
+        if (vendor != lastVendor.end()) {
+            ctx.out.push_back(StandInForVendor(vendor->second, f.pct));
+            ctx.btContainers.insert(cid);
+            continue;
+        }
         DeviceStatus s;
         s.key = L"bt:" + cid;
         auto it = containerName.find(cid);

@@ -15,3 +15,16 @@ inline bool IsDuplicateBluetoothDevice(const DeviceStatus& candidate, const std:
     }
     return false;
 }
+
+// A vendor driver (Logitech HID++, Corsair) read this Bluetooth device on an earlier poll but missed it on
+// this one. Windows' own level then stands in under the vendor entry's identity, so the device keeps one
+// card instead of a second "Bluetooth" card next to the vendor card that is still on screen.
+inline DeviceStatus StandInForVendor(const DeviceStatus& vendor, int windowsPercent) {
+    DeviceStatus s = vendor;
+    s.percent = windowsPercent;
+    s.millivolts = 0;  // the vendor's voltage is from the earlier reading
+    s.connected = true;
+    s.asleep = false;
+    s.full = vendor.full && windowsPercent >= 100;
+    return s;
+}
