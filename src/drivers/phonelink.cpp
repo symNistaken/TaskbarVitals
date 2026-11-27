@@ -1,6 +1,7 @@
 // Microsoft Phone Link stores a localized Adaptive Card in its package folder.
 // The card contains the phone connection status and battery information.
-// Supports English and Japanese connection messages and battery tooltips.
+// English and Japanese cards are read by their wording (including charging); other languages by the
+// card layout (name TextBlock + battery level TextBlock), without the charging state.
 // Reads localized fields from the JSON card layout; rejects malformed or ambiguous readings.
 // The file is an undocumented Phone Link implementation detail.
 // Read-only, no device or network access.

@@ -147,6 +147,38 @@ int main() {
     std::wstring deep(70,L'[');deep+=L"0";deep+=std::wstring(70,L']');
     assert(!PhoneLink::Parse(deep,reading));
 
+    // Other Windows languages: read from the card layout (Russian and Turkish cards, real layout).
+    const std::wstring russian = LR"({
+        "speak": "Galaxy S21 - Подключено к компьютеру",
+        "body": [
+            {"type": "ColumnSet", "tooltip": "Открыть экран телефона"},
+            {"type": "TextBlock", "text": "Galaxy S21"},
+            {"type": "ColumnSet", "columns": [
+                {"type": "Column", "items": [{"type": "Image", "tooltip": "Подключено к компьютеру"}]},
+                {"type": "Column", "items": [{"type": "Container", "tooltip": "Заряд батареи: 69%",
+                    "items": [{"type": "TextBlock", "text": "69%"}]}]}
+            ]}
+        ]
+    })";
+    reading = {};
+    assert(PhoneLink::Parse(russian, reading));
+    assert(reading.name == L"Galaxy S21" && reading.percent == 69 && !reading.charging);
+
+    const std::wstring turkish = LR"({"speak":"Ali - Bilgisayarınıza bağlı","body":[{"type":"TextBlock","text":"Ali"},
+        {"type":"Container","tooltip":"Pil: %7 kaldı","items":[{"type":"TextBlock","text":"%7"}]}]})";
+    reading = {};
+    assert(PhoneLink::Parse(turkish, reading) && reading.name == L"Ali" && reading.percent == 7);
+
+    // Layout fallback: the tooltip must carry the same number, the name must be on the card, and readings must agree.
+    assert(!PhoneLink::Parse(LR"({"speak":"Ali - Bağlı","body":[{"type":"TextBlock","text":"Ali"},{"type":"Container","tooltip":"Pil 70","items":[{"type":"TextBlock","text":"7%"}]}]})", reading));
+    assert(!PhoneLink::Parse(LR"({"speak":"Ali - Bağlı","body":[{"type":"TextBlock","text":"Veli"},{"type":"Container","tooltip":"Pil 7","items":[{"type":"TextBlock","text":"7%"}]}]})", reading));
+    assert(!PhoneLink::Parse(LR"({"speak":"Ali - Bağlı","body":[{"type":"TextBlock","text":"Ali"},{"type":"Container","tooltip":"Pil 7","items":[{"type":"TextBlock","text":"7%"}]},{"type":"Container","tooltip":"Pil 9","items":[{"type":"TextBlock","text":"9%"}]}]})", reading));
+    // An English or Japanese card with another status never takes the layout path.
+    assert(!PhoneLink::Parse(LR"({"speak":"Pixel 8 - Disconnected","body":[{"type":"TextBlock","text":"Pixel 8"},{"type":"Container","tooltip":"Battery 80% remaining","items":[{"type":"TextBlock","text":"80%"}]}]})", reading));
+    // A name containing " - " still matches.
+    reading = {};
+    assert(PhoneLink::Parse(LR"({"speak":"A - B - Подключено","body":[{"type":"TextBlock","text":"A - B"},{"type":"Container","tooltip":"Заряд 50 %","items":[{"type":"TextBlock","text":"50 %"}]}]})", reading) && reading.name == L"A - B" && reading.percent == 50);
+
     std::puts("Phone Link structural and localization tests passed");
     return 0;
 }

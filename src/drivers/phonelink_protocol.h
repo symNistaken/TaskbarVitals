@@ -143,12 +143,73 @@ inline void Battery(const Value& value,bool japanese,int& percent,bool& charging
     // Only traverse card layout fields, never actions, arbitrary metadata or notification payloads.
     for(const wchar_t* field:{L"body",L"items",L"columns"}){auto i=value.object.find(field);if(i!=value.object.end())Battery(i->second,japanese,percent,charging,ambiguous);}
 }
+// Other Windows languages: the card's battery is a Container whose tooltip is localized text and whose
+// TextBlock holds only the level ("44%", "%44", "44 %"). The level must also appear as a number in the tooltip.
+inline int PercentText(std::wstring s){
+    auto space=[](wchar_t c){return c==L' '||c==L' '||c==L' ';};
+    while(!s.empty()&&space(s.back()))s.pop_back();
+    while(!s.empty()&&space(s.front()))s.erase(0,1);
+    if(s.size()<2)return -1;
+    if(s.back()==L'%')s.pop_back();else if(s.front()==L'%')s.erase(0,1);else return -1;
+    while(!s.empty()&&space(s.back()))s.pop_back();
+    while(!s.empty()&&space(s.front()))s.erase(0,1);
+    if(s.empty()||s.size()>3)return -1;
+    for(wchar_t c:s)if(c<L'0'||c>L'9')return -1;
+    int n=std::stoi(s);return n<=100?n:-1;
+}
+inline bool HasNumber(const std::wstring& text,int n){
+    const std::wstring digits=std::to_wstring(n);
+    for(size_t at=text.find(digits);at!=std::wstring::npos;at=text.find(digits,at+1)){
+        bool before=at>0&&text[at-1]>=L'0'&&text[at-1]<=L'9', after=at+digits.size()<text.size()&&text[at+digits.size()]>=L'0'&&text[at+digits.size()]<=L'9';
+        if(!before&&!after)return true;
+    }
+    return false;
+}
+inline void AnyLocaleBattery(const Value& value,int& percent,bool& ambiguous,bool& known){
+    if(value.kind==L'['){for(const auto& child:value.array)AnyLocaleBattery(child,percent,ambiguous,known);return;}
+    if(value.kind!=L'{')return;
+    const auto* type=Field(value,L"type");
+    if(type && *type!=L"AdaptiveCard" && *type!=L"Container" && *type!=L"ColumnSet" && *type!=L"Column" && *type!=L"TextBlock" && *type!=L"Image")return;
+    if(const auto* tooltip=Field(value,L"tooltip")){
+        if(tooltip->rfind(L"Battery ",0)==0||tooltip->rfind(L"バッテリー 残量 ",0)==0)known=true;
+        auto items=value.object.find(L"items");
+        if(items!=value.object.end())for(const auto& child:items->second.array){
+            const auto* childType=Field(child,L"type");const auto* text=Field(child,L"text");
+            int n=childType&&*childType==L"TextBlock"&&text?PercentText(*text):-1;
+            if(n<0||!HasNumber(*tooltip,n))continue;
+            if(percent>=0&&percent!=n)ambiguous=true;
+            percent=n;
+        }
+    }
+    for(const wchar_t* field:{L"body",L"items",L"columns"}){auto i=value.object.find(field);if(i!=value.object.end())AnyLocaleBattery(i->second,percent,ambiguous,known);}
+}
+// "Name - <localized status>": the name is the part before a " - " that the card also shows as a top-level TextBlock.
+inline bool CardName(const Value& root,const std::wstring& speak,std::wstring& name){
+    auto body=root.object.find(L"body");
+    if(body==root.object.end())return false;
+    for(size_t at=speak.rfind(L" - ");at!=std::wstring::npos&&at>0;at=speak.rfind(L" - ",at-1)){
+        const std::wstring prefix=speak.substr(0,at);
+        for(const auto& item:body->second.array){
+            const auto* type=Field(item,L"type");const auto* text=Field(item,L"text");
+            if(type&&*type==L"TextBlock"&&text&&*text==prefix){name=prefix;return true;}
+        }
+    }
+    return false;
+}
 } // namespace Detail
 inline bool Parse(const std::wstring& json,Reading& out){
     Detail::Value root;
     if(!Detail::Parser(json).Parse(root)||root.kind!=L'{')return false;
     const auto* speak=Detail::Field(root,L"speak");Reading parsed;
-    if(!speak||!ConnectedPhoneName(*speak,parsed.name))return false;
+    if(!speak)return false;
+    if(!ConnectedPhoneName(*speak,parsed.name)){
+        // Not English or Japanese. A card in a known language with another status (e.g. disconnected) is still rejected.
+        bool ambiguous=false,known=false;
+        Detail::AnyLocaleBattery(root,parsed.percent,ambiguous,known);
+        if(known||ambiguous||parsed.percent<0||!Detail::CardName(root,*speak,parsed.name))return false;
+        parsed.charging=false;  // The charging wording is localized; not read for these languages.
+        out=std::move(parsed);return true;
+    }
     const std::wstring suffix=L" - PC に接続しました";
     bool ja=speak->size()>=suffix.size() && speak->compare(speak->size()-suffix.size(),suffix.size(),suffix)==0;
     bool ambiguous=false;
